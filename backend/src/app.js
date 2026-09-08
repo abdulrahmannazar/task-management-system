@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const errorHandler = require('./middlewares/errorHandler');
 const buildRouter = require('./routes/crudRoutes');
-const prisma = require('../config/db');
+
 
 const app = express();
 
