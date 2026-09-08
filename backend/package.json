@@ -1,0 +1,17 @@
+{
+  "devDependencies": {
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3"
+  },
+  "scripts": {
+    "postinstall": "prisma skills sync || exit 0",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}
