@@ -25,14 +25,13 @@ model Employee {
   name          String     @db.VarChar(100)
   email         String     @unique @db.VarChar(150)
   password      String     @db.VarChar(255) 
-  role          String     @default("EMPLOYEE") @db.VarChar(20) // ADMIN, MANAGER, or EMPLOYEE
+  role          String     @default("EMPLOYEE") @db.VarChar(20) // Roles: ADMIN, MANAGER, EMPLOYEE
   is_active     Boolean    @default(true)
 
   // Relations
   department    Department @relation(fields: [department_id], references: [department_id])
   manager       Employee?  @relation("EmployeeHierarchy", fields: [manager_id], references: [emp_id])
   subordinates  Employee[] @relation("EmployeeHierarchy")
-
   loes_created  Loe[]      @relation("LoeCreator")
   loes_approved Loe[]      @relation("LoeApprover")
   jobs_managed  Job[]      @relation("JobManager")
