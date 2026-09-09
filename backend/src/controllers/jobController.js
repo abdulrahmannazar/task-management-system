@@ -2,12 +2,18 @@ const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 
 exports.create = asyncHandler(async (req, res) => {
-    const job = await prisma.job.create({ 
-        data: { 
-            ...req.body, 
-            deadline: req.body.deadline ? new Date(req.body.deadline) : null 
-        } 
+    // Explicitly mapping fields to ensure nothing is missed
+    const {  loe_id, status, deadline, manager_id } = req.body;
+
+    const job = await prisma.job.create({
+        data: {
+            loe_id: Number(loe_id),
+            status: status || "In Progress",
+            deadline: deadline ? new Date(deadline) : null,
+            manager_id: manager_id ? Number(manager_id) : null
+        }
     });
+
     res.status(201).json(job);
 });
 

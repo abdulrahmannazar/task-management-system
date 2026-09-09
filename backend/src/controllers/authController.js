@@ -3,6 +3,31 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middlewares/asyncHandler');
 
+exports.register = asyncHandler(async (req, res) => {
+    const { department_id, name, email, password, role } = req.body;
+
+    const existingUser = await prisma.employee.findUnique({ where: { email } });
+    if (existingUser) {
+        return res.status(400).json({ error: 'Email already registered.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await prisma.employee.create({
+        data: {
+            department_id,
+            name,
+            email,
+            password: hashedPassword,
+            role: role || 'EMPLOYEE' // Defaults to EMPLOYEE if none is selected
+        }
+    });
+
+    // Remove password from the response
+    delete user.password;
+    res.status(201).json({ message: 'Registration successful', user });
+});
+
 exports.login = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
