@@ -18,7 +18,7 @@ export default function ManagerDashboard() {
 
   const fetchLoes = async () => {
     try {
-      const url = `http://localhost:3000/api/loes/pending?department_id=${userDeptId}&role=${user?.role || 'MANAGER'}`;
+      const url = `https://task-management-system-6ifq.onrender.com/api/loes/pending?department_id=${userDeptId}&role=${user?.role || 'MANAGER'}`;
       
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -33,8 +33,8 @@ export default function ManagerDashboard() {
   const handleAction = async (loeId, action) => {
     try {
       const endpoint = action === 'approve' 
-        ? `http://localhost:3000/api/loes/${loeId}/approve`
-        : `http://localhost:3000/api/loes/${loeId}/reject`;
+        ? `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/approve`
+        : `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/reject`;
 
       const response = await fetch(endpoint, {
         method: 'PUT',
@@ -49,7 +49,6 @@ export default function ManagerDashboard() {
 
       if (!response.ok) throw new Error(`Failed to ${action} LOE`);
       
-      // Update the status on the screen without removing the card
       const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
       setApprovalLoes(prev => prev.map(loe => 
         loe.loe_id === loeId ? { ...loe, status: newStatus } : loe
@@ -63,11 +62,10 @@ export default function ManagerDashboard() {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied. Managers and Admins only.</div>;
   }
 
-  // Dynamic status color function
   const getStatusColor = (status) => {
     if (status === 'Approved') return '#28a745';
     if (status === 'Rejected') return '#dc3545';
-    return '#ffc107'; // Yellow for pending
+    return '#ffc107'; 
   };
 
   return (
@@ -110,7 +108,6 @@ export default function ManagerDashboard() {
                   </ul>
                 </div>
 
-                {/* Only show buttons if it is still pending */}
                 {loe.status === 'Approval Pending' ? (
                   <div style={styles.buttonGroup}>
                     <button onClick={() => handleAction(loe.loe_id, 'approve')} style={styles.approveBtn}>Approve</button>

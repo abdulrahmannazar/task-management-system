@@ -17,8 +17,7 @@ export default function LoeManager() {
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
-
-  // Define who is allowed to see the form and edit buttons
+  
   const canEdit = user.role === 'ADMIN' || user.role === 'MANAGER';
 
   useEffect(() => {
@@ -29,7 +28,7 @@ export default function LoeManager() {
   const fetchLoes = async () => {
     try {
       if (!token) return setError("Invalid token.");
-      const response = await fetch('http://localhost:3000/api/loes', {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/loes', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -42,7 +41,7 @@ export default function LoeManager() {
   const fetchServices = async () => {
     try {
       if (!token) return;
-      const response = await fetch('http://localhost:3000/api/services', {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/services', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -95,8 +94,8 @@ export default function LoeManager() {
     setError('');
 
     const url = editingId 
-      ? `http://localhost:3000/api/loes/${editingId}` 
-      : 'http://localhost:3000/api/loes';
+      ? `https://task-management-system-6ifq.onrender.com/api/loes/${editingId}`
+      : 'https://task-management-system-6ifq.onrender.com/api/loes';
       
     const method = editingId ? 'PUT' : 'POST';
 
@@ -122,7 +121,7 @@ export default function LoeManager() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to save LOE');
 
-      await fetchLoes(); 
+      await fetchLoes();
       
       setEditingId(null);
       setFormData({ company_id: '', status: 'Draft', type: 'Standard', start_date: '', loe_items: [] });
@@ -136,7 +135,6 @@ export default function LoeManager() {
       <Navbar />
       <div style={styles.container}>
         
-        {/* Only render the form section if the user is an Admin or Manager */}
         {canEdit && (
           <div style={styles.formSection}>
             <h2>{editingId ? 'Edit LOE' : 'Create New LOE'}</h2>
@@ -144,12 +142,14 @@ export default function LoeManager() {
             
             <form onSubmit={handleSubmit} style={styles.form}>
               <input type="number" name="company_id" value={formData.company_id} onChange={handleChange} placeholder="Company ID" required style={styles.input} />
+              
               <select name="status" value={formData.status} onChange={handleChange} style={styles.input}>
                 <option value="Draft">Draft</option>
                 <option value="Approval Pending">Approval Pending</option>
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
               </select>
+
               <input type="text" name="type" value={formData.type} onChange={handleChange} placeholder="LOE Type" required style={styles.input} />
               <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} required style={styles.input} />
 
@@ -159,7 +159,7 @@ export default function LoeManager() {
                   <div key={index} style={styles.itemRow}>
                     <select 
                       value={item.service_id} 
-                      onChange={(e) => handleItemChange(index, 'service_id', e.target.value)} 
+                      onChange={(e) => handleItemChange(index, 'service_id', e.target.value)}
                       style={styles.itemSelect} required
                     >
                       <option value="" disabled>Select Service</option>
@@ -197,7 +197,6 @@ export default function LoeManager() {
                   <p><strong>Status:</strong> {loe.status}</p>
                   <p><strong>Services Included:</strong> {loe.loe_items?.length || 0}</p>
                   
-                  {/* Only render the edit button if the user is an Admin or Manager */}
                   {canEdit && (
                     <button onClick={() => handleEdit(loe)} style={styles.editButton}>Edit</button>
                   )}
