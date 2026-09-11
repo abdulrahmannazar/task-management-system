@@ -14,7 +14,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/auth/departments')
+    fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -36,7 +36,7 @@ export default function Register() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/register', {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

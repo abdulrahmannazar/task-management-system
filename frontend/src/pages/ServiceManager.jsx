@@ -25,7 +25,7 @@ export default function ServiceManager() {
 
   const fetchServices = async () => {
     try {
-      const url = `http://localhost:3000/api/services?department_id=${userDeptId}&role=${user?.role || 'MANAGER'}`;
+      const url = `https://task-management-system-6ifq.onrender.com/api/services?department_id=${userDeptId}&role=${user?.role || 'MANAGER'}`;
       const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
       if (response.ok) setServices(data);
@@ -55,8 +55,9 @@ export default function ServiceManager() {
     setError('');
 
     const url = editingId 
-      ? `http://localhost:3000/api/services/${editingId}` 
-      : 'http://localhost:3000/api/services';
+      ? `https://task-management-system-6ifq.onrender.com/api/services/${editingId}`
+      : 'https://task-management-system-6ifq.onrender.com/api/services';
+      
     const method = editingId ? 'PUT' : 'POST';
 
     try {
@@ -67,7 +68,7 @@ export default function ServiceManager() {
       });
 
       if (!response.ok) throw new Error('Failed to save service');
-
+      
       await fetchServices();
       setEditingId(null);
       setFormData({ department_id: isAdmin ? '' : userDeptId, name: '', sub_category: '', billing_type: 'Fixed', is_active: true });
