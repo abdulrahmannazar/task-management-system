@@ -1,0 +1,19 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: #f4f6f8;
+  color: #333;
+  line-height: 1.5;
+}
+
+/* Removes default focus outlines and adds a smoother blue ring for accessibility */
+input:focus, select:focus, button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  border-color: #007bff;
+}
