@@ -131,6 +131,9 @@ export default function CompanyManager() {
                   placeholder="e.g. Nexus Corp Ltd"
                   required
                   style={styles.input}
+
+
+                  
                 />
               </div>
 
