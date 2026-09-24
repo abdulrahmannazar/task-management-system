@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 export default function LoeManager() {
   const [loes, setLoes] = useState([]);
   const [services, setServices] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [formData, setFormData] = useState({
     company_id: '',
     status: 'Draft',
@@ -23,6 +24,7 @@ export default function LoeManager() {
   useEffect(() => {
     fetchLoes();
     fetchServices();
+    fetchCompanies();
   }, []);
 
   const fetchLoes = async () => {
@@ -48,6 +50,21 @@ export default function LoeManager() {
       if (response.ok && Array.isArray(data)) setServices(data);
     } catch (err) {
       console.error('Failed to load services', err);
+    }
+  };
+
+  const fetchCompanies = async () => {
+    try {
+      if (!token) return;
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCompanies(Array.isArray(data) ? data : data.companies || []);
+      }
+    } catch (err) {
+      console.error('Failed to load companies', err);
     }
   };
 
@@ -130,19 +147,38 @@ export default function LoeManager() {
     }
   };
 
+  const getCompanyName = (companyId) => {
+    const found = companies.find(c => c.company_id === companyId);
+    return found ? (found.name || found.company_name) : `Company ID: ${companyId}`;
+  };
+
   return (
     <div style={styles.pageContainer}>
       <Navbar />
       <div style={styles.container}>
         
+        {/* Only render the form section if the user is an Admin or Manager */}
         {canEdit && (
           <div style={styles.formSection}>
             <h2>{editingId ? 'Edit LOE' : 'Create New LOE'}</h2>
             {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
             
             <form onSubmit={handleSubmit} style={styles.form}>
-              <input type="number" name="company_id" value={formData.company_id} onChange={handleChange} placeholder="Company ID" required style={styles.input} />
-              
+              <select 
+                name="company_id" 
+                value={formData.company_id} 
+                onChange={handleChange} 
+                required 
+                style={styles.input}
+              >
+                <option value="" disabled>Select Company</option>
+                {companies.map((comp) => (
+                  <option key={comp.company_id} value={comp.company_id}>
+                    {comp.name || comp.company_name || `Company #${comp.company_id}`}
+                  </option>
+                ))}
+              </select>
+
               <select name="status" value={formData.status} onChange={handleChange} style={styles.input}>
                 <option value="Draft">Draft</option>
                 <option value="Approval Pending">Approval Pending</option>
@@ -193,10 +229,11 @@ export default function LoeManager() {
               {loes.map((loe) => (
                 <div key={loe.loe_id} style={styles.card}>
                   <p><strong>LOE ID:</strong> {loe.loe_id}</p>
-                  <p><strong>Company ID:</strong> {loe.company_id}</p>
+                  <p><strong>Company:</strong> {getCompanyName(loe.company_id)}</p>
                   <p><strong>Status:</strong> {loe.status}</p>
                   <p><strong>Services Included:</strong> {loe.loe_items?.length || 0}</p>
                   
+                  {/* Only render the edit button if the user is an Admin or Manager */}
                   {canEdit && (
                     <button onClick={() => handleEdit(loe)} style={styles.editButton}>Edit</button>
                   )}
