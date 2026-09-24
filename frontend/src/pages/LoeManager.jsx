@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar';
 
 export default function LoeManager() {
   const [loes, setLoes] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [formData, setFormData] = useState({
@@ -23,6 +24,7 @@ export default function LoeManager() {
 
   useEffect(() => {
     fetchLoes();
+    fetchDepartments();
     fetchServices();
     fetchCompanies();
   }, []);
@@ -37,6 +39,16 @@ export default function LoeManager() {
       if (response.ok) setLoes(Array.isArray(data) ? data : data.loes || []);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) setDepartments(data);
+    } catch (err) {
+      console.error('Failed to load departments', err);
     }
   };
 
@@ -75,7 +87,10 @@ export default function LoeManager() {
   const addServiceRow = () => {
     setFormData(prev => ({
       ...prev,
-      loe_items: [...prev.loe_items, { service_id: services[0]?.service_id || '', custom_scope: '', amount: '' }]
+      loe_items: [
+        ...prev.loe_items, 
+        { department_id: '', service_id: '', custom_scope: '', amount: '' }
+      ]
     }));
   };
 
@@ -83,6 +98,18 @@ export default function LoeManager() {
     setFormData(prev => {
       const newItems = [...prev.loe_items];
       newItems.splice(index, 1);
+      return { ...prev, loe_items: newItems };
+    });
+  };
+
+  const handleDepartmentChange = (index, deptId) => {
+    setFormData(prev => {
+      const newItems = [...prev.loe_items];
+      newItems[index] = {
+        ...newItems[index],
+        department_id: deptId,
+        service_id: '' // Reset the service when the department switches
+      };
       return { ...prev, loe_items: newItems };
     });
   };
@@ -97,12 +124,22 @@ export default function LoeManager() {
 
   const handleEdit = (loe) => {
     setEditingId(loe.loe_id);
+    
+    // Map items to include their department_id for proper dropdown selection
+    const mappedItems = (loe.loe_items || []).map(item => {
+      const matchedSrv = services.find(s => s.service_id === item.service_id);
+      return {
+        ...item,
+        department_id: item.department_id || (matchedSrv ? matchedSrv.department_id : '')
+      };
+    });
+
     setFormData({
       company_id: loe.company_id,
       status: loe.status,
       type: loe.type,
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
-      loe_items: loe.loe_items || [] 
+      loe_items: mappedItems 
     });
   };
 
@@ -191,24 +228,72 @@ export default function LoeManager() {
 
               <div style={styles.itemsWrapper}>
                 <h3 style={{ fontSize: '16px', margin: '10px 0' }}>Services & Scope</h3>
-                {formData.loe_items.map((item, index) => (
-                  <div key={index} style={styles.itemRow}>
-                    <select 
-                      value={item.service_id} 
-                      onChange={(e) => handleItemChange(index, 'service_id', e.target.value)}
-                      style={styles.itemSelect} required
-                    >
-                      <option value="" disabled>Select Service</option>
-                      {services.map(srv => (
-                        <option key={srv.service_id} value={srv.service_id}>{srv.name || `Service ID: ${srv.service_id}`}</option>
-                      ))}
-                    </select>
-                    
-                    <input type="text" placeholder="Typed Scope" value={item.custom_scope || ''} onChange={(e) => handleItemChange(index, 'custom_scope', e.target.value)} style={styles.itemInput} required />
-                    <input type="number" placeholder="Amount ($)" value={item.amount || ''} onChange={(e) => handleItemChange(index, 'amount', e.target.value)} style={styles.itemInput} required />
-                    <button type="button" onClick={() => removeServiceRow(index)} style={styles.removeBtn}>X</button>
-                  </div>
-                ))}
+                {formData.loe_items.map((item, index) => {
+                  const departmentServices = services.filter(
+                    srv => srv.department_id === Number(item.department_id)
+                  );
+
+                  return (
+                    <div key={index} style={styles.itemRow}>
+                      {/* Step 1: Department Selection */}
+                      <select 
+                        value={item.department_id || ''} 
+                        onChange={(e) => handleDepartmentChange(index, e.target.value)}
+                        style={styles.itemSelect} 
+                        required
+                      >
+                        <option value="" disabled>Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.department_id} value={dept.department_id}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Step 2: Department-specific Services */}
+                      <select 
+                        value={item.service_id || ''} 
+                        onChange={(e) => handleItemChange(index, 'service_id', e.target.value)}
+                        style={styles.itemSelect} 
+                        disabled={!item.department_id}
+                        required
+                      >
+                        <option value="" disabled>
+                          {!item.department_id 
+                            ? 'Select Department First' 
+                            : departmentServices.length === 0 
+                              ? 'No services available' 
+                              : 'Select Service'}
+                        </option>
+                        {departmentServices.map(srv => (
+                          <option key={srv.service_id} value={srv.service_id}>
+                            {srv.name}
+                          </option>
+                        ))}
+                      </select>
+                      
+                      <input 
+                        type="text" 
+                        placeholder="Typed Scope" 
+                        value={item.custom_scope || ''} 
+                        onChange={(e) => handleItemChange(index, 'custom_scope', e.target.value)} 
+                        style={styles.itemInput} 
+                        required 
+                      />
+                      
+                      <input 
+                        type="number" 
+                        placeholder="Amount ($)" 
+                        value={item.amount || ''} 
+                        onChange={(e) => handleItemChange(index, 'amount', e.target.value)} 
+                        style={styles.itemAmountInput} 
+                        required 
+                      />
+                      
+                      <button type="button" onClick={() => removeServiceRow(index)} style={styles.removeBtn}>X</button>
+                    </div>
+                  );
+                })}
                 <button type="button" onClick={addServiceRow} style={styles.addBtn}>+ Add Service</button>
               </div>
 
@@ -250,14 +335,15 @@ export default function LoeManager() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { display: 'flex', gap: '40px', padding: '40px' },
-  formSection: { flex: '1', background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
-  listSection: { flex: '2' },
+  formSection: { flex: '1.2', background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
+  listSection: { flex: '1.8' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
   itemsWrapper: { padding: '15px', background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px' },
-  itemRow: { display: 'flex', gap: '10px', marginBottom: '10px' },
-  itemSelect: { flex: '1', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' },
-  itemInput: { flex: '1', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' },
+  itemRow: { display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' },
+  itemSelect: { flex: '1', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
+  itemInput: { flex: '1.2', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
+  itemAmountInput: { width: '90px', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
   removeBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   addBtn: { width: '100%', padding: '8px', background: '#e9ecef', color: '#333', border: '1px dashed #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
