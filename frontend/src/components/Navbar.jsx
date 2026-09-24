@@ -6,8 +6,9 @@ export default function Navbar() {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/login'); // Change this line
+    navigate('/login');
   };
+
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   return (
@@ -16,11 +17,16 @@ export default function Navbar() {
       <div style={styles.links}>
         <Link to="/dashboard" style={styles.link}>Dashboard</Link>
         <Link to="/loes" style={styles.link}>LOE Manager</Link>
-        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (<Link to="/approvals" style={styles.link}>Approvals</Link>)}
-        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (<Link to="/services" style={styles.link}>Services</Link>)}
-
+        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+          <Link to="/approvals" style={styles.link}>Approvals</Link>
+        )}
+        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+          <Link to="/services" style={styles.link}>Services</Link>
+        )}
+        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+          <Link to="/companies" style={styles.link}>Companies</Link>
+        )}
         <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-
       </div>
     </nav>
   );
