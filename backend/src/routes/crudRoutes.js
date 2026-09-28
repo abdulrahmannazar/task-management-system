@@ -1,29 +1,36 @@
 const express = require('express');
 
-const buildRouter = (controller) => {
+const createCrudRouter = (controller) => {
   const router = express.Router();
 
-  // 1. SPECIFIC CUSTOM ROUTES (Must go first)
+  // Specific routes
   if (controller.getPending) {
     router.get('/pending', controller.getPending);
   }
-  
+
+  // Standard collection routes
+  router.get('/', controller.getAll);
+  router.post('/', controller.create);
+
+  // PDF download route
+  if (controller.generatePdf) {
+    router.get('/:id/pdf', controller.generatePdf);
+  }
+
+  // Action routes
   if (controller.approve) {
     router.put('/:id/approve', controller.approve);
   }
-  
   if (controller.reject) {
     router.put('/:id/reject', controller.reject);
   }
 
-  // 2. STANDARD CRUD ROUTES (Wildcard /:id must go last)
-  if (controller.getAll) router.get('/', controller.getAll);
-  if (controller.getById) router.get('/:id', controller.getById);
-  if (controller.create) router.post('/', controller.create);
-  if (controller.update) router.put('/:id', controller.update);
-  if (controller.remove) router.delete('/:id', controller.remove);
+  // Parametric ID routes
+  router.get('/:id', controller.getById);
+  router.put('/:id', controller.update);
+  router.delete('/:id', controller.remove || controller.delete);
 
   return router;
 };
 
-module.exports = buildRouter;
+module.exports = createCrudRouter;

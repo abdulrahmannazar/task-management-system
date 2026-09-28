@@ -6,6 +6,7 @@ export default function LoeManager() {
   const [departments, setDepartments] = useState([]);
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
+  const [downloadingId, setDownloadingId] = useState(null);
   const [formData, setFormData] = useState({
     company_id: '',
     status: 'Draft',
@@ -108,7 +109,7 @@ export default function LoeManager() {
       newItems[index] = {
         ...newItems[index],
         department_id: deptId,
-        service_id: '' // Reset the service when the department switches
+        service_id: ''
       };
       return { ...prev, loe_items: newItems };
     });
@@ -125,7 +126,6 @@ export default function LoeManager() {
   const handleEdit = (loe) => {
     setEditingId(loe.loe_id);
     
-    // Map items to include their department_id for proper dropdown selection
     const mappedItems = (loe.loe_items || []).map(item => {
       const matchedSrv = services.find(s => s.service_id === item.service_id);
       return {
@@ -184,6 +184,38 @@ export default function LoeManager() {
     }
   };
 
+  const handleDownloadPdf = async (loeId) => {
+    try {
+      setDownloadingId(loeId);
+      setError('');
+
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate PDF document');
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `LOE-${loeId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      setError(err.message || 'Error generating PDF');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const getCompanyName = (companyId) => {
     const found = companies.find(c => c.company_id === companyId);
     return found ? (found.name || found.company_name) : `Company ID: ${companyId}`;
@@ -194,7 +226,7 @@ export default function LoeManager() {
       <Navbar />
       <div style={styles.container}>
         
-        {/* Only render the form section if the user is an Admin or Manager */}
+        {/* LOE Creation/Editing Form */}
         {canEdit && (
           <div style={styles.formSection}>
             <h2>{editingId ? 'Edit LOE' : 'Create New LOE'}</h2>
@@ -235,7 +267,6 @@ export default function LoeManager() {
 
                   return (
                     <div key={index} style={styles.itemRow}>
-                      {/* Step 1: Department Selection */}
                       <select 
                         value={item.department_id || ''} 
                         onChange={(e) => handleDepartmentChange(index, e.target.value)}
@@ -250,7 +281,6 @@ export default function LoeManager() {
                         ))}
                       </select>
 
-                      {/* Step 2: Department-specific Services */}
                       <select 
                         value={item.service_id || ''} 
                         onChange={(e) => handleItemChange(index, 'service_id', e.target.value)}
@@ -307,6 +337,7 @@ export default function LoeManager() {
           </div>
         )}
 
+        {/* Existing LOEs List */}
         <div style={styles.listSection}>
           <h2>Available Letters of Engagement</h2>
           {loes.length === 0 ? <p>No LOEs found.</p> : (
@@ -318,10 +349,20 @@ export default function LoeManager() {
                   <p><strong>Status:</strong> {loe.status}</p>
                   <p><strong>Services Included:</strong> {loe.loe_items?.length || 0}</p>
                   
-                  {/* Only render the edit button if the user is an Admin or Manager */}
-                  {canEdit && (
-                    <button onClick={() => handleEdit(loe)} style={styles.editButton}>Edit</button>
-                  )}
+                  <div style={styles.cardActions}>
+                    {canEdit && (
+                      <button onClick={() => handleEdit(loe)} style={styles.editButton}>
+                        Edit
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => handleDownloadPdf(loe.loe_id)} 
+                      disabled={downloadingId === loe.loe_id}
+                      style={styles.downloadButton}
+                    >
+                      {downloadingId === loe.loe_id ? 'Generating...' : 'Download PDF'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -349,7 +390,9 @@ const styles = {
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
   button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', marginTop: '15px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px', marginTop: '15px' },
   card: { background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-  editButton: { marginTop: '10px', padding: '5px 15px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
+  cardActions: { display: 'flex', gap: '8px', marginTop: '12px' },
+  editButton: { flex: '1', padding: '6px 12px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  downloadButton: { flex: '1.4', padding: '6px 12px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };
