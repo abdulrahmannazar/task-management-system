@@ -1,5 +1,6 @@
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
+const { generateLoePdf } = require('../services/pdfService');
 
 // ==========================================
 // STANDARD CRUD ENDPOINTS
@@ -15,8 +16,6 @@ exports.getAll = asyncHandler(async (req, res) => {
 
 exports.getById = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
-  
-  // Add this safeguard to block 'NaN'
   if (isNaN(loeId)) {
     return res.status(400).json({ error: 'Invalid LOE ID format' });
   }
@@ -52,6 +51,9 @@ exports.create = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
   const { company_id, status, type, start_date, end_date, loe_items } = req.body;
   const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) {
+    return res.status(400).json({ error: 'Invalid LOE ID format' });
+  }
 
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
@@ -74,6 +76,9 @@ exports.update = asyncHandler(async (req, res) => {
 
 const deleteLoe = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) {
+    return res.status(400).json({ error: 'Invalid LOE ID format' });
+  }
   await prisma.loe.delete({ where: { loe_id: loeId } });
   res.json({ message: 'LOE deleted successfully' });
 });
@@ -90,19 +95,14 @@ exports.getPending = asyncHandler(async (req, res) => {
   const deptId = parseInt(req.query.department_id);
 
   const query = {
-    // Fetch Pending, Approved, and Rejected LOEs (everything except Drafts)
-    where: { 
-      status: { in: ['Approval Pending', 'Approved', 'Rejected'] } 
-    },
+    where: { status: 'Approval Pending' },
     include: {
       loe_items: {
         include: { service: true } 
       }
-    },
-    orderBy: { loe_id: 'desc' } // Newest first
+    }
   };
 
-  // If NOT Admin, restrict to the manager's specific department
   if (role !== 'ADMIN') {
     query.where.loe_items = {
       some: { service: { department_id: deptId } }
@@ -118,6 +118,9 @@ exports.getPending = asyncHandler(async (req, res) => {
 
 exports.approve = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) {
+    return res.status(400).json({ error: 'Invalid LOE ID format' });
+  }
   const { emp_id } = req.body;
 
   const updatedLoe = await prisma.loe.update({
@@ -133,6 +136,9 @@ exports.approve = asyncHandler(async (req, res) => {
 
 exports.reject = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) {
+    return res.status(400).json({ error: 'Invalid LOE ID format' });
+  }
   
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
@@ -140,4 +146,43 @@ exports.reject = asyncHandler(async (req, res) => {
   });
   
   res.json(updatedLoe);
+});
+
+// ==========================================
+// PDF GENERATION ENDPOINT
+// ==========================================
+
+exports.generatePdf = asyncHandler(async (req, res) => {
+  const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) {
+    return res.status(400).json({ error: 'Invalid LOE ID format' });
+  }
+
+  // 1. Fetch LOE with items and their nested service details
+  const loe = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: {
+      loe_items: {
+        include: { service: true }
+      }
+    }
+  });
+
+  if (!loe) {
+    return res.status(404).json({ error: 'LOE record not found' });
+  }
+
+  // 2. Fetch associated company details
+  const company = await prisma.company.findUnique({
+    where: { company_id: loe.company_id }
+  });
+
+  // 3. Render HTML and generate PDF buffer
+  const pdfBuffer = await generateLoePdf({ loe, company });
+
+  // 4. Return binary stream with download headers
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=LOE-${loe.loe_id}.pdf`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.end(pdfBuffer);
 });
