@@ -15,14 +15,23 @@ async function generateLoePdf({ loe, company }) {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process', // Critical: keeps memory footprint low on Render free tier
       '--disable-gpu'
     ]
   });
 
   try {
     const page = await browser.newPage();
+
+    // Disable unnecessary timeouts and render purely from DOM readiness
+    page.setDefaultNavigationTimeout(60000);
+
     await page.setContent(htmlContent, {
-      waitUntil: 'networkidle0'
+      waitUntil: 'domcontentloaded',
+      timeout: 60000
     });
 
     const pdfBuffer = await page.pdf({
