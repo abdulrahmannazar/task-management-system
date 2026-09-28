@@ -9,12 +9,12 @@ export default function LoeManager() {
   const [downloadingId, setDownloadingId] = useState(null);
   const [formData, setFormData] = useState({
     company_id: '',
-    status: 'Draft',
     type: 'Standard',
     start_date: '',
     loe_items: [] 
   });
   const [editingId, setEditingId] = useState(null);
+  const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
   const [error, setError] = useState('');
 
   const token = localStorage.getItem('token');
@@ -90,7 +90,7 @@ export default function LoeManager() {
       ...prev,
       loe_items: [
         ...prev.loe_items, 
-        { department_id: '', service_id: '', custom_scope: '', amount: '' }
+        { department_id: '', service_id: '', amount: '' }
       ]
     }));
   };
@@ -115,28 +115,43 @@ export default function LoeManager() {
     });
   };
 
-  const handleItemChange = (index, field, value) => {
+  const handleServiceChange = (index, serviceId) => {
     setFormData(prev => {
       const newItems = [...prev.loe_items];
-      newItems[index][field] = value;
+      newItems[index] = {
+        ...newItems[index],
+        service_id: serviceId
+      };
+      return { ...prev, loe_items: newItems };
+    });
+  };
+
+  const handleAmountChange = (index, amount) => {
+    setFormData(prev => {
+      const newItems = [...prev.loe_items];
+      newItems[index] = {
+        ...newItems[index],
+        amount: amount
+      };
       return { ...prev, loe_items: newItems };
     });
   };
 
   const handleEdit = (loe) => {
     setEditingId(loe.loe_id);
-    
+    setEditingPreviousStatus(loe.status);
+
     const mappedItems = (loe.loe_items || []).map(item => {
       const matchedSrv = services.find(s => s.service_id === item.service_id);
       return {
-        ...item,
-        department_id: item.department_id || (matchedSrv ? matchedSrv.department_id : '')
+        department_id: matchedSrv ? matchedSrv.department_id : '',
+        service_id: item.service_id,
+        amount: item.amount
       };
     });
 
     setFormData({
       company_id: loe.company_id,
-      status: loe.status,
       type: loe.type,
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
       loe_items: mappedItems 
@@ -153,6 +168,16 @@ export default function LoeManager() {
       
     const method = editingId ? 'PUT' : 'POST';
 
+    // Map each service item and extract its scope directly from the predefined service
+    const preparedItems = formData.loe_items.map(item => {
+      const matchedSrv = services.find(s => s.service_id === Number(item.service_id));
+      return {
+        service_id: Number(item.service_id),
+        custom_scope: matchedSrv?.scope || matchedSrv?.name || 'Standard Service Scope',
+        amount: Number(item.amount)
+      };
+    });
+
     try {
       const response = await fetch(url, {
         method,
@@ -161,14 +186,12 @@ export default function LoeManager() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          ...formData,
           company_id: Number(formData.company_id),
           created_by: user.emp_id || 2, 
-          loe_items: formData.loe_items.map(item => ({
-            service_id: Number(item.service_id),
-            custom_scope: item.custom_scope,
-            amount: Number(item.amount)
-          }))
+          type: formData.type,
+          start_date: formData.start_date,
+          status: 'Approval Pending', // Automatically send new and edited LOEs for approval
+          loe_items: preparedItems
         })
       });
 
@@ -178,7 +201,8 @@ export default function LoeManager() {
       await fetchLoes();
       
       setEditingId(null);
-      setFormData({ company_id: '', status: 'Draft', type: 'Standard', start_date: '', loe_items: [] });
+      setEditingPreviousStatus(null);
+      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_items: [] });
     } catch (err) {
       setError(err.message);
     }
@@ -190,9 +214,7 @@ export default function LoeManager() {
       setError('');
 
       const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/pdf`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (!response.ok) {
@@ -221,15 +243,29 @@ export default function LoeManager() {
     return found ? (found.name || found.company_name) : `Company ID: ${companyId}`;
   };
 
+  const getStatusBadgeStyle = (status) => {
+    if (status === 'Approved') return { background: '#28a745', color: '#fff' };
+    if (status === 'Rejected') return { background: '#dc3545', color: '#fff' };
+    if (status === 'Approval Pending') return { background: '#ffc107', color: '#000' };
+    return { background: '#6c757d', color: '#fff' };
+  };
+
   return (
     <div style={styles.pageContainer}>
       <Navbar />
       <div style={styles.container}>
         
-        {/* LOE Creation/Editing Form */}
+        {/* Create / Edit LOE Form */}
         {canEdit && (
           <div style={styles.formSection}>
-            <h2>{editingId ? 'Edit LOE' : 'Create New LOE'}</h2>
+            <h2>{editingId ? `Edit LOE #${editingId}` : 'Create New LOE'}</h2>
+            
+            {editingId && editingPreviousStatus === 'Rejected' && (
+              <div style={styles.resubmitNotice}>
+                ⚠️ This LOE was previously <strong>Rejected</strong>. Saving revisions will resubmit it for approval.
+              </div>
+            )}
+
             {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
             
             <form onSubmit={handleSubmit} style={styles.form}>
@@ -248,89 +284,116 @@ export default function LoeManager() {
                 ))}
               </select>
 
-              <select name="status" value={formData.status} onChange={handleChange} style={styles.input}>
-                <option value="Draft">Draft</option>
-                <option value="Approval Pending">Approval Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
+              <input 
+                type="text" 
+                name="type" 
+                value={formData.type} 
+                onChange={handleChange} 
+                placeholder="LOE Type (e.g. Standard, Retainer)" 
+                required 
+                style={styles.input} 
+              />
 
-              <input type="text" name="type" value={formData.type} onChange={handleChange} placeholder="LOE Type" required style={styles.input} />
-              <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} required style={styles.input} />
+              <input 
+                type="date" 
+                name="start_date" 
+                value={formData.start_date} 
+                onChange={handleChange} 
+                required 
+                style={styles.input} 
+              />
 
               <div style={styles.itemsWrapper}>
-                <h3 style={{ fontSize: '16px', margin: '10px 0' }}>Services & Scope</h3>
+                <h3 style={{ fontSize: '15px', margin: '0 0 10px 0' }}>Services &amp; Pricing</h3>
+                
                 {formData.loe_items.map((item, index) => {
                   const departmentServices = services.filter(
                     srv => srv.department_id === Number(item.department_id)
                   );
+                  const selectedSrv = services.find(s => s.service_id === Number(item.service_id));
 
                   return (
-                    <div key={index} style={styles.itemRow}>
-                      <select 
-                        value={item.department_id || ''} 
-                        onChange={(e) => handleDepartmentChange(index, e.target.value)}
-                        style={styles.itemSelect} 
-                        required
-                      >
-                        <option value="" disabled>Select Department</option>
-                        {departments.map(dept => (
-                          <option key={dept.department_id} value={dept.department_id}>
-                            {dept.name}
-                          </option>
-                        ))}
-                      </select>
+                    <div key={index} style={styles.itemContainer}>
+                      <div style={styles.itemRow}>
+                        {/* Step 1: Department */}
+                        <select 
+                          value={item.department_id || ''} 
+                          onChange={(e) => handleDepartmentChange(index, e.target.value)}
+                          style={styles.itemSelect} 
+                          required
+                        >
+                          <option value="" disabled>Select Department</option>
+                          {departments.map(dept => (
+                            <option key={dept.department_id} value={dept.department_id}>
+                              {dept.name}
+                            </option>
+                          ))}
+                        </select>
 
-                      <select 
-                        value={item.service_id || ''} 
-                        onChange={(e) => handleItemChange(index, 'service_id', e.target.value)}
-                        style={styles.itemSelect} 
-                        disabled={!item.department_id}
-                        required
-                      >
-                        <option value="" disabled>
-                          {!item.department_id 
-                            ? 'Select Department First' 
-                            : departmentServices.length === 0 
-                              ? 'No services available' 
-                              : 'Select Service'}
-                        </option>
-                        {departmentServices.map(srv => (
-                          <option key={srv.service_id} value={srv.service_id}>
-                            {srv.name}
+                        {/* Step 2: Service */}
+                        <select 
+                          value={item.service_id || ''} 
+                          onChange={(e) => handleServiceChange(index, e.target.value)}
+                          style={styles.itemSelect} 
+                          disabled={!item.department_id}
+                          required
+                        >
+                          <option value="" disabled>
+                            {!item.department_id 
+                              ? 'Select Dept First' 
+                              : departmentServices.length === 0 
+                                ? 'No services found' 
+                                : 'Select Service'}
                           </option>
-                        ))}
-                      </select>
-                      
-                      <input 
-                        type="text" 
-                        placeholder="Typed Scope" 
-                        value={item.custom_scope || ''} 
-                        onChange={(e) => handleItemChange(index, 'custom_scope', e.target.value)} 
-                        style={styles.itemInput} 
-                        required 
-                      />
-                      
-                      <input 
-                        type="number" 
-                        placeholder="Amount ($)" 
-                        value={item.amount || ''} 
-                        onChange={(e) => handleItemChange(index, 'amount', e.target.value)} 
-                        style={styles.itemAmountInput} 
-                        required 
-                      />
-                      
-                      <button type="button" onClick={() => removeServiceRow(index)} style={styles.removeBtn}>X</button>
+                          {departmentServices.map(srv => (
+                            <option key={srv.service_id} value={srv.service_id}>
+                              {srv.name}
+                            </option>
+                          ))}
+                        </select>
+                        
+                        {/* Step 3: Fee */}
+                        <input 
+                          type="number" 
+                          placeholder="Amount ($)" 
+                          value={item.amount || ''} 
+                          onChange={(e) => handleAmountChange(index, e.target.value)} 
+                          style={styles.itemAmountInput} 
+                          required 
+                        />
+                        
+                        <button type="button" onClick={() => removeServiceRow(index)} style={styles.removeBtn}>X</button>
+                      </div>
+
+                      {/* Display the service's predefined scope automatically */}
+                      {selectedSrv && (
+                        <div style={styles.scopePreview}>
+                          <strong>Includes:</strong> {selectedSrv.scope || 'Standard service deliverables.'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
+
                 <button type="button" onClick={addServiceRow} style={styles.addBtn}>+ Add Service</button>
               </div>
 
               <div style={styles.buttonGroup}>
-                <button type="submit" style={styles.button}>{editingId ? 'Update LOE' : 'Create LOE'}</button>
+                <button type="submit" style={styles.button}>
+                  {editingId ? 'Resubmit for Approval' : 'Submit for Approval'}
+                </button>
                 {editingId && (
-                  <button type="button" onClick={() => { setEditingId(null); setFormData({ company_id: '', status: 'Draft', type: 'Standard', start_date: '', loe_items: [] }); }} style={styles.cancelButton}>Cancel</button>
+                  <button 
+                    type="button" 
+                    onClick={() => { 
+                      setEditingId(null); 
+                      setEditingPreviousStatus(null);
+                      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_items: [] }); 
+                    }} 
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </button>
                 )}
               </div>
             </form>
@@ -342,29 +405,43 @@ export default function LoeManager() {
           <h2>Available Letters of Engagement</h2>
           {loes.length === 0 ? <p>No LOEs found.</p> : (
             <div style={styles.grid}>
-              {loes.map((loe) => (
-                <div key={loe.loe_id} style={styles.card}>
-                  <p><strong>LOE ID:</strong> {loe.loe_id}</p>
-                  <p><strong>Company:</strong> {getCompanyName(loe.company_id)}</p>
-                  <p><strong>Status:</strong> {loe.status}</p>
-                  <p><strong>Services Included:</strong> {loe.loe_items?.length || 0}</p>
-                  
-                  <div style={styles.cardActions}>
-                    {canEdit && (
-                      <button onClick={() => handleEdit(loe)} style={styles.editButton}>
-                        Edit
-                      </button>
+              {loes.map((loe) => {
+                const badgeStyle = getStatusBadgeStyle(loe.status);
+
+                return (
+                  <div key={loe.loe_id} style={styles.card}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ margin: 0, fontSize: '17px' }}>LOE ID: {loe.loe_id}</h3>
+                      <span style={{ ...styles.badge, ...badgeStyle }}>{loe.status}</span>
+                    </div>
+
+                    <p style={{ marginTop: '8px', marginBottom: '4px' }}><strong>Company:</strong> {getCompanyName(loe.company_id)}</p>
+                    <p style={{ margin: '4px 0' }}><strong>Services Included:</strong> {loe.loe_items?.length || 0}</p>
+                    
+                    {/* Rejection message box */}
+                    {loe.status === 'Rejected' && (
+                      <div style={styles.rejectedBanner}>
+                        This LOE was rejected by management. Click <strong>Edit</strong> to revise and resubmit.
+                      </div>
                     )}
-                    <button 
-                      onClick={() => handleDownloadPdf(loe.loe_id)} 
-                      disabled={downloadingId === loe.loe_id}
-                      style={styles.downloadButton}
-                    >
-                      {downloadingId === loe.loe_id ? 'Generating...' : 'Download PDF'}
-                    </button>
+
+                    <div style={styles.cardActions}>
+                      {canEdit && (
+                        <button onClick={() => handleEdit(loe)} style={styles.editButton}>
+                          {loe.status === 'Rejected' ? 'Edit & Resubmit' : 'Edit'}
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleDownloadPdf(loe.loe_id)} 
+                        disabled={downloadingId === loe.loe_id}
+                        style={styles.downloadButton}
+                      >
+                        {downloadingId === loe.loe_id ? 'Generating...' : 'Download PDF'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -381,18 +458,22 @@ const styles = {
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
   itemsWrapper: { padding: '15px', background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px' },
-  itemRow: { display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' },
+  itemContainer: { marginBottom: '12px', background: '#fff', padding: '8px', borderRadius: '4px', border: '1px solid #eee' },
+  itemRow: { display: 'flex', gap: '8px', alignItems: 'center' },
   itemSelect: { flex: '1', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
-  itemInput: { flex: '1.2', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
-  itemAmountInput: { width: '90px', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
+  itemAmountInput: { width: '100px', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
   removeBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  addBtn: { width: '100%', padding: '8px', background: '#e9ecef', color: '#333', border: '1px dashed #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  scopePreview: { fontSize: '12px', color: '#495057', marginTop: '6px', padding: '4px 6px', background: '#eef2f6', borderRadius: '3px' },
+  addBtn: { width: '100%', padding: '8px', background: '#e9ecef', color: '#333', border: '1px dashed #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '6px' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
   button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  resubmitNotice: { padding: '10px', background: '#fff3cd', border: '1px solid #ffeeba', color: '#856404', borderRadius: '4px', marginTop: '10px', fontSize: '13px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px', marginTop: '15px' },
-  card: { background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-  cardActions: { display: 'flex', gap: '8px', marginTop: '12px' },
+  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  badge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
+  rejectedBanner: { marginTop: '10px', padding: '8px', background: '#ffeef0', color: '#dc3545', borderRadius: '4px', fontSize: '12px', border: '1px solid #f5c6cb' },
+  cardActions: { display: 'flex', gap: '8px', marginTop: '14px' },
   editButton: { flex: '1', padding: '6px 12px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  downloadButton: { flex: '1.4', padding: '6px 12px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
+  downloadButton: { flex: '1.3', padding: '6px 12px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };

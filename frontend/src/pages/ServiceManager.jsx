@@ -15,6 +15,7 @@ export default function ServiceManager() {
     department_id: isAdmin ? '' : userDeptId,
     name: '',
     sub_category: '',
+    scope: '',
     billing_type: 'Fixed',
     is_active: true
   });
@@ -44,7 +45,8 @@ export default function ServiceManager() {
     setFormData({
       department_id: service.department_id,
       name: service.name,
-      sub_category: service.sub_category,
+      sub_category: service.sub_category || '',
+      scope: service.scope || '',
       billing_type: service.billing_type,
       is_active: service.is_active
     });
@@ -71,7 +73,14 @@ export default function ServiceManager() {
       
       await fetchServices();
       setEditingId(null);
-      setFormData({ department_id: isAdmin ? '' : userDeptId, name: '', sub_category: '', billing_type: 'Fixed', is_active: true });
+      setFormData({ 
+        department_id: isAdmin ? '' : userDeptId, 
+        name: '', 
+        sub_category: '', 
+        scope: '',
+        billing_type: 'Fixed', 
+        is_active: true 
+      });
     } catch (err) {
       setError(err.message);
     }
@@ -91,28 +100,72 @@ export default function ServiceManager() {
           
           <form onSubmit={handleSubmit} style={styles.form}>
             {isAdmin ? (
-              <input type="number" name="department_id" value={formData.department_id} onChange={handleChange} placeholder="Department ID" required style={styles.input} />
+              <input 
+                type="number" 
+                name="department_id" 
+                value={formData.department_id} 
+                onChange={handleChange} 
+                placeholder="Department ID" 
+                required 
+                style={styles.input} 
+              />
             ) : (
               <p style={{ color: '#666', fontSize: '14px' }}><strong>Target Department:</strong> {userDeptId} (Locked to your department)</p>
             )}
             
-            <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Service Name (e.g. Annual Tax Filing)" required style={styles.input} />
-            <input type="text" name="sub_category" value={formData.sub_category} onChange={handleChange} placeholder="Sub Category" required style={styles.input} />
+            <input 
+              type="text" 
+              name="name" 
+              value={formData.name} 
+              onChange={handleChange} 
+              placeholder="Service Name (e.g. Annual Tax Filing)" 
+              required 
+              style={styles.input} 
+            />
+            
+            <input 
+              type="text" 
+              name="sub_category" 
+              value={formData.sub_category} 
+              onChange={handleChange} 
+              placeholder="Sub Category (e.g. Taxation, Audit)" 
+              required 
+              style={styles.input} 
+            />
+
+            <textarea 
+              name="scope" 
+              value={formData.scope} 
+              onChange={handleChange} 
+              placeholder="Service Scope / Deliverables (e.g. Preparation of financial accounts, computation of liability, and filing with authorities)" 
+              rows="3" 
+              required
+              style={styles.textarea} 
+            />
             
             <select name="billing_type" value={formData.billing_type} onChange={handleChange} style={styles.input}>
               <option value="Fixed">Fixed</option>
               <option value="Hourly">Hourly</option>
             </select>
             
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
               <input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleChange} />
               Service is Active
             </label>
 
             <div style={styles.buttonGroup}>
-              <button type="submit" style={styles.button}>{editingId ? 'Update' : 'Create'}</button>
+              <button type="submit" style={styles.button}>{editingId ? 'Update Service' : 'Create Service'}</button>
               {editingId && (
-                <button type="button" onClick={() => { setEditingId(null); setFormData({ department_id: isAdmin ? '' : userDeptId, name: '', sub_category: '', billing_type: 'Fixed', is_active: true }); }} style={styles.cancelButton}>Cancel</button>
+                <button 
+                  type="button" 
+                  onClick={() => { 
+                    setEditingId(null); 
+                    setFormData({ department_id: isAdmin ? '' : userDeptId, name: '', sub_category: '', scope: '', billing_type: 'Fixed', is_active: true }); 
+                  }} 
+                  style={styles.cancelButton}
+                >
+                  Cancel
+                </button>
               )}
             </div>
           </form>
@@ -126,6 +179,9 @@ export default function ServiceManager() {
                 <p><strong>ID:</strong> {srv.service_id} | <strong>Dept:</strong> {srv.department_id}</p>
                 <p><strong>Name:</strong> {srv.name}</p>
                 <p><strong>Category:</strong> {srv.sub_category}</p>
+                <p style={{ margin: '6px 0', fontSize: '13px', color: '#444' }}>
+                  <strong>Scope:</strong> {srv.scope || 'No default scope defined'}
+                </p>
                 <p><strong>Billing:</strong> {srv.billing_type}</p>
                 <p><strong>Status:</strong> {srv.is_active ? 'Active' : 'Inactive'}</p>
                 <button onClick={() => handleEdit(srv)} style={styles.editButton}>Edit</button>
@@ -145,10 +201,11 @@ const styles = {
   listSection: { flex: '2' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
+  textarea: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc', fontFamily: 'inherit', resize: 'vertical' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
   button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px', marginTop: '15px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px', marginTop: '15px' },
   card: { background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
   editButton: { marginTop: '10px', padding: '5px 15px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };

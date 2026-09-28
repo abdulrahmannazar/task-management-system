@@ -55,13 +55,13 @@ model Company {
 }
 
 model Service {
-  service_id    Int       @id @default(autoincrement())
+  service_id    Int         @id @default(autoincrement())
   department_id Int
-  name          String    @db.VarChar(150)
-  sub_category  String    @db.VarChar(50)
-  billing_type  String    @db.VarChar(50)
-  is_active     Boolean   @default(true)
-
+  name          String      @db.VarChar(150)
+  sub_category  String?     @db.VarChar(100)
+  scope         String?     @db.Text
+  billing_type  String      @db.VarChar(50)
+  is_active     Boolean     @default(true)
   // Relations
   department    Department @relation(fields: [department_id], references: [department_id])
   loe_items     LoeItem[]
