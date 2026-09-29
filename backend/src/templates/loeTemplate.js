@@ -25,23 +25,21 @@ function renderLoeHtml({ loe, company }) {
     : 'Ongoing / Project Completion';
 
   const items = loe.loe_items || [];
-  const totalAmount = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const itemsRows = items.length > 0
     ? items.map((item, index) => `
         <tr>
           <td style="text-align: center; width: 40px;">${index + 1}</td>
-          <td>
+          <td style="width: 35%;">
             <strong>${item.service?.name || 'Custom Service'}</strong>
-            ${item.service?.sub_category ? `<br><small style="color: #666;">Category: ${item.service.sub_category}</small>` : ''}
+            ${item.service?.sub_category ? `<br><small style="color: #666;">Classification: ${item.service.sub_category}</small>` : ''}
           </td>
           <td>${item.custom_scope || 'Standard operational scope as agreed.'}</td>
-          <td style="text-align: right; width: 120px;">$${Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         </tr>
       `).join('')
     : `
         <tr>
-          <td colspan="4" style="text-align: center; color: #777;">No individual service items listed.</td>
+          <td colspan="3" style="text-align: center; color: #777;">No individual service items listed.</td>
         </tr>
       `;
 
@@ -152,12 +150,6 @@ function renderLoeHtml({ loe, company }) {
     .services-table tr:nth-child(even) {
       background-color: #fcfcfd;
     }
-    .total-row td {
-      font-weight: 700;
-      font-size: 13px;
-      background-color: #f8fafc;
-      border-top: 2px solid #64748b;
-    }
     .terms-box {
       background: #f8fafc;
       border-left: 3px solid #0056b3;
@@ -250,28 +242,21 @@ function renderLoeHtml({ loe, company }) {
     <p>Dear Client,</p>
     <p>
       We are pleased to confirm our acceptance and our understanding of this engagement through this formal Letter of Engagement. 
-      The services to be performed and their respective contractual scopes and fees are itemized below:
+      The services to be performed and their respective contractual scopes are itemized below:
     </p>
 
-    <!-- Services Table -->
+    <!-- Services Table without Amount -->
     <table class="services-table">
       <thead>
         <tr>
           <th>#</th>
           <th>Service / Classification</th>
-          <th>Scope of Work</th>
-          <th style="text-align: right;">Amount</th>
+          <th>Scope of Work &amp; Deliverables</th>
         </tr>
       </thead>
       <tbody>
         ${itemsRows}
       </tbody>
-      <tfoot>
-        <tr class="total-row">
-          <td colspan="3" style="text-align: right; text-transform: uppercase;">Total Engagement Fee:</td>
-          <td style="text-align: right;">$${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        </tr>
-      </tfoot>
     </table>
   </div>
 
@@ -280,7 +265,6 @@ function renderLoeHtml({ loe, company }) {
     <strong>Terms &amp; General Conditions:</strong>
     <ol>
       <li>The services outlined above shall be provided in accordance with the specified scope and schedule.</li>
-      <li>Invoices are due upon submission or per the agreed milestone schedule.</li>
       <li>Any revisions, additions, or modifications to the scope of work must be agreed upon in writing by both parties.</li>
     </ol>
   </div>
