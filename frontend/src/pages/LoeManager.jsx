@@ -7,12 +7,15 @@ export default function LoeManager() {
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
+  
+  // loe_services holds each chosen service and its list of selected/custom scopes
   const [formData, setFormData] = useState({
     company_id: '',
     type: 'Standard',
     start_date: '',
-    loe_items: [] 
+    loe_services: [] 
   });
+  
   const [editingId, setEditingId] = useState(null);
   const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
   const [error, setError] = useState('');
@@ -29,6 +32,18 @@ export default function LoeManager() {
     fetchServices();
     fetchCompanies();
   }, []);
+
+  const parseScopes = (scopeData) => {
+    if (!scopeData) return [];
+    if (Array.isArray(scopeData)) return scopeData;
+    try {
+      const parsed = JSON.parse(scopeData);
+      if (Array.isArray(parsed)) return parsed;
+      return [parsed.toString()];
+    } catch {
+      return scopeData.split('\n').map((s) => s.trim()).filter(Boolean);
+    }
+  };
 
   const fetchLoes = async () => {
     try {
@@ -85,55 +100,107 @@ export default function LoeManager() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const addServiceRow = () => {
+  // Add a new Service Card
+  const addServiceCard = () => {
     setFormData(prev => ({
       ...prev,
-      loe_items: [
-        ...prev.loe_items, 
-        { department_id: '', service_id: '', amount: '' }
+      loe_services: [
+        ...prev.loe_services, 
+        { 
+          department_id: '', 
+          service_id: '', 
+          selectedScopeChoice: '', 
+          scopes: [] 
+        }
       ]
     }));
   };
 
-  const removeServiceRow = (index) => {
+  const removeServiceCard = (serviceIndex) => {
     setFormData(prev => {
-      const newItems = [...prev.loe_items];
-      newItems.splice(index, 1);
-      return { ...prev, loe_items: newItems };
+      const updated = [...prev.loe_services];
+      updated.splice(serviceIndex, 1);
+      return { ...prev, loe_services: updated };
     });
   };
 
-  const handleDepartmentChange = (index, deptId) => {
+  const handleDepartmentChange = (serviceIndex, deptId) => {
     setFormData(prev => {
-      const newItems = [...prev.loe_items];
-      newItems[index] = {
-        ...newItems[index],
+      const updated = [...prev.loe_services];
+      updated[serviceIndex] = {
+        ...updated[serviceIndex],
         department_id: deptId,
-        service_id: ''
+        service_id: '',
+        selectedScopeChoice: '',
+        scopes: []
       };
-      return { ...prev, loe_items: newItems };
+      return { ...prev, loe_services: updated };
     });
   };
 
-  const handleServiceChange = (index, serviceId) => {
+  const handleServiceChange = (serviceIndex, serviceId) => {
     setFormData(prev => {
-      const newItems = [...prev.loe_items];
-      newItems[index] = {
-        ...newItems[index],
-        service_id: serviceId
+      const updated = [...prev.loe_services];
+      updated[serviceIndex] = {
+        ...updated[serviceIndex],
+        service_id: serviceId,
+        selectedScopeChoice: '',
+        scopes: []
       };
-      return { ...prev, loe_items: newItems };
+      return { ...prev, loe_services: updated };
     });
   };
 
-  const handleAmountChange = (index, amount) => {
+  // Add selected scope from the dropdown into this service's scope list
+  const addSelectedScope = (serviceIndex) => {
+    const serviceBlock = formData.loe_services[serviceIndex];
+    if (!serviceBlock.selectedScopeChoice) return;
+
     setFormData(prev => {
-      const newItems = [...prev.loe_items];
-      newItems[index] = {
-        ...newItems[index],
-        amount: amount
+      const updated = [...prev.loe_services];
+      updated[serviceIndex] = {
+        ...serviceBlock,
+        scopes: [...serviceBlock.scopes, serviceBlock.selectedScopeChoice],
+        selectedScopeChoice: ''
       };
-      return { ...prev, loe_items: newItems };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  // Add a blank custom scope for editing
+  const addCustomScope = (serviceIndex) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const serviceBlock = updated[serviceIndex];
+      updated[serviceIndex] = {
+        ...serviceBlock,
+        scopes: [...serviceBlock.scopes, '']
+      };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  // Edit an existing scope's text/remarks
+  const handleScopeTextChange = (serviceIndex, scopeIndex, text) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const serviceBlock = updated[serviceIndex];
+      const updatedScopes = [...serviceBlock.scopes];
+      updatedScopes[scopeIndex] = text;
+      updated[serviceIndex] = { ...serviceBlock, scopes: updatedScopes };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  // Remove a scope item
+  const removeScopeItem = (serviceIndex, scopeIndex) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const serviceBlock = updated[serviceIndex];
+      const updatedScopes = [...serviceBlock.scopes];
+      updatedScopes.splice(scopeIndex, 1);
+      updated[serviceIndex] = { ...serviceBlock, scopes: updatedScopes };
+      return { ...prev, loe_services: updated };
     });
   };
 
@@ -141,20 +208,33 @@ export default function LoeManager() {
     setEditingId(loe.loe_id);
     setEditingPreviousStatus(loe.status);
 
-    const mappedItems = (loe.loe_items || []).map(item => {
-      const matchedSrv = services.find(s => s.service_id === item.service_id);
-      return {
-        department_id: matchedSrv ? matchedSrv.department_id : '',
-        service_id: item.service_id,
-        amount: item.amount
-      };
+    // Group flat loe_items by service_id
+    const grouped = [];
+    const map = new Map();
+
+    (loe.loe_items || []).forEach(item => {
+      const sId = item.service_id;
+      if (!map.has(sId)) {
+        const matched = services.find(s => s.service_id === sId);
+        const newBlock = {
+          department_id: matched ? matched.department_id : '',
+          service_id: sId,
+          selectedScopeChoice: '',
+          scopes: []
+        };
+        map.set(sId, newBlock);
+        grouped.push(newBlock);
+      }
+      if (item.custom_scope) {
+        map.get(sId).scopes.push(item.custom_scope);
+      }
     });
 
     setFormData({
       company_id: loe.company_id,
       type: loe.type,
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
-      loe_items: mappedItems 
+      loe_services: grouped
     });
   };
 
@@ -168,15 +248,34 @@ export default function LoeManager() {
       
     const method = editingId ? 'PUT' : 'POST';
 
-    // Map each service item and extract its scope directly from the predefined service
-    const preparedItems = formData.loe_items.map(item => {
-      const matchedSrv = services.find(s => s.service_id === Number(item.service_id));
-      return {
-        service_id: Number(item.service_id),
-        custom_scope: matchedSrv?.scope || matchedSrv?.name || 'Standard Service Scope',
-        amount: Number(item.amount)
-      };
+    // Flatten services and their unlimited scopes into individual loe_items
+    const flattenedItems = [];
+    formData.loe_services.forEach(srvBlock => {
+      if (!srvBlock.service_id) return;
+
+      const validScopes = srvBlock.scopes.filter(s => s.trim().length > 0);
+
+      if (validScopes.length === 0) {
+        flattenedItems.push({
+          service_id: Number(srvBlock.service_id),
+          custom_scope: 'Standard Service Scope',
+          amount: 0
+        });
+      } else {
+        validScopes.forEach(sc => {
+          flattenedItems.push({
+            service_id: Number(srvBlock.service_id),
+            custom_scope: sc,
+            amount: 0
+          });
+        });
+      }
     });
+
+    if (flattenedItems.length === 0) {
+      setError('Please add at least one service with a scope.');
+      return;
+    }
 
     try {
       const response = await fetch(url, {
@@ -190,8 +289,8 @@ export default function LoeManager() {
           created_by: user.emp_id || 2, 
           type: formData.type,
           start_date: formData.start_date,
-          status: 'Approval Pending', // Automatically send new and edited LOEs for approval
-          loe_items: preparedItems
+          status: 'Approval Pending',
+          loe_items: flattenedItems
         })
       });
 
@@ -202,7 +301,7 @@ export default function LoeManager() {
       
       setEditingId(null);
       setEditingPreviousStatus(null);
-      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_items: [] });
+      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_services: [] });
     } catch (err) {
       setError(err.message);
     }
@@ -255,14 +354,14 @@ export default function LoeManager() {
       <Navbar />
       <div style={styles.container}>
         
-        {/* Create / Edit LOE Form */}
+        {/* LOE Builder Form */}
         {canEdit && (
           <div style={styles.formSection}>
             <h2>{editingId ? `Edit LOE #${editingId}` : 'Create New LOE'}</h2>
             
             {editingId && editingPreviousStatus === 'Rejected' && (
               <div style={styles.resubmitNotice}>
-                ⚠️ This LOE was previously <strong>Rejected</strong>. Saving revisions will resubmit it for approval.
+                ⚠️ This LOE was <strong>Rejected</strong>. Saving changes will resubmit it for Approval Pending.
               </div>
             )}
 
@@ -303,23 +402,28 @@ export default function LoeManager() {
                 style={styles.input} 
               />
 
+              {/* Service & Scopes Section */}
               <div style={styles.itemsWrapper}>
-                <h3 style={{ fontSize: '15px', margin: '0 0 10px 0' }}>Services &amp; Pricing</h3>
+                <h3 style={{ fontSize: '15px', margin: '0 0 10px 0' }}>Services &amp; Scope Requirements</h3>
                 
-                {formData.loe_items.map((item, index) => {
+                {formData.loe_services.map((srvBlock, srvIdx) => {
                   const departmentServices = services.filter(
-                    srv => srv.department_id === Number(item.department_id)
+                    srv => srv.department_id === Number(srvBlock.department_id)
                   );
-                  const selectedSrv = services.find(s => s.service_id === Number(item.service_id));
+                  const selectedService = services.find(
+                    srv => srv.service_id === Number(srvBlock.service_id)
+                  );
+                  const templateScopes = selectedService ? parseScopes(selectedService.scope) : [];
 
                   return (
-                    <div key={index} style={styles.itemContainer}>
-                      <div style={styles.itemRow}>
-                        {/* Step 1: Department */}
+                    <div key={srvIdx} style={styles.serviceCard}>
+                      
+                      {/* Top Row: Department and Service Selection */}
+                      <div style={styles.topSelectRow}>
                         <select 
-                          value={item.department_id || ''} 
-                          onChange={(e) => handleDepartmentChange(index, e.target.value)}
-                          style={styles.itemSelect} 
+                          value={srvBlock.department_id || ''} 
+                          onChange={(e) => handleDepartmentChange(srvIdx, e.target.value)}
+                          style={styles.dropdownInput} 
                           required
                         >
                           <option value="" disabled>Select Department</option>
@@ -330,16 +434,15 @@ export default function LoeManager() {
                           ))}
                         </select>
 
-                        {/* Step 2: Service */}
                         <select 
-                          value={item.service_id || ''} 
-                          onChange={(e) => handleServiceChange(index, e.target.value)}
-                          style={styles.itemSelect} 
-                          disabled={!item.department_id}
+                          value={srvBlock.service_id || ''} 
+                          onChange={(e) => handleServiceChange(srvIdx, e.target.value)}
+                          style={styles.dropdownInput} 
+                          disabled={!srvBlock.department_id}
                           required
                         >
                           <option value="" disabled>
-                            {!item.department_id 
+                            {!srvBlock.department_id 
                               ? 'Select Dept First' 
                               : departmentServices.length === 0 
                                 ? 'No services found' 
@@ -351,31 +454,98 @@ export default function LoeManager() {
                             </option>
                           ))}
                         </select>
-                        
-                        {/* Step 3: Fee */}
-                        <input 
-                          type="number" 
-                          placeholder="Amount ($)" 
-                          value={item.amount || ''} 
-                          onChange={(e) => handleAmountChange(index, e.target.value)} 
-                          style={styles.itemAmountInput} 
-                          required 
-                        />
-                        
-                        <button type="button" onClick={() => removeServiceRow(index)} style={styles.removeBtn}>X</button>
+
+                        <button 
+                          type="button" 
+                          onClick={() => removeServiceCard(srvIdx)} 
+                          style={styles.removeServiceBtn}
+                          title="Remove Service"
+                        >
+                          X
+                        </button>
                       </div>
 
-                      {/* Display the service's predefined scope automatically */}
-                      {selectedSrv && (
-                        <div style={styles.scopePreview}>
-                          <strong>Includes:</strong> {selectedSrv.scope || 'Standard service deliverables.'}
+                      {/* Middle: Scope Selector + Dropdown matching sketch */}
+                      {selectedService && (
+                        <div style={styles.scopeSelectionSection}>
+                          <div style={styles.scopeToolbar}>
+                            <select
+                              value={srvBlock.selectedScopeChoice || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setFormData(prev => {
+                                  const updated = [...prev.loe_services];
+                                  updated[srvIdx].selectedScopeChoice = val;
+                                  return { ...prev, loe_services: updated };
+                                });
+                              }}
+                              style={styles.dropdownInput}
+                            >
+                              <option value="" disabled>Select Scope Template...</option>
+                              {templateScopes.map((sc, i) => (
+                                <option key={i} value={sc}>
+                                  {sc}
+                                </option>
+                              ))}
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => addSelectedScope(srvIdx)}
+                              disabled={!srvBlock.selectedScopeChoice}
+                              style={styles.addScopeBtn}
+                            >
+                              + Add Selected Scope
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => addCustomScope(srvIdx)}
+                              style={styles.addCustomBtn}
+                            >
+                              + Custom Scope
+                            </button>
+                          </div>
+
+                          {/* Bottom: Unlimited Editable Scope Items */}
+                          <div style={styles.scopeListContainer}>
+                            {srvBlock.scopes.length === 0 ? (
+                              <p style={styles.emptyNotice}>
+                                No scopes added yet. Select a scope from the dropdown above or click "+ Custom Scope".
+                              </p>
+                            ) : (
+                              srvBlock.scopes.map((scopeText, scIdx) => (
+                                <div key={scIdx} style={styles.scopeItemRow}>
+                                  <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
+                                  <textarea
+                                    rows="2"
+                                    placeholder="Enter or customize scope details / remarks for this engagement..."
+                                    value={scopeText}
+                                    onChange={(e) => handleScopeTextChange(srvIdx, scIdx, e.target.value)}
+                                    style={styles.scopeTextarea}
+                                    required
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeScopeItem(srvIdx, scIdx)}
+                                    style={styles.removeScopeBtn}
+                                    title="Delete scope"
+                                  >
+                                    X
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
                   );
                 })}
 
-                <button type="button" onClick={addServiceRow} style={styles.addBtn}>+ Add Service</button>
+                <button type="button" onClick={addServiceCard} style={styles.addCardBtn}>
+                  + Add Service
+                </button>
               </div>
 
               <div style={styles.buttonGroup}>
@@ -388,7 +558,7 @@ export default function LoeManager() {
                     onClick={() => { 
                       setEditingId(null); 
                       setEditingPreviousStatus(null);
-                      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_items: [] }); 
+                      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_services: [] }); 
                     }} 
                     style={styles.cancelButton}
                   >
@@ -418,10 +588,9 @@ export default function LoeManager() {
                     <p style={{ marginTop: '8px', marginBottom: '4px' }}><strong>Company:</strong> {getCompanyName(loe.company_id)}</p>
                     <p style={{ margin: '4px 0' }}><strong>Services Included:</strong> {loe.loe_items?.length || 0}</p>
                     
-                    {/* Rejection message box */}
                     {loe.status === 'Rejected' && (
                       <div style={styles.rejectedBanner}>
-                        This LOE was rejected by management. Click <strong>Edit</strong> to revise and resubmit.
+                        This LOE was rejected by management. Click <strong>Edit &amp; Resubmit</strong> to make changes.
                       </div>
                     )}
 
@@ -453,18 +622,26 @@ export default function LoeManager() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { display: 'flex', gap: '40px', padding: '40px' },
-  formSection: { flex: '1.2', background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
-  listSection: { flex: '1.8' },
+  formSection: { flex: '1.3', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
+  listSection: { flex: '1.7' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
   itemsWrapper: { padding: '15px', background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px' },
-  itemContainer: { marginBottom: '12px', background: '#fff', padding: '8px', borderRadius: '4px', border: '1px solid #eee' },
-  itemRow: { display: 'flex', gap: '8px', alignItems: 'center' },
-  itemSelect: { flex: '1', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
-  itemAmountInput: { width: '100px', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
-  removeBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  scopePreview: { fontSize: '12px', color: '#495057', marginTop: '6px', padding: '4px 6px', background: '#eef2f6', borderRadius: '3px' },
-  addBtn: { width: '100%', padding: '8px', background: '#e9ecef', color: '#333', border: '1px dashed #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '6px' },
+  serviceCard: { background: '#fff', border: '1px solid #ddd', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  topSelectRow: { display: 'flex', gap: '8px', alignItems: 'center' },
+  dropdownInput: { flex: '1', padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
+  removeServiceBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  scopeSelectionSection: { marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' },
+  scopeToolbar: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' },
+  addScopeBtn: { padding: '8px 12px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  addCustomBtn: { padding: '8px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  scopeListContainer: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  scopeItemRow: { display: 'flex', gap: '8px', alignItems: 'flex-start', background: '#f8fafc', padding: '8px', borderRadius: '4px', border: '1px solid #e2e8f0' },
+  scopeIndexBadge: { background: '#cbd5e1', color: '#334155', fontWeight: 'bold', fontSize: '11px', padding: '4px 8px', borderRadius: '3px', marginTop: '4px' },
+  scopeTextarea: { flex: '1', padding: '6px 8px', borderRadius: '4px', border: '1px solid #ccc', fontFamily: 'inherit', fontSize: '13px', resize: 'vertical' },
+  removeScopeBtn: { padding: '4px 8px', background: '#e2e8f0', color: '#dc3545', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '4px' },
+  emptyNotice: { margin: 0, fontSize: '12px', color: '#64748b', fontStyle: 'italic', padding: '6px' },
+  addCardBtn: { width: '100%', padding: '10px', background: '#e9ecef', color: '#333', border: '1px dashed #adb5bd', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
   button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
