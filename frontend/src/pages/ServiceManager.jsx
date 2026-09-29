@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar';
 
 export default function ServiceManager() {
   const [services, setServices] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
 
@@ -22,6 +23,7 @@ export default function ServiceManager() {
 
   useEffect(() => {
     fetchServices();
+    fetchDepartments();
   }, []);
 
   const parseScopes = (scopeData) => {
@@ -47,12 +49,23 @@ export default function ServiceManager() {
     }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) {
+        setDepartments(data);
+      }
+    } catch (err) {
+      console.error('Failed to load departments', err);
+    }
+  };
+
   const handleChange = (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setFormData({ ...formData, [e.target.name]: value });
   };
 
-  // Scope handlers
   const handleScopeChange = (index, value) => {
     setFormData((prev) => {
       const newScopes = [...prev.scopes];
@@ -99,7 +112,6 @@ export default function ServiceManager() {
       
     const method = editingId ? 'PUT' : 'POST';
 
-    // Filter out empty scope lines and encode as JSON array
     const cleanedScopes = formData.scopes.map((s) => s.trim()).filter(Boolean);
 
     try {
@@ -107,7 +119,7 @@ export default function ServiceManager() {
         method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          department_id: formData.department_id,
+          department_id: Number(formData.department_id),
           name: formData.name,
           sub_category: formData.sub_category,
           scope: JSON.stringify(cleanedScopes),
@@ -116,7 +128,7 @@ export default function ServiceManager() {
         })
       });
 
-      if (!response.ok) throw new Error('Failed to save service');
+      if (!response.ok) throw new Error(data.error || 'Failed to save service');
       
       await fetchServices();
       setEditingId(null);
@@ -133,6 +145,11 @@ export default function ServiceManager() {
     }
   };
 
+  const getDepartmentName = (deptId) => {
+    const found = departments.find((d) => d.department_id === Number(deptId));
+    return found ? found.name : `Dept #${deptId}`;
+  };
+
   if (!user || (user.role !== 'MANAGER' && user.role !== 'ADMIN')) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied.</div>;
   }
@@ -147,18 +164,23 @@ export default function ServiceManager() {
           
           <form onSubmit={handleSubmit} style={styles.form}>
             {isAdmin ? (
-              <input 
-                type="number" 
-                name="department_id" 
-                value={formData.department_id} 
-                onChange={handleChange} 
-                placeholder="Department ID" 
-                required 
-                style={styles.input} 
-              />
+              <select
+                name="department_id"
+                value={formData.department_id}
+                onChange={handleChange}
+                required
+                style={styles.input}
+              >
+                <option value="" disabled>Select Department</option>
+                {departments.map((dept) => (
+                  <option key={dept.department_id} value={dept.department_id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <p style={{ color: '#666', fontSize: '14px' }}>
-                <strong>Target Department:</strong> {userDeptId} (Locked to your department)
+                <strong>Target Department:</strong> {getDepartmentName(userDeptId)} (Locked to your department)
               </p>
             )}
             
@@ -182,7 +204,6 @@ export default function ServiceManager() {
               style={styles.input} 
             />
 
-            {/* Scopes Section */}
             <div style={styles.scopesBox}>
               <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#444' }}>
                 Service Scopes / Deliverables
@@ -234,7 +255,14 @@ export default function ServiceManager() {
                   type="button" 
                   onClick={() => { 
                     setEditingId(null); 
-                    setFormData({ department_id: isAdmin ? '' : userDeptId, name: '', sub_category: '', scopes: [''], billing_type: 'Fixed', is_active: true }); 
+                    setFormData({ 
+                      department_id: isAdmin ? '' : userDeptId, 
+                      name: '', 
+                      sub_category: '', 
+                      scopes: [''], 
+                      billing_type: 'Fixed', 
+                      is_active: true 
+                    }); 
                   }} 
                   style={styles.cancelButton}
                 >
@@ -253,7 +281,7 @@ export default function ServiceManager() {
 
               return (
                 <div key={srv.service_id} style={styles.card}>
-                  <p><strong>ID:</strong> {srv.service_id} | <strong>Dept:</strong> {srv.department_id}</p>
+                  <p><strong>ID:</strong> {srv.service_id} | <strong>Dept:</strong> {getDepartmentName(srv.department_id)}</p>
                   <p><strong>Name:</strong> {srv.name}</p>
                   <p><strong>Category:</strong> {srv.sub_category}</p>
                   
