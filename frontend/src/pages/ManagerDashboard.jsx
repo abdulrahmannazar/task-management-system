@@ -43,16 +43,19 @@ export default function ManagerDashboard() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          emp_id: user?.emp_id || 2
+          emp_id: user?.emp_id || 2,
+          role: user?.role,
+          department_id: userDeptId
         })
       });
 
-      if (!response.ok) throw new Error(`Failed to ${action} LOE`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to ${action} LOE`);
+      }
       
-      const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
-      setApprovalLoes(prev => prev.map(loe => 
-        loe.loe_id === loeId ? { ...loe, status: newStatus } : loe
-      ));
+      // Remove from current queue immediately upon action
+      setApprovalLoes(prev => prev.filter(loe => loe.loe_id !== loeId));
     } catch (err) {
       setError(err.message);
     }
@@ -62,10 +65,10 @@ export default function ManagerDashboard() {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied. Managers and Admins only.</div>;
   }
 
-  const getStatusColor = (status) => {
+  const getDeptStatusColor = (status) => {
     if (status === 'Approved') return '#28a745';
     if (status === 'Rejected') return '#dc3545';
-    return '#ffc107'; 
+    return '#ffc107';
   };
 
   return (
@@ -75,49 +78,66 @@ export default function ManagerDashboard() {
         <h2>{isAdmin ? 'Company-Wide Approvals (Admin View)' : `Department Approvals (Dept ID: ${userDeptId})`}</h2>
         {error && <p style={{ color: 'red' }}>{error}</p>}
         
-        {approvalLoes.length === 0 ? <p>No LOEs require your attention.</p> : (
+        {approvalLoes.length === 0 ? (
+          <p>No LOEs require your department's attention right now.</p>
+        ) : (
           <div style={styles.grid}>
             {approvalLoes.map((loe) => (
               <div key={loe.loe_id} style={styles.card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ margin: 0 }}>LOE ID: {loe.loe_id}</h3>
-                  <span style={{ 
-                    background: getStatusColor(loe.status), 
-                    color: loe.status === 'Approval Pending' ? '#000' : '#fff', 
-                    padding: '4px 8px', 
-                    borderRadius: '4px', 
-                    fontSize: '12px',
-                    fontWeight: 'bold' 
-                  }}>
-                    {loe.status}
-                  </span>
+                  <span style={styles.badge}>{loe.status}</span>
                 </div>
                 
-                <p><strong>Company ID:</strong> {loe.company_id}</p>
+                <p><strong>Company:</strong> {loe.company?.name || `ID #${loe.company_id}`}</p>
+                <p><strong>Engagement Type:</strong> {loe.type}</p>
+
+                {/* Multi-Department Status Checklist */}
+                {loe.department_approvals && loe.department_approvals.length > 0 && (
+                  <div style={styles.deptProgressBox}>
+                    <strong>Department Approval Status:</strong>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                      {loe.department_approvals.map((deptAppr) => (
+                        <span 
+                          key={deptAppr.approval_id} 
+                          style={{
+                            background: getDeptStatusColor(deptAppr.status),
+                            color: deptAppr.status === 'Pending' ? '#000' : '#fff',
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {deptAppr.department?.name || `Dept #${deptAppr.department_id}`}: {deptAppr.status}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <div style={styles.servicesBox}>
                   <strong>Services Requested:</strong>
                   <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
                     {loe.loe_items.map(item => (
                       <li key={item.loe_item_id}>
-                        {item.service?.name} - ${item.amount}
-                        <br/>
-                        <small style={{ color: '#666' }}>Scope: {item.custom_scope}</small>
+                        <strong>{item.service?.name}</strong>
+                        {item.custom_scope && (
+                          <div style={{ color: '#555', fontSize: '12px' }}>Scope: {item.custom_scope}</div>
+                        )}
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                {loe.status === 'Approval Pending' ? (
-                  <div style={styles.buttonGroup}>
-                    <button onClick={() => handleAction(loe.loe_id, 'approve')} style={styles.approveBtn}>Approve</button>
-                    <button onClick={() => handleAction(loe.loe_id, 'reject')} style={styles.rejectBtn}>Reject</button>
-                  </div>
-                ) : (
-                  <div style={styles.completedMessage}>
-                    This LOE has been {loe.status.toLowerCase()}.
-                  </div>
-                )}
+                <div style={styles.buttonGroup}>
+                  <button onClick={() => handleAction(loe.loe_id, 'approve')} style={styles.approveBtn}>
+                    {isAdmin ? 'Approve All (Admin)' : 'Approve My Department'}
+                  </button>
+                  <button onClick={() => handleAction(loe.loe_id, 'reject')} style={styles.rejectBtn}>
+                    Reject
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -130,11 +150,12 @@ export default function ManagerDashboard() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { padding: '40px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px', marginTop: '20px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px', marginTop: '20px' },
   card: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  badge: { background: '#ffc107', color: '#000', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },
+  deptProgressBox: { margin: '12px 0', padding: '8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '13px' },
   servicesBox: { background: '#f8f9fa', padding: '10px', borderRadius: '4px', margin: '15px 0', fontSize: '14px' },
   buttonGroup: { display: 'flex', gap: '10px' },
-  approveBtn: { flex: '1', padding: '10px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  rejectBtn: { flex: '1', padding: '10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  completedMessage: { textAlign: 'center', padding: '10px', background: '#e9ecef', borderRadius: '4px', color: '#495057', fontStyle: 'italic', fontSize: '14px' }
+  approveBtn: { flex: '1.2', padding: '10px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  rejectBtn: { flex: '0.8', padding: '10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };
