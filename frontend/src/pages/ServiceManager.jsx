@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 export default function ServiceManager() {
   const [services, setServices] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
 
@@ -16,7 +17,7 @@ export default function ServiceManager() {
     department_id: isAdmin ? '' : userDeptId,
     name: '',
     sub_category: '',
-    scopes: [''], // Array of individual addable scopes
+    scopes: [''],
     billing_type: 'Fixed',
     is_active: true
   });
@@ -40,7 +41,11 @@ export default function ServiceManager() {
 
   const fetchServices = async () => {
     try {
-      const url = `https://task-management-system-6ifq.onrender.com/api/services?department_id=${userDeptId}&role=${user?.role || 'MANAGER'}`;
+      // Admins request all services; Managers request only their department's services
+      const url = isAdmin
+        ? `https://task-management-system-6ifq.onrender.com/api/services?role=ADMIN`
+        : `https://task-management-system-6ifq.onrender.com/api/services?department_id=${userDeptId}&role=MANAGER`;
+
       const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
       if (response.ok) setServices(data);
@@ -128,7 +133,10 @@ export default function ServiceManager() {
         })
       });
 
-      if (!response.ok) throw new Error(data.error || 'Failed to save service');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save service');
+      }
       
       await fetchServices();
       setEditingId(null);
@@ -149,6 +157,11 @@ export default function ServiceManager() {
     const found = departments.find((d) => d.department_id === Number(deptId));
     return found ? found.name : `Dept #${deptId}`;
   };
+
+  const displayedServices = services.filter((srv) => {
+    if (!isAdmin || selectedDeptFilter === 'ALL') return true;
+    return srv.department_id === Number(selectedDeptFilter);
+  });
 
   if (!user || (user.role !== 'MANAGER' && user.role !== 'ADMIN')) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied.</div>;
@@ -274,9 +287,26 @@ export default function ServiceManager() {
         </div>
 
         <div style={styles.listSection}>
-          <h2>Available Services</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h2 style={{ margin: 0 }}>Available Services</h2>
+            {isAdmin && (
+              <select
+                value={selectedDeptFilter}
+                onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                style={styles.filterDropdown}
+              >
+                <option value="ALL">All Departments</option>
+                {departments.map((dept) => (
+                  <option key={dept.department_id} value={dept.department_id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           <div style={styles.grid}>
-            {services.map((srv) => {
+            {displayedServices.map((srv) => {
               const scopeItems = parseScopes(srv.scope);
 
               return (
@@ -318,6 +348,7 @@ const styles = {
   listSection: { flex: '1.8' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   input: { flex: '1', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
+  filterDropdown: { padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px', background: '#fff', fontWeight: 'bold' },
   scopesBox: { background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' },
   scopeRow: { display: 'flex', gap: '8px', alignItems: 'center' },
   removeBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },

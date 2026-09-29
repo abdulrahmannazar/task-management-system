@@ -2,13 +2,15 @@ const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 
 exports.getAll = asyncHandler(async (req, res) => {
+  const role = req.query.role;
   const deptId = parseInt(req.query.department_id);
   
   const query = {
     orderBy: { service_id: 'desc' }
   };
 
-  if (!isNaN(deptId)) {
+  // Only filter by department if the user is NOT an ADMIN
+  if (role !== 'ADMIN' && !isNaN(deptId)) {
     query.where = { department_id: deptId };
   }
 
