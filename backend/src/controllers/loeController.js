@@ -12,7 +12,6 @@ async function createTasksForApprovedLoe(loeId, managerEmpId) {
   });
   if (!loe) return;
 
-  // 1. Ensure a Job record exists for this LOE
   let job = await prisma.job.findUnique({
     where: { loe_id: loeId }
   });
@@ -27,7 +26,6 @@ async function createTasksForApprovedLoe(loeId, managerEmpId) {
     });
   }
 
-  // 2. Generate a Task for each service item
   for (const item of loe.loe_items) {
     const existingTask = await prisma.task.findFirst({
       where: {
@@ -60,6 +58,8 @@ exports.getAll = asyncHandler(async (req, res) => {
   const loes = await prisma.loe.findMany({
     include: { 
       company: true,
+      creator: { select: { emp_id: true, name: true, email: true } },
+      approver: { select: { emp_id: true, name: true, email: true } },
       loe_items: {
         include: { 
           service: {
@@ -83,6 +83,8 @@ exports.getById = asyncHandler(async (req, res) => {
     where: { loe_id: loeId },
     include: { 
       company: true,
+      creator: { select: { emp_id: true, name: true, email: true } },
+      approver: { select: { emp_id: true, name: true, email: true } },
       loe_items: {
         include: { 
           service: {
@@ -271,7 +273,6 @@ exports.approveItem = asyncHandler(async (req, res) => {
     }
   });
 
-  // Automatically generate tasks once the entire LOE is approved
   if (allApproved) {
     await createTasksForApprovedLoe(loeId, emp_id);
   }
