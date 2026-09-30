@@ -33,7 +33,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   };
 
   if (role === 'ADMIN') {
-    // Admin sees all tasks across the organization
+    // Admin sees all tasks across the company
   } else if (role === 'MANAGER' && !isNaN(deptId)) {
     // Manager sees all tasks belonging to their department's services
     query.where = {
@@ -74,7 +74,34 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(task);
 });
 
-// PUT /api/tasks/:id (Allocates task, sets deadline, or changes status)
+// POST /api/tasks
+exports.create = asyncHandler(async (req, res) => {
+  const { job_id, service_id, assigned_to, status, deadline, scope } = req.body;
+
+  const task = await prisma.task.create({
+    data: {
+      job_id: parseInt(job_id),
+      service_id: parseInt(service_id),
+      assigned_to: assigned_to ? parseInt(assigned_to) : null,
+      status: status || 'Pending',
+      deadline: deadline ? new Date(deadline) : null,
+      scope: scope || null
+    },
+    include: {
+      service: { include: { department: true } },
+      assignee: { select: { emp_id: true, name: true, email: true } },
+      job: {
+        include: {
+          loe: { include: { company: true } }
+        }
+      }
+    }
+  });
+
+  res.status(201).json(task);
+});
+
+// PUT /api/tasks/:id
 exports.update = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });
@@ -112,6 +139,7 @@ exports.update = asyncHandler(async (req, res) => {
   res.json(updatedTask);
 });
 
+// DELETE /api/tasks/:id
 const deleteTask = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });

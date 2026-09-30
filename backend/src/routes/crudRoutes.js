@@ -3,39 +3,55 @@ const express = require('express');
 const createCrudRouter = (controller) => {
   const router = express.Router();
 
-  if (controller.getPending) {
+  // Workflow / Pending route
+  if (typeof controller.getPending === 'function') {
     router.get('/pending', controller.getPending);
   }
 
-  router.get('/', controller.getAll);
-  router.post('/', controller.create);
-
-  if (controller.generatePdf) {
+  // PDF generation route
+  if (typeof controller.generatePdf === 'function') {
     router.get('/:id/pdf', controller.generatePdf);
   }
 
   // Item-level approval actions
-  if (controller.approveItem) {
+  if (typeof controller.approveItem === 'function') {
     router.put('/:id/items/:itemId/approve', controller.approveItem);
   }
-  if (controller.rejectItem) {
+  if (typeof controller.rejectItem === 'function') {
     router.put('/:id/items/:itemId/reject', controller.rejectItem);
   }
 
   // Master approval actions
-  if (controller.approveAll) {
+  if (typeof controller.approveAll === 'function') {
     router.put('/:id/approve-all', controller.approveAll);
   }
-  if (controller.approve) {
+  if (typeof controller.approve === 'function') {
     router.put('/:id/approve', controller.approve);
   }
-  if (controller.reject) {
+  if (typeof controller.reject === 'function') {
     router.put('/:id/reject', controller.reject);
   }
 
-  router.get('/:id', controller.getById);
-  router.put('/:id', controller.update);
-  router.delete('/:id', controller.remove || controller.delete);
+  // Standard collection routes
+  if (typeof controller.getAll === 'function') {
+    router.get('/', controller.getAll);
+  }
+  if (typeof controller.create === 'function') {
+    router.post('/', controller.create);
+  }
+
+  // Parametric ID routes
+  if (typeof controller.getById === 'function') {
+    router.get('/:id', controller.getById);
+  }
+  if (typeof controller.update === 'function') {
+    router.put('/:id', controller.update);
+  }
+
+  const deleteHandler = controller.remove || controller.delete;
+  if (typeof deleteHandler === 'function') {
+    router.delete('/:id', deleteHandler);
+  }
 
   return router;
 };
