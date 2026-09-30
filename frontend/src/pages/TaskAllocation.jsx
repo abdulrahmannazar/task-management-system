@@ -3,8 +3,13 @@ import Navbar from '../components/Navbar';
 
 export default function TaskAllocation() {
   const [tasks, setTasks] = useState([]);
+  const [loes, setLoes] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [services, setServices] = useState([]);
   const [employees, setEmployees] = useState([]);
+
   const [selectedTask, setSelectedTask] = useState(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -15,8 +20,19 @@ export default function TaskAllocation() {
   const userDeptId = user?.department_id || 1;
   const isAdmin = user?.role === 'ADMIN';
 
-  // Form state for assignment inside the modal
+  // State for updating an existing task inside detail modal
   const [allocationForm, setAllocationForm] = useState({
+    assigned_to: '',
+    deadline: '',
+    status: 'Pending'
+  });
+
+  // State for creating a new task manually
+  const [newTaskForm, setNewTaskForm] = useState({
+    loe_id: '',
+    department_id: isAdmin ? '' : userDeptId,
+    service_id: '',
+    scope: '',
     assigned_to: '',
     deadline: '',
     status: 'Pending'
@@ -24,6 +40,9 @@ export default function TaskAllocation() {
 
   useEffect(() => {
     fetchTasks();
+    fetchLoes();
+    fetchDepartments();
+    fetchServices();
     fetchEmployees();
   }, []);
 
@@ -44,6 +63,44 @@ export default function TaskAllocation() {
     }
   };
 
+  const fetchLoes = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/loes', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) setLoes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load LOEs', err);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) setDepartments(data);
+    } catch (err) {
+      console.error('Failed to load departments', err);
+    }
+  };
+
+  const fetchServices = async () => {
+    try {
+      const url = isAdmin
+        ? `https://task-management-system-6ifq.onrender.com/api/services?role=ADMIN`
+        : `https://task-management-system-6ifq.onrender.com/api/services?department_id=${userDeptId}&role=MANAGER`;
+
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) setServices(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load services', err);
+    }
+  };
+
   const fetchEmployees = async () => {
     try {
       const url = isAdmin
@@ -60,6 +117,7 @@ export default function TaskAllocation() {
     }
   };
 
+  // Row selection handler
   const handleRowClick = (task) => {
     setSelectedTask(task);
     setAllocationForm({
@@ -69,6 +127,7 @@ export default function TaskAllocation() {
     });
   };
 
+  // Update existing task
   const handleSaveAllocation = async (e) => {
     e.preventDefault();
     if (!selectedTask) return;
@@ -93,9 +152,52 @@ export default function TaskAllocation() {
       const updated = await response.json();
       if (!response.ok) throw new Error(updated.error || 'Failed to update task');
 
-      // Update local state
       setTasks(prev => prev.map(t => t.task_id === selectedTask.task_id ? updated : t));
       setSelectedTask(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Create manual task
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          loe_id: Number(newTaskForm.loe_id),
+          service_id: Number(newTaskForm.service_id),
+          scope: newTaskForm.scope,
+          assigned_to: newTaskForm.assigned_to ? Number(newTaskForm.assigned_to) : null,
+          deadline: newTaskForm.deadline || null,
+          status: newTaskForm.status
+        })
+      });
+
+      const created = await response.json();
+      if (!response.ok) throw new Error(created.error || 'Failed to create task');
+
+      setTasks(prev => [created, ...prev]);
+      setIsCreateOpen(false);
+      setNewTaskForm({
+        loe_id: '',
+        department_id: isAdmin ? '' : userDeptId,
+        service_id: '',
+        scope: '',
+        assigned_to: '',
+        deadline: '',
+        status: 'Pending'
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -114,14 +216,25 @@ export default function TaskAllocation() {
     }
   };
 
-  const deptEmployees = employees.filter(emp => 
-    isAdmin || emp.department_id === selectedTask?.service?.department_id
+  // Filter services and employees based on department selection in the create modal
+  const createModalServices = services.filter(
+    s => !newTaskForm.department_id || s.department_id === Number(newTaskForm.department_id)
+  );
+
+  const createModalEmployees = employees.filter(
+    emp => !newTaskForm.department_id || emp.department_id === Number(newTaskForm.department_id)
+  );
+
+  const editModalEmployees = employees.filter(
+    emp => isAdmin || emp.department_id === selectedTask?.service?.department_id
   );
 
   return (
     <div style={styles.pageContainer}>
       <Navbar />
       <div style={styles.container}>
+        
+        {/* Header Row */}
         <div style={styles.headerRow}>
           <div>
             <h2 style={{ margin: 0 }}>Task Allocation &amp; Service Pipeline</h2>
@@ -129,11 +242,18 @@ export default function TaskAllocation() {
               Click any row to open full LOE details and allocate team members.
             </p>
           </div>
+
+          <button 
+            onClick={() => setIsCreateOpen(true)}
+            style={styles.createTaskBtn}
+          >
+            + Create New Task
+          </button>
         </div>
 
         {error && <div style={styles.errorBox}>{error}</div>}
 
-        {/* Compact Preview Table */}
+        {/* Compact Table */}
         <div style={styles.tableCard}>
           <table style={styles.table}>
             <thead>
@@ -150,7 +270,7 @@ export default function TaskAllocation() {
               {tasks.length === 0 ? (
                 <tr>
                   <td colSpan="6" style={styles.emptyCell}>
-                    No approved LOE tasks awaiting allocation.
+                    No tasks found. Use "+ Create New Task" or approve an LOE to generate tasks.
                   </td>
                 </tr>
               ) : (
@@ -168,7 +288,7 @@ export default function TaskAllocation() {
                       }}
                     >
                       <td style={styles.td}>
-                        <strong>#{task.job?.loe_id || 'N/A'}</strong>
+                        <strong>#{task.job?.loe_id || task.job?.loe?.loe_id || 'N/A'}</strong>
                       </td>
                       <td style={styles.td}>
                         <span style={styles.deptBadge}>
@@ -203,12 +323,169 @@ export default function TaskAllocation() {
           </table>
         </div>
 
-        {/* Detail & Assignment Modal */}
+        {/* Modal: Create New Task Manually */}
+        {isCreateOpen && (
+          <div style={styles.modalOverlay} onClick={() => setIsCreateOpen(false)}>
+            <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.modalHeader}>
+                <h3 style={{ margin: 0 }}>Create New Task Manually</h3>
+                <button style={styles.closeBtn} onClick={() => setIsCreateOpen(false)}>✕</button>
+              </div>
+
+              <form onSubmit={handleCreateTask} style={styles.createForm}>
+                {/* 1. Select LOE */}
+                <div style={styles.formCol}>
+                  <label style={styles.label}>Select LOE / Engagement *</label>
+                  <select
+                    value={newTaskForm.loe_id}
+                    onChange={(e) => setNewTaskForm({ ...newTaskForm, loe_id: e.target.value })}
+                    required
+                    style={styles.selectInput}
+                  >
+                    <option value="" disabled>-- Choose LOE --</option>
+                    {loes.map(loe => (
+                      <option key={loe.loe_id} value={loe.loe_id}>
+                        LOE #{loe.loe_id} - {loe.company?.name || `Company ID: ${loe.company_id}`} ({loe.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Select Department */}
+                <div style={styles.formCol}>
+                  <label style={styles.label}>Department *</label>
+                  {isAdmin ? (
+                    <select
+                      value={newTaskForm.department_id}
+                      onChange={(e) => setNewTaskForm({ 
+                        ...newTaskForm, 
+                        department_id: e.target.value,
+                        service_id: '',
+                        assigned_to: ''
+                      })}
+                      required
+                      style={styles.selectInput}
+                    >
+                      <option value="" disabled>-- Choose Department --</option>
+                      {departments.map(dept => (
+                        <option key={dept.department_id} value={dept.department_id}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input 
+                      type="text" 
+                      value={`Department #${userDeptId}`} 
+                      disabled 
+                      style={{ ...styles.selectInput, background: '#f8f9fa' }} 
+                    />
+                  )}
+                </div>
+
+                {/* 3. Select Service */}
+                <div style={styles.formCol}>
+                  <label style={styles.label}>Service / Deliverable *</label>
+                  <select
+                    value={newTaskForm.service_id}
+                    onChange={(e) => {
+                      const sId = e.target.value;
+                      const srv = services.find(s => s.service_id === Number(sId));
+                      setNewTaskForm({ 
+                        ...newTaskForm, 
+                        service_id: sId,
+                        scope: srv?.scope || newTaskForm.scope 
+                      });
+                    }}
+                    required
+                    style={styles.selectInput}
+                  >
+                    <option value="" disabled>-- Choose Service --</option>
+                    {createModalServices.map(srv => (
+                      <option key={srv.service_id} value={srv.service_id}>
+                        {srv.name} ({srv.sub_category || 'General'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Task Scope / Instructions */}
+                <div style={styles.formCol}>
+                  <label style={styles.label}>Task Scope / Instructions</label>
+                  <textarea
+                    rows="3"
+                    value={newTaskForm.scope}
+                    onChange={(e) => setNewTaskForm({ ...newTaskForm, scope: e.target.value })}
+                    placeholder="Enter specific tasks, deliverables, or execution notes..."
+                    style={styles.textareaInput}
+                  />
+                </div>
+
+                {/* 5. Assignee, Deadline & Status in a Row */}
+                <div style={styles.formRow}>
+                  <div style={styles.formCol}>
+                    <label style={styles.label}>Task Doer (Assignee)</label>
+                    <select
+                      value={newTaskForm.assigned_to}
+                      onChange={(e) => setNewTaskForm({ ...newTaskForm, assigned_to: e.target.value })}
+                      style={styles.selectInput}
+                    >
+                      <option value="">-- Unassigned --</option>
+                      {createModalEmployees.map(emp => (
+                        <option key={emp.emp_id} value={emp.emp_id}>
+                          {emp.name} ({emp.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.formCol}>
+                    <label style={styles.label}>Deadline</label>
+                    <input
+                      type="date"
+                      value={newTaskForm.deadline}
+                      onChange={(e) => setNewTaskForm({ ...newTaskForm, deadline: e.target.value })}
+                      style={styles.dateInput}
+                    />
+                  </div>
+
+                  <div style={styles.formCol}>
+                    <label style={styles.label}>Status</label>
+                    <select
+                      value={newTaskForm.status}
+                      onChange={(e) => setNewTaskForm({ ...newTaskForm, status: e.target.value })}
+                      style={styles.selectInput}
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="In-Progress">In-Progress</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={styles.modalActions}>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsCreateOpen(false)} 
+                    style={styles.cancelBtn}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={saving} style={styles.saveBtn}>
+                    {saving ? 'Creating...' : 'Create Task'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: View Existing LOE Details & Update Allocation */}
         {selectedTask && (
           <div style={styles.modalOverlay} onClick={() => setSelectedTask(null)}>
             <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
-                <h3>LOE &amp; Task Assignment Details</h3>
+                <h3 style={{ margin: 0 }}>LOE &amp; Task Assignment Details</h3>
                 <button style={styles.closeBtn} onClick={() => setSelectedTask(null)}>✕</button>
               </div>
 
@@ -216,12 +493,12 @@ export default function TaskAllocation() {
                 {/* Full LOE Summary Box */}
                 <div style={styles.loeDetailsBox}>
                   <h4 style={{ margin: '0 0 10px', color: '#0056b3' }}>
-                    Engagement: LOE #{selectedTask.job?.loe?.loe_id}
+                    Engagement: LOE #{selectedTask.job?.loe?.loe_id || selectedTask.job?.loe_id}
                   </h4>
                   <div style={styles.infoGrid}>
                     <p><strong>Company:</strong> {selectedTask.job?.loe?.company?.name || 'N/A'}</p>
                     <p><strong>Client Type:</strong> {selectedTask.job?.loe?.company?.client_type || 'Corporate'}</p>
-                    <p><strong>LOE Status:</strong> <span style={{ color: '#28a745', fontWeight: 'bold' }}>{selectedTask.job?.loe?.status}</span></p>
+                    <p><strong>LOE Status:</strong> <span style={{ color: '#28a745', fontWeight: 'bold' }}>{selectedTask.job?.loe?.status || 'Active'}</span></p>
                     <p><strong>Engagement Type:</strong> {selectedTask.job?.loe?.type || 'Standard'}</p>
                     <p><strong>Commencement:</strong> {selectedTask.job?.loe?.start_date ? new Date(selectedTask.job.loe.start_date).toLocaleDateString() : 'N/A'}</p>
                     <p><strong>Created By:</strong> {selectedTask.job?.loe?.creator?.name || 'Staff'}</p>
@@ -231,7 +508,7 @@ export default function TaskAllocation() {
                 {/* Scope & Service Information */}
                 <div style={styles.scopeSection}>
                   <p style={{ margin: '0 0 6px' }}>
-                    <strong>Service:</strong> {selectedTask.service?.name} ({selectedTask.service?.department?.name})
+                    <strong>Service:</strong> {selectedTask.service?.name} ({selectedTask.service?.department?.name || `Dept #${selectedTask.service?.department_id}`})
                   </p>
                   <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 'bold', color: '#495057' }}>
                     Contracted Deliverables / Scope:
@@ -254,7 +531,7 @@ export default function TaskAllocation() {
                         style={styles.selectInput}
                       >
                         <option value="">-- Unassigned --</option>
-                        {deptEmployees.map(emp => (
+                        {editModalEmployees.map(emp => (
                           <option key={emp.emp_id} value={emp.emp_id}>
                             {emp.name} ({emp.role})
                           </option>
@@ -307,7 +584,8 @@ export default function TaskAllocation() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { padding: '40px' },
-  headerRow: { marginBottom: '20px' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+  createTaskBtn: { padding: '10px 18px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
   tableCard: { background: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' },
   thRow: { background: '#f8f9fa', borderBottom: '2px solid #dee2e6' },
@@ -327,13 +605,15 @@ const styles = {
   infoGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px' },
   scopeSection: { background: '#f8f9fa', padding: '14px', borderRadius: '6px', border: '1px solid #dee2e6' },
   scopeTextareaPreview: { background: '#fff', border: '1px solid #ced4da', borderRadius: '4px', padding: '8px 10px', fontSize: '13px', color: '#333', maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap' },
+  createForm: { display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' },
   assignmentForm: { borderTop: '1px solid #dee2e6', paddingTop: '14px' },
-  formRow: { display: 'flex', gap: '12px', marginTop: '10px' },
+  formRow: { display: 'flex', gap: '12px' },
   formCol: { flex: 1, display: 'flex', flexDirection: 'column' },
   label: { fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#495057' },
-  selectInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px' },
+  selectInput: { padding: '9px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px' },
   dateInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px' },
-  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' },
+  textareaInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' },
+  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' },
   cancelBtn: { padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   saveBtn: { padding: '8px 20px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };
