@@ -8,7 +8,6 @@ export default function LoeManager() {
   const [companies, setCompanies] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
   
-  // loe_services holds each chosen service and its list of selected/custom scopes
   const [formData, setFormData] = useState({
     company_id: '',
     type: 'Standard',
@@ -100,7 +99,6 @@ export default function LoeManager() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Add a new Service Card
   const addServiceCard = () => {
     setFormData(prev => ({
       ...prev,
@@ -109,6 +107,8 @@ export default function LoeManager() {
         { 
           department_id: '', 
           service_id: '', 
+          status: 'Pending',
+          rejection_reason: null,
           selectedScopeChoice: '', 
           scopes: [] 
         }
@@ -151,7 +151,6 @@ export default function LoeManager() {
     });
   };
 
-  // Add selected scope from the dropdown into this service's scope list
   const addSelectedScope = (serviceIndex) => {
     const serviceBlock = formData.loe_services[serviceIndex];
     if (!serviceBlock.selectedScopeChoice) return;
@@ -167,7 +166,6 @@ export default function LoeManager() {
     });
   };
 
-  // Add a blank custom scope for editing
   const addCustomScope = (serviceIndex) => {
     setFormData(prev => {
       const updated = [...prev.loe_services];
@@ -180,7 +178,6 @@ export default function LoeManager() {
     });
   };
 
-  // Edit an existing scope's text/remarks
   const handleScopeTextChange = (serviceIndex, scopeIndex, text) => {
     setFormData(prev => {
       const updated = [...prev.loe_services];
@@ -192,7 +189,6 @@ export default function LoeManager() {
     });
   };
 
-  // Remove a scope item
   const removeScopeItem = (serviceIndex, scopeIndex) => {
     setFormData(prev => {
       const updated = [...prev.loe_services];
@@ -208,7 +204,7 @@ export default function LoeManager() {
     setEditingId(loe.loe_id);
     setEditingPreviousStatus(loe.status);
 
-    // Group flat loe_items by service_id
+    // Group items by service, retaining their status and rejection reasons
     const grouped = [];
     const map = new Map();
 
@@ -219,6 +215,8 @@ export default function LoeManager() {
         const newBlock = {
           department_id: matched ? matched.department_id : '',
           service_id: sId,
+          status: item.status, // 'Approved', 'Rejected', or 'Pending'
+          rejection_reason: item.rejection_reason,
           selectedScopeChoice: '',
           scopes: []
         };
@@ -248,32 +246,35 @@ export default function LoeManager() {
       
     const method = editingId ? 'PUT' : 'POST';
 
-    // Flatten services and their unlimited scopes into individual loe_items
+    // Flatten services into loe_items while maintaining existing Approved status
     const flattenedItems = [];
     formData.loe_services.forEach(srvBlock => {
       if (!srvBlock.service_id) return;
 
       const validScopes = srvBlock.scopes.filter(s => s.trim().length > 0);
+      const isApproved = srvBlock.status === 'Approved';
 
       if (validScopes.length === 0) {
         flattenedItems.push({
           service_id: Number(srvBlock.service_id),
           custom_scope: 'Standard Service Scope',
-          amount: 0
+          amount: 0,
+          status: isApproved ? 'Approved' : 'Pending'
         });
       } else {
         validScopes.forEach(sc => {
           flattenedItems.push({
             service_id: Number(srvBlock.service_id),
             custom_scope: sc,
-            amount: 0
+            amount: 0,
+            status: isApproved ? 'Approved' : 'Pending'
           });
         });
       }
     });
 
     if (flattenedItems.length === 0) {
-      setError('Please add at least one service with a scope.');
+      setError('Please add at least one service with scope deliverables.');
       return;
     }
 
@@ -289,7 +290,6 @@ export default function LoeManager() {
           created_by: user.emp_id || 2, 
           type: formData.type,
           start_date: formData.start_date,
-          status: 'Approval Pending',
           loe_items: flattenedItems
         })
       });
@@ -354,14 +354,14 @@ export default function LoeManager() {
       <Navbar />
       <div style={styles.container}>
         
-        {/* LOE Builder Form */}
+        {/* LOE Builder / Editor */}
         {canEdit && (
           <div style={styles.formSection}>
             <h2>{editingId ? `Edit LOE #${editingId}` : 'Create New LOE'}</h2>
             
             {editingId && editingPreviousStatus === 'Rejected' && (
               <div style={styles.resubmitNotice}>
-                ⚠️ This LOE was <strong>Rejected</strong>. Saving changes will resubmit it for Approval Pending.
+                ⚠️ This LOE contains rejected services. Only the rejected services will reset to <strong>Pending</strong> upon resubmission. Previously approved services will stay <strong>Approved</strong>.
               </div>
             )}
 
@@ -402,7 +402,6 @@ export default function LoeManager() {
                 style={styles.input} 
               />
 
-              {/* Service & Scopes Section */}
               <div style={styles.itemsWrapper}>
                 <h3 style={{ fontSize: '15px', margin: '0 0 10px 0' }}>Services &amp; Scope Requirements</h3>
                 
@@ -415,10 +414,32 @@ export default function LoeManager() {
                   );
                   const templateScopes = selectedService ? parseScopes(selectedService.scope) : [];
 
+                  const isApproved = srvBlock.status === 'Approved';
+                  const isRejected = srvBlock.status === 'Rejected';
+
                   return (
-                    <div key={srvIdx} style={styles.serviceCard}>
-                      
-                      {/* Top Row: Department and Service Selection */}
+                    <div 
+                      key={srvIdx} 
+                      style={{
+                        ...styles.serviceCard,
+                        border: isRejected ? '1.5px solid #dc3545' : isApproved ? '1.5px solid #28a745' : '1px solid #ddd'
+                      }}
+                    >
+                      {/* Status indicator inside edit view */}
+                      {isApproved && (
+                        <div style={styles.approvedBanner}>
+                          ✅ Approved by department manager (Will remain approved)
+                        </div>
+                      )}
+                      {isRejected && (
+                        <div style={styles.rejectedItemNotice}>
+                          ❌ <strong>Rejected by Manager:</strong> {srvBlock.rejection_reason || 'Revision required'}
+                          <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                            Adjust scopes below. On resubmit, only this service will be sent for re-approval.
+                          </div>
+                        </div>
+                      )}
+
                       <div style={styles.topSelectRow}>
                         <select 
                           value={srvBlock.department_id || ''} 
@@ -465,7 +486,6 @@ export default function LoeManager() {
                         </button>
                       </div>
 
-                      {/* Middle: Scope Selector + Dropdown matching sketch */}
                       {selectedService && (
                         <div style={styles.scopeSelectionSection}>
                           <div style={styles.scopeToolbar}>
@@ -507,7 +527,6 @@ export default function LoeManager() {
                             </button>
                           </div>
 
-                          {/* Bottom: Unlimited Editable Scope Items */}
                           <div style={styles.scopeListContainer}>
                             {srvBlock.scopes.length === 0 ? (
                               <p style={styles.emptyNotice}>
@@ -519,7 +538,7 @@ export default function LoeManager() {
                                   <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
                                   <textarea
                                     rows="2"
-                                    placeholder="Enter or customize scope details / remarks for this engagement..."
+                                    placeholder="Enter or customize scope details for this engagement..."
                                     value={scopeText}
                                     onChange={(e) => handleScopeTextChange(srvIdx, scIdx, e.target.value)}
                                     style={styles.scopeTextarea}
@@ -585,14 +604,35 @@ export default function LoeManager() {
                       <span style={{ ...styles.badge, ...badgeStyle }}>{loe.status}</span>
                     </div>
 
-                    <p style={{ marginTop: '8px', marginBottom: '4px' }}><strong>Company:</strong> {getCompanyName(loe.company_id)}</p>
-                    <p style={{ margin: '4px 0' }}><strong>Services Included:</strong> {loe.loe_items?.length || 0}</p>
-                    
-                    {loe.status === 'Rejected' && (
-                      <div style={styles.rejectedBanner}>
-                        This LOE was rejected by management. Click <strong>Edit &amp; Resubmit</strong> to make changes.
+                    <p style={{ marginTop: '8px', marginBottom: '4px' }}>
+                      <strong>Company:</strong> {getCompanyName(loe.company_id)}
+                    </p>
+
+                    {/* Service items checklist */}
+                    <div style={styles.cardItemsList}>
+                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>Services Included:</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                        {(loe.loe_items || []).map((item) => (
+                          <div key={item.loe_item_id} style={styles.miniItemRow}>
+                            <div>
+                              <span>{item.service?.name}</span>
+                              {item.status === 'Rejected' && item.rejection_reason && (
+                                <div style={{ color: '#dc3545', fontSize: '11px' }}>
+                                  Reason: {item.rejection_reason}
+                                </div>
+                              )}
+                            </div>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              color: item.status === 'Approved' ? '#28a745' : item.status === 'Rejected' ? '#dc3545' : '#856404'
+                            }}>
+                              {item.status === 'Approved' ? '✅' : item.status === 'Rejected' ? '❌' : '⏳'} {item.status}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    )}
+                    </div>
 
                     <div style={styles.cardActions}>
                       {canEdit && (
@@ -627,7 +667,7 @@ const styles = {
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
   itemsWrapper: { padding: '15px', background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px' },
-  serviceCard: { background: '#fff', border: '1px solid #ddd', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  serviceCard: { background: '#fff', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   topSelectRow: { display: 'flex', gap: '8px', alignItems: 'center' },
   dropdownInput: { flex: '1', padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
   removeServiceBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
@@ -646,10 +686,13 @@ const styles = {
   button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   resubmitNotice: { padding: '10px', background: '#fff3cd', border: '1px solid #ffeeba', color: '#856404', borderRadius: '4px', marginTop: '10px', fontSize: '13px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px', marginTop: '15px' },
+  approvedBanner: { padding: '6px 10px', background: '#e6fffa', color: '#234e52', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #b2f5ea' },
+  rejectedItemNotice: { padding: '6px 10px', background: '#fff5f5', color: '#c53030', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #feb2b2' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginTop: '15px' },
   card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
   badge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
-  rejectedBanner: { marginTop: '10px', padding: '8px', background: '#ffeef0', color: '#dc3545', borderRadius: '4px', fontSize: '12px', border: '1px solid #f5c6cb' },
+  cardItemsList: { margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '4px' },
+  miniItemRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
   cardActions: { display: 'flex', gap: '8px', marginTop: '14px' },
   editButton: { flex: '1', padding: '6px 12px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   downloadButton: { flex: '1.3', padding: '6px 12px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }

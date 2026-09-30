@@ -30,13 +30,45 @@ export default function ManagerDashboard() {
     }
   };
 
-  const handleAction = async (loeId, action) => {
+  const handleApproveItem = async (loeId, itemId) => {
     try {
-      const endpoint = action === 'approve' 
-        ? `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/approve`
-        : `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/reject`;
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/approve`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ emp_id: user?.emp_id || 2 })
+      });
 
-      const response = await fetch(endpoint, {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to approve service');
+      }
+
+      const updatedLoe = await response.json();
+
+      // Check if this manager's department has any remaining pending items
+      const hasPendingInDept = updatedLoe.loe_items.some(
+        item => (isAdmin || item.service?.department_id === userDeptId) && item.status === 'Pending'
+      );
+
+      if (!hasPendingInDept) {
+        setApprovalLoes(prev => prev.filter(l => l.loe_id !== loeId));
+      } else {
+        setApprovalLoes(prev => prev.map(l => l.loe_id === loeId ? updatedLoe : l));
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleRejectItem = async (loeId, itemId) => {
+    const reason = window.prompt("Enter reason for rejecting this service (optional):");
+    if (reason === null) return; // User cancelled prompt
+
+    try {
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/reject`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -44,18 +76,39 @@ export default function ManagerDashboard() {
         },
         body: JSON.stringify({
           emp_id: user?.emp_id || 2,
-          role: user?.role,
-          department_id: userDeptId
+          reason: reason.trim() || 'Revision requested'
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to ${action} LOE`);
+        throw new Error(errorData.error || 'Failed to reject service');
       }
-      
-      // Remove from current queue immediately upon action
-      setApprovalLoes(prev => prev.filter(loe => loe.loe_id !== loeId));
+
+      // Rejection immediately transitions LOE to 'Rejected', removing from pending queue
+      setApprovalLoes(prev => prev.filter(l => l.loe_id !== loeId));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleApproveAll = async (loeId) => {
+    try {
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/approve-all`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ emp_id: user?.emp_id || 2 })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to approve all services');
+      }
+
+      setApprovalLoes(prev => prev.filter(l => l.loe_id !== loeId));
     } catch (err) {
       setError(err.message);
     }
@@ -65,21 +118,21 @@ export default function ManagerDashboard() {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied. Managers and Admins only.</div>;
   }
 
-  const getDeptStatusColor = (status) => {
-    if (status === 'Approved') return '#28a745';
-    if (status === 'Rejected') return '#dc3545';
-    return '#ffc107';
+  const getItemStatusBadge = (status) => {
+    if (status === 'Approved') return { bg: '#28a745', text: '#fff' };
+    if (status === 'Rejected') return { bg: '#dc3545', text: '#fff' };
+    return { bg: '#ffc107', text: '#000' };
   };
 
   return (
     <div style={styles.pageContainer}>
       <Navbar />
       <div style={styles.container}>
-        <h2>{isAdmin ? 'Company-Wide Approvals (Admin View)' : `Department Approvals (Dept ID: ${userDeptId})`}</h2>
+        <h2>{isAdmin ? 'Company-Wide Service Approvals (Admin View)' : `Department Approvals (Dept ID: ${userDeptId})`}</h2>
         {error && <p style={{ color: 'red' }}>{error}</p>}
         
         {approvalLoes.length === 0 ? (
-          <p>No LOEs require your department's attention right now.</p>
+          <p>No services require your department's approval right now.</p>
         ) : (
           <div style={styles.grid}>
             {approvalLoes.map((loe) => (
@@ -89,55 +142,91 @@ export default function ManagerDashboard() {
                   <span style={styles.badge}>{loe.status}</span>
                 </div>
                 
-                <p><strong>Company:</strong> {loe.company?.name || `ID #${loe.company_id}`}</p>
-                <p><strong>Engagement Type:</strong> {loe.type}</p>
+                <p style={{ marginTop: '8px', marginBottom: '2px' }}>
+                  <strong>Company:</strong> {loe.company?.name || `ID #${loe.company_id}`}
+                </p>
+                <p style={{ margin: '2px 0 10px 0' }}>
+                  <strong>Engagement Type:</strong> {loe.type}
+                </p>
 
-                {/* Multi-Department Status Checklist */}
-                {loe.department_approvals && loe.department_approvals.length > 0 && (
-                  <div style={styles.deptProgressBox}>
-                    <strong>Department Approval Status:</strong>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-                      {loe.department_approvals.map((deptAppr) => (
-                        <span 
-                          key={deptAppr.approval_id} 
-                          style={{
-                            background: getDeptStatusColor(deptAppr.status),
-                            color: deptAppr.status === 'Pending' ? '#000' : '#fff',
-                            padding: '3px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {deptAppr.department?.name || `Dept #${deptAppr.department_id}`}: {deptAppr.status}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
                 <div style={styles.servicesBox}>
-                  <strong>Services Requested:</strong>
-                  <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
-                    {loe.loe_items.map(item => (
-                      <li key={item.loe_item_id}>
-                        <strong>{item.service?.name}</strong>
-                        {item.custom_scope && (
-                          <div style={{ color: '#555', fontSize: '12px' }}>Scope: {item.custom_scope}</div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                  <strong>Services for Review:</strong>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                    {loe.loe_items.map((item) => {
+                      const isMyDept = isAdmin || item.service?.department_id === userDeptId;
+                      const badge = getItemStatusBadge(item.status);
+
+                      return (
+                        <div key={item.loe_item_id} style={styles.serviceItemCard}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <strong style={{ fontSize: '14px' }}>{item.service?.name}</strong>
+                              <span style={styles.deptTag}>
+                                {item.service?.department?.name || `Dept #${item.service?.department_id}`}
+                              </span>
+                            </div>
+                            <span style={{ 
+                              background: badge.bg, 
+                              color: badge.text, 
+                              padding: '2px 8px', 
+                              borderRadius: '4px', 
+                              fontSize: '11px', 
+                              fontWeight: 'bold' 
+                            }}>
+                              {item.status}
+                            </span>
+                          </div>
+
+                          {item.custom_scope && (
+                            <p style={styles.scopeText}>
+                              <strong>Scope:</strong> {item.custom_scope}
+                            </p>
+                          )}
+
+                          {item.rejection_reason && (
+                            <p style={styles.rejectionReason}>
+                              <strong>Reason:</strong> {item.rejection_reason}
+                            </p>
+                          )}
+
+                          {/* Action buttons: Only active for pending items within manager's department */}
+                          {isMyDept && item.status === 'Pending' && (
+                            <div style={styles.itemActionGroup}>
+                              <button 
+                                onClick={() => handleApproveItem(loe.loe_id, item.loe_item_id)} 
+                                style={styles.itemApproveBtn}
+                              >
+                                Approve Service
+                              </button>
+                              <button 
+                                onClick={() => handleRejectItem(loe.loe_id, item.loe_item_id)} 
+                                style={styles.itemRejectBtn}
+                              >
+                                Reject Service
+                              </button>
+                            </div>
+                          )}
+
+                          {!isMyDept && item.status === 'Pending' && (
+                            <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#6c757d', fontStyle: 'italic' }}>
+                              Awaiting {item.service?.department?.name || 'Department'} Manager review
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div style={styles.buttonGroup}>
-                  <button onClick={() => handleAction(loe.loe_id, 'approve')} style={styles.approveBtn}>
-                    {isAdmin ? 'Approve All (Admin)' : 'Approve My Department'}
+                {isAdmin && (
+                  <button 
+                    onClick={() => handleApproveAll(loe.loe_id)} 
+                    style={styles.adminApproveAllBtn}
+                  >
+                    ⚡ Approve All Services (Admin Super-Approval)
                   </button>
-                  <button onClick={() => handleAction(loe.loe_id, 'reject')} style={styles.rejectBtn}>
-                    Reject
-                  </button>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -150,12 +239,16 @@ export default function ManagerDashboard() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { padding: '40px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px', marginTop: '20px' },
-  card: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px', marginTop: '20px' },
+  card: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' },
   badge: { background: '#ffc107', color: '#000', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },
-  deptProgressBox: { margin: '12px 0', padding: '8px', background: '#f1f5f9', borderRadius: '4px', fontSize: '13px' },
-  servicesBox: { background: '#f8f9fa', padding: '10px', borderRadius: '4px', margin: '15px 0', fontSize: '14px' },
-  buttonGroup: { display: 'flex', gap: '10px' },
-  approveBtn: { flex: '1.2', padding: '10px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  rejectBtn: { flex: '0.8', padding: '10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
+  servicesBox: { background: '#f8f9fa', padding: '12px', borderRadius: '6px', margin: '10px 0', border: '1px solid #e9ecef', flex: 1 },
+  serviceItemCard: { background: '#fff', padding: '10px 12px', borderRadius: '4px', border: '1px solid #dee2e6' },
+  deptTag: { marginLeft: '8px', background: '#e9ecef', color: '#495057', fontSize: '11px', padding: '2px 6px', borderRadius: '3px' },
+  scopeText: { margin: '6px 0 4px', fontSize: '12.5px', color: '#495057' },
+  rejectionReason: { margin: '4px 0', fontSize: '12px', color: '#dc3545', background: '#fff5f5', padding: '4px 6px', borderRadius: '3px', border: '1px solid #fed7d7' },
+  itemActionGroup: { display: 'flex', gap: '8px', marginTop: '8px' },
+  itemApproveBtn: { flex: 1, padding: '6px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  itemRejectBtn: { flex: 1, padding: '6px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  adminApproveAllBtn: { width: '100%', marginTop: '10px', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };
