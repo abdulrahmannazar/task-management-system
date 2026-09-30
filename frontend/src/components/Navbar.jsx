@@ -10,6 +10,7 @@ export default function Navbar() {
   };
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isPrivileged = user.role === 'MANAGER' || user.role === 'ADMIN';
 
   return (
     <nav style={styles.nav}>
@@ -17,16 +18,19 @@ export default function Navbar() {
       <div style={styles.links}>
         <Link to="/dashboard" style={styles.link}>Dashboard</Link>
         <Link to="/loes" style={styles.link}>LOE Manager</Link>
-        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+        {isPrivileged && (
           <Link to="/approvals" style={styles.link}>Approvals</Link>
         )}
-        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+        {isPrivileged && (
           <Link to="/tasks" style={styles.link}>Task Allocation</Link>
         )}
-        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+        {isPrivileged && (
+          <Link to="/employees" style={styles.link}>Employees</Link>
+        )}
+        {isPrivileged && (
           <Link to="/services" style={styles.link}>Services</Link>
         )}
-        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+        {isPrivileged && (
           <Link to="/companies" style={styles.link}>Companies</Link>
         )}
         <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
