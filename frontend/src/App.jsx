@@ -7,6 +7,7 @@ import LoeManager from './pages/LoeManager';
 import ManagerDashboard from './pages/ManagerDashboard';
 import ServiceManager from './pages/ServiceManager';
 import CompanyManager from './pages/CompanyManager';
+import TaskAllocation from './pages/TaskAllocation';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/approvals" element={<ManagerDashboard />} />
         <Route path="/services" element={<ServiceManager />} />
         <Route path="/companies" element={<CompanyManager />} />
+        <Route path="/tasks" element={<TaskAllocation />} />
       </Routes>
     </BrowserRouter>
   );

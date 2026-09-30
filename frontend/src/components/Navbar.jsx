@@ -21,6 +21,9 @@ export default function Navbar() {
           <Link to="/approvals" style={styles.link}>Approvals</Link>
         )}
         {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
+          <Link to="/tasks" style={styles.link}>Task Allocation</Link>
+        )}
+        {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
           <Link to="/services" style={styles.link}>Services</Link>
         )}
         {(user.role === 'MANAGER' || user.role === 'ADMIN') && (
