@@ -4,8 +4,6 @@ import Navbar from '../components/Navbar';
 export default function TaskAllocation() {
   const [tasks, setTasks] = useState([]);
   const [loes, setLoes] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [services, setServices] = useState([]);
   const [employees, setEmployees] = useState([]);
 
   const [selectedTask, setSelectedTask] = useState(null);
@@ -41,8 +39,6 @@ export default function TaskAllocation() {
   useEffect(() => {
     fetchTasks();
     fetchLoes();
-    fetchDepartments();
-    fetchServices();
     fetchEmployees();
   }, []);
 
@@ -72,32 +68,6 @@ export default function TaskAllocation() {
       if (response.ok) setLoes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load LOEs', err);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
-      const data = await response.json();
-      if (response.ok && Array.isArray(data)) setDepartments(data);
-    } catch (err) {
-      console.error('Failed to load departments', err);
-    }
-  };
-
-  const fetchServices = async () => {
-    try {
-      const url = isAdmin
-        ? `https://task-management-system-6ifq.onrender.com/api/services?role=ADMIN`
-        : `https://task-management-system-6ifq.onrender.com/api/services?department_id=${userDeptId}&role=MANAGER`;
-
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (response.ok) setServices(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to load services', err);
     }
   };
 
@@ -216,14 +186,39 @@ export default function TaskAllocation() {
     }
   };
 
-  // Filter services and employees based on department selection in the create modal
-  const createModalServices = services.filter(
-    s => !newTaskForm.department_id || s.department_id === Number(newTaskForm.department_id)
-  );
+  // ----------------------------------------------------------------------
+  // DYNAMIC FILTERING LOGIC FOR CREATE TASK MODAL
+  // ----------------------------------------------------------------------
+  
+  // 1. Find the currently selected LOE object
+  const selectedLoeObj = loes.find(l => l.loe_id === Number(newTaskForm.loe_id));
 
-  const createModalEmployees = employees.filter(
-    emp => !newTaskForm.department_id || emp.department_id === Number(newTaskForm.department_id)
-  );
+  // 2. Extract all services mapped inside this specific LOE
+  const availableServicesInLoe = selectedLoeObj 
+    ? selectedLoeObj.loe_items.map(item => item.service).filter(Boolean)
+    : [];
+
+  // 3. Extract unique departments from those available services
+  const availableDepartmentsInLoe = [];
+  const deptIds = new Set();
+  availableServicesInLoe.forEach(srv => {
+    if (srv.department && !deptIds.has(srv.department.department_id)) {
+      deptIds.add(srv.department.department_id);
+      availableDepartmentsInLoe.push(srv.department);
+    }
+  });
+
+  // 4. Filter Services based on the selected Department
+  const createModalServices = availableServicesInLoe.filter(srv => {
+    const targetDept = isAdmin ? newTaskForm.department_id : userDeptId;
+    return !targetDept || srv.department_id === Number(targetDept);
+  });
+
+  // 5. Filter Employees based on the selected Department
+  const createModalEmployees = employees.filter(emp => {
+    const targetDept = isAdmin ? newTaskForm.department_id : userDeptId;
+    return !targetDept || emp.department_id === Number(targetDept);
+  });
 
   const editModalEmployees = employees.filter(
     emp => isAdmin || emp.department_id === selectedTask?.service?.department_id
@@ -338,20 +333,26 @@ export default function TaskAllocation() {
                   <label style={styles.label}>Select LOE / Engagement *</label>
                   <select
                     value={newTaskForm.loe_id}
-                    onChange={(e) => setNewTaskForm({ ...newTaskForm, loe_id: e.target.value })}
+                    onChange={(e) => setNewTaskForm({ 
+                      ...newTaskForm, 
+                      loe_id: e.target.value,
+                      department_id: isAdmin ? '' : userDeptId, // Reset dept to trigger fresh filter
+                      service_id: '', // Reset service
+                      scope: '' // Reset scope
+                    })}
                     required
                     style={styles.selectInput}
                   >
                     <option value="" disabled>-- Choose LOE --</option>
                     {loes.map(loe => (
                       <option key={loe.loe_id} value={loe.loe_id}>
-                        LOE #{loe.loe_id} - {loe.company?.name || `Company ID: ${loe.company_id}`} ({loe.status})
+                        LOE #{loe.loe_id} - {loe.company?.name || `Company ID: ${loe.company_id}`}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* 2. Select Department */}
+                {/* 2. Select Department (Filtered by LOE) */}
                 <div style={styles.formCol}>
                   <label style={styles.label}>Department *</label>
                   {isAdmin ? (
@@ -364,10 +365,13 @@ export default function TaskAllocation() {
                         assigned_to: ''
                       })}
                       required
+                      disabled={!newTaskForm.loe_id}
                       style={styles.selectInput}
                     >
-                      <option value="" disabled>-- Choose Department --</option>
-                      {departments.map(dept => (
+                      <option value="" disabled>
+                        {!newTaskForm.loe_id ? 'Select LOE first' : '-- Choose Department --'}
+                      </option>
+                      {availableDepartmentsInLoe.map(dept => (
                         <option key={dept.department_id} value={dept.department_id}>
                           {dept.name}
                         </option>
@@ -383,14 +387,15 @@ export default function TaskAllocation() {
                   )}
                 </div>
 
-                {/* 3. Select Service */}
+                {/* 3. Select Service (Filtered by LOE & Department) */}
                 <div style={styles.formCol}>
                   <label style={styles.label}>Service / Deliverable *</label>
                   <select
                     value={newTaskForm.service_id}
                     onChange={(e) => {
                       const sId = e.target.value;
-                      const srv = services.find(s => s.service_id === Number(sId));
+                      const srv = createModalServices.find(s => s.service_id === Number(sId));
+                      // Pre-fill scope with the service's default scope if available
                       setNewTaskForm({ 
                         ...newTaskForm, 
                         service_id: sId,
@@ -398,12 +403,17 @@ export default function TaskAllocation() {
                       });
                     }}
                     required
+                    disabled={!newTaskForm.loe_id || (isAdmin && !newTaskForm.department_id)}
                     style={styles.selectInput}
                   >
-                    <option value="" disabled>-- Choose Service --</option>
+                    <option value="" disabled>
+                      {!newTaskForm.loe_id || (isAdmin && !newTaskForm.department_id) 
+                        ? 'Select Department first' 
+                        : '-- Choose Service --'}
+                    </option>
                     {createModalServices.map(srv => (
                       <option key={srv.service_id} value={srv.service_id}>
-                        {srv.name} ({srv.sub_category || 'General'})
+                        {srv.name}
                       </option>
                     ))}
                   </select>
