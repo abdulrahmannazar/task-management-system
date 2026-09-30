@@ -2,6 +2,60 @@ const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateLoePdf } = require('../services/pdfService');
 
+/**
+ * Automatically creates a Job and corresponding Task records for all services in an approved LOE
+ */
+async function createTasksForApprovedLoe(loeId, managerEmpId) {
+  const loe = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: { loe_items: { include: { service: true } } }
+  });
+  if (!loe) return;
+
+  // 1. Ensure a Job record exists for this LOE
+  let job = await prisma.job.findUnique({
+    where: { loe_id: loeId }
+  });
+
+  if (!job) {
+    job = await prisma.job.create({
+      data: {
+        loe_id: loeId,
+        manager_id: managerEmpId ? parseInt(managerEmpId) : loe.created_by,
+        status: 'In-Progress'
+      }
+    });
+  }
+
+  // 2. Generate a Task for each service item
+  for (const item of loe.loe_items) {
+    const existingTask = await prisma.task.findFirst({
+      where: {
+        job_id: job.job_id,
+        service_id: item.service_id,
+        scope: item.custom_scope
+      }
+    });
+
+    if (!existingTask) {
+      await prisma.task.create({
+        data: {
+          job_id: job.job_id,
+          service_id: item.service_id,
+          scope: item.custom_scope,
+          status: 'Pending',
+          assigned_to: null,
+          deadline: null
+        }
+      });
+    }
+  }
+}
+
+// ==========================================
+// STANDARD CRUD ENDPOINTS
+// ==========================================
+
 exports.getAll = asyncHandler(async (req, res) => {
   const loes = await prisma.loe.findMany({
     include: { 
@@ -80,7 +134,6 @@ exports.update = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid LOE ID format' });
   }
 
-  // Preserve 'Approved' items; reset 'Rejected' or newly added items to 'Pending'
   const itemsToCreate = (loe_items || []).map(item => {
     const isApproved = item.status === 'Approved';
     return {
@@ -113,6 +166,10 @@ exports.update = asyncHandler(async (req, res) => {
       loe_items: { include: { service: true } }
     }
   });
+
+  if (allApproved) {
+    await createTasksForApprovedLoe(loeId, updatedLoe.approved_by);
+  }
 
   res.json(updatedLoe);
 });
@@ -152,10 +209,8 @@ exports.getPending = asyncHandler(async (req, res) => {
   };
 
   if (role === 'ADMIN') {
-    // Admin sees all LOEs currently in 'Approval Pending'
     query.where = { status: 'Approval Pending' };
   } else {
-    // Managers only see LOEs with at least one Pending service in their department
     query.where = {
       status: 'Approval Pending',
       loe_items: {
@@ -180,7 +235,6 @@ exports.approveItem = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid ID parameters' });
   }
 
-  // 1. Mark this specific service item as Approved
   await prisma.loeItem.update({
     where: { loe_item_id: itemId },
     data: { 
@@ -189,7 +243,6 @@ exports.approveItem = asyncHandler(async (req, res) => {
     }
   });
 
-  // 2. Re-evaluate all items belonging to this LOE
   const allItems = await prisma.loeItem.findMany({
     where: { loe_id: loeId }
   });
@@ -218,6 +271,11 @@ exports.approveItem = asyncHandler(async (req, res) => {
     }
   });
 
+  // Automatically generate tasks once the entire LOE is approved
+  if (allApproved) {
+    await createTasksForApprovedLoe(loeId, emp_id);
+  }
+
   res.json(updatedLoe);
 });
 
@@ -230,7 +288,6 @@ exports.rejectItem = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid ID parameters' });
   }
 
-  // 1. Mark this specific service item as Rejected with reason
   await prisma.loeItem.update({
     where: { loe_item_id: itemId },
     data: {
@@ -239,7 +296,6 @@ exports.rejectItem = asyncHandler(async (req, res) => {
     }
   });
 
-  // 2. Reject the overall LOE so it can be revised and resubmitted
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
     data: { status: 'Rejected' },
@@ -262,7 +318,6 @@ exports.approveAll = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid LOE ID' });
   }
 
-  // Admin super-approval: marks all service items as Approved
   await prisma.loeItem.updateMany({
     where: { loe_id: loeId },
     data: { status: 'Approved', rejection_reason: null }
@@ -281,6 +336,8 @@ exports.approveAll = asyncHandler(async (req, res) => {
       }
     }
   });
+
+  await createTasksForApprovedLoe(loeId, emp_id);
 
   res.json(updatedLoe);
 });
