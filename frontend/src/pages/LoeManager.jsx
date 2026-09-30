@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
 export default function LoeManager() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [loes, setLoes] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [services, setServices] = useState([]);
@@ -31,6 +35,16 @@ export default function LoeManager() {
     fetchServices();
     fetchCompanies();
   }, []);
+
+  // Handle edit trigger from Details page navigation
+  useEffect(() => {
+    if (location.state?.editLoeId && loes.length > 0 && services.length > 0) {
+      const target = loes.find(l => l.loe_id === location.state.editLoeId);
+      if (target) {
+        handleEdit(target);
+      }
+    }
+  }, [location.state, loes, services]);
 
   const parseScopes = (scopeData) => {
     if (!scopeData) return [];
@@ -74,7 +88,7 @@ export default function LoeManager() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      if (response.ok && Array.isArray(data)) setServices(data);
+      if (response.ok) setServices(data);
     } catch (err) {
       console.error('Failed to load services', err);
     }
@@ -204,7 +218,6 @@ export default function LoeManager() {
     setEditingId(loe.loe_id);
     setEditingPreviousStatus(loe.status);
 
-    // Group items by service, retaining their status and rejection reasons
     const grouped = [];
     const map = new Map();
 
@@ -215,7 +228,7 @@ export default function LoeManager() {
         const newBlock = {
           department_id: matched ? matched.department_id : '',
           service_id: sId,
-          status: item.status, // 'Approved', 'Rejected', or 'Pending'
+          status: item.status,
           rejection_reason: item.rejection_reason,
           selectedScopeChoice: '',
           scopes: []
@@ -234,6 +247,8 @@ export default function LoeManager() {
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
       loe_services: grouped
     });
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSubmit = async (e) => {
@@ -246,7 +261,6 @@ export default function LoeManager() {
       
     const method = editingId ? 'PUT' : 'POST';
 
-    // Flatten services into loe_items while maintaining existing Approved status
     const flattenedItems = [];
     formData.loe_services.forEach(srvBlock => {
       if (!srvBlock.service_id) return;
@@ -307,7 +321,8 @@ export default function LoeManager() {
     }
   };
 
-  const handleDownloadPdf = async (loeId) => {
+  const handleDownloadPdf = async (e, loeId) => {
+    e.stopPropagation(); // Avoid triggering card click navigation
     try {
       setDownloadingId(loeId);
       setError('');
@@ -354,7 +369,7 @@ export default function LoeManager() {
       <Navbar />
       <div style={styles.container}>
         
-        {/* LOE Builder / Editor */}
+        {/* LOE Builder / Editor Form */}
         {canEdit && (
           <div style={styles.formSection}>
             <h2>{editingId ? `Edit LOE #${editingId}` : 'Create New LOE'}</h2>
@@ -425,7 +440,6 @@ export default function LoeManager() {
                         border: isRejected ? '1.5px solid #dc3545' : isApproved ? '1.5px solid #28a745' : '1px solid #ddd'
                       }}
                     >
-                      {/* Status indicator inside edit view */}
                       {isApproved && (
                         <div style={styles.approvedBanner}>
                           ✅ Approved by department manager (Will remain approved)
@@ -589,18 +603,26 @@ export default function LoeManager() {
           </div>
         )}
 
-        {/* Existing LOEs List */}
+        {/* Existing LOEs List with Clickable Cards */}
         <div style={styles.listSection}>
           <h2>Available Letters of Engagement</h2>
+          <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
+            Click any card to view its full details and service scopes.
+          </p>
+
           {loes.length === 0 ? <p>No LOEs found.</p> : (
             <div style={styles.grid}>
               {loes.map((loe) => {
                 const badgeStyle = getStatusBadgeStyle(loe.status);
 
                 return (
-                  <div key={loe.loe_id} style={styles.card}>
+                  <div 
+                    key={loe.loe_id} 
+                    onClick={() => navigate(`/loes/${loe.loe_id}`)}
+                    style={styles.card}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: '17px' }}>LOE ID: {loe.loe_id}</h3>
+                      <h3 style={{ margin: 0, fontSize: '17px' }}>LOE #{loe.loe_id}</h3>
                       <span style={{ ...styles.badge, ...badgeStyle }}>{loe.status}</span>
                     </div>
 
@@ -608,20 +630,16 @@ export default function LoeManager() {
                       <strong>Company:</strong> {getCompanyName(loe.company_id)}
                     </p>
 
-                    {/* Service items checklist */}
                     <div style={styles.cardItemsList}>
-                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>Services Included:</span>
+                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>
+                        Services Included ({loe.loe_items?.length || 0}):
+                      </span>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                        {(loe.loe_items || []).map((item) => (
+                        {(loe.loe_items || []).slice(0, 3).map((item) => (
                           <div key={item.loe_item_id} style={styles.miniItemRow}>
-                            <div>
-                              <span>{item.service?.name}</span>
-                              {item.status === 'Rejected' && item.rejection_reason && (
-                                <div style={{ color: '#dc3545', fontSize: '11px' }}>
-                                  Reason: {item.rejection_reason}
-                                </div>
-                              )}
-                            </div>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
+                              {item.service?.name}
+                            </span>
                             <span style={{
                               fontSize: '11px',
                               fontWeight: 'bold',
@@ -631,21 +649,32 @@ export default function LoeManager() {
                             </span>
                           </div>
                         ))}
+                        {(loe.loe_items?.length || 0) > 3 && (
+                          <span style={{ fontSize: '11px', color: '#007bff' }}>
+                            + {(loe.loe_items.length - 3)} more (click to view all)
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     <div style={styles.cardActions}>
                       {canEdit && (
-                        <button onClick={() => handleEdit(loe)} style={styles.editButton}>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(loe);
+                          }} 
+                          style={styles.editButton}
+                        >
                           {loe.status === 'Rejected' ? 'Edit & Resubmit' : 'Edit'}
                         </button>
                       )}
                       <button 
-                        onClick={() => handleDownloadPdf(loe.loe_id)} 
+                        onClick={(e) => handleDownloadPdf(e, loe.loe_id)} 
                         disabled={downloadingId === loe.loe_id}
                         style={styles.downloadButton}
                       >
-                        {downloadingId === loe.loe_id ? 'Generating...' : 'Download PDF'}
+                        {downloadingId === loe.loe_id ? 'PDF...' : 'Download PDF'}
                       </button>
                     </div>
                   </div>
@@ -689,7 +718,7 @@ const styles = {
   approvedBanner: { padding: '6px 10px', background: '#e6fffa', color: '#234e52', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #b2f5ea' },
   rejectedItemNotice: { padding: '6px 10px', background: '#fff5f5', color: '#c53030', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #feb2b2' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginTop: '15px' },
-  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease', border: '1px solid transparent' },
   badge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
   cardItemsList: { margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '4px' },
   miniItemRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
