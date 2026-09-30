@@ -74,13 +74,43 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(task);
 });
 
-// POST /api/tasks
+// POST /api/tasks (Manual task creation)
 exports.create = asyncHandler(async (req, res) => {
-  const { job_id, service_id, assigned_to, status, deadline, scope } = req.body;
+  const { job_id, loe_id, service_id, assigned_to, status, deadline, scope } = req.body;
+
+  let targetJobId = job_id ? parseInt(job_id) : null;
+
+  // If loe_id was passed instead of job_id, find or initialize the Job record
+  if (!targetJobId && loe_id) {
+    const parsedLoeId = parseInt(loe_id);
+    let job = await prisma.job.findUnique({
+      where: { loe_id: parsedLoeId }
+    });
+
+    if (!job) {
+      const loe = await prisma.loe.findUnique({ where: { loe_id: parsedLoeId } });
+      job = await prisma.job.create({
+        data: {
+          loe_id: parsedLoeId,
+          manager_id: loe?.created_by || (assigned_to ? parseInt(assigned_to) : 1),
+          status: 'In-Progress'
+        }
+      });
+    }
+    targetJobId = job.job_id;
+  }
+
+  if (!targetJobId) {
+    return res.status(400).json({ error: 'A valid LOE selection or Job ID is required' });
+  }
+
+  if (!service_id) {
+    return res.status(400).json({ error: 'Service selection is required' });
+  }
 
   const task = await prisma.task.create({
     data: {
-      job_id: parseInt(job_id),
+      job_id: targetJobId,
       service_id: parseInt(service_id),
       assigned_to: assigned_to ? parseInt(assigned_to) : null,
       status: status || 'Pending',
@@ -89,10 +119,16 @@ exports.create = asyncHandler(async (req, res) => {
     },
     include: {
       service: { include: { department: true } },
-      assignee: { select: { emp_id: true, name: true, email: true } },
+      assignee: { select: { emp_id: true, name: true, email: true, department_id: true } },
       job: {
         include: {
-          loe: { include: { company: true } }
+          loe: {
+            include: {
+              company: true,
+              creator: { select: { emp_id: true, name: true, email: true } },
+              loe_items: { include: { service: true } }
+            }
+          }
         }
       }
     }
@@ -139,7 +175,6 @@ exports.update = asyncHandler(async (req, res) => {
   res.json(updatedTask);
 });
 
-// DELETE /api/tasks/:id
 const deleteTask = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });
