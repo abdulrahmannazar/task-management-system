@@ -9,6 +9,7 @@ import ManagerDashboard from './pages/ManagerDashboard';
 import ServiceManager from './pages/ServiceManager';
 import CompanyManager from './pages/CompanyManager';
 import TaskAllocation from './pages/TaskAllocation';
+import EmployeeManager from './pages/EmployeeManager';
 
 function App() {
   return (
@@ -21,9 +22,10 @@ function App() {
         <Route path="/loes" element={<LoeManager />} />
         <Route path="/loes/:id" element={<LoeDetails />} />
         <Route path="/approvals" element={<ManagerDashboard />} />
+        <Route path="/tasks" element={<TaskAllocation />} />
+        <Route path="/employees" element={<EmployeeManager />} />
         <Route path="/services" element={<ServiceManager />} />
         <Route path="/companies" element={<CompanyManager />} />
-        <Route path="/tasks" element={<TaskAllocation />} />
       </Routes>
     </BrowserRouter>
   );
