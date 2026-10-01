@@ -42,8 +42,8 @@ async function createTasksForApprovedLoe(loeId, managerEmpId) {
           service_id: item.service_id,
           scope: item.custom_scope,
           status: 'Pending',
-          assigned_to: null,
-          deadline: null
+          deadline: null,
+          service_deadline: null
         }
       });
     }
