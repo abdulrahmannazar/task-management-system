@@ -377,7 +377,11 @@ exports.generatePdf = asyncHandler(async (req, res) => {
     where: { loe_id: loeId },
     include: {
       loe_items: {
-        include: { service: true }
+        include: {
+          service: {
+            include: { department: true }
+          }
+        }
       }
     }
   });
