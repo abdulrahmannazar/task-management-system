@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const generateLoeTemplate = require('../templates/loeTemplate');
+const generateInvoiceTemplate = require('../templates/invoiceTemplate');
 
 /**
  * Compiles the LOE HTML template and generates a PDF buffer using Puppeteer
@@ -7,7 +8,6 @@ const generateLoeTemplate = require('../templates/loeTemplate');
 exports.generateLoePdf = async ({ loe, company }) => {
   const htmlContent = generateLoeTemplate({ loe, company });
 
-  // Launch headless browser with production container arguments
   const browser = await puppeteer.launch({
     headless: 'new',
     args: [
@@ -20,20 +20,41 @@ exports.generateLoePdf = async ({ loe, company }) => {
 
   try {
     const page = await browser.newPage();
-    
-    // Set HTML content and wait until DOM and network requests settle
-    await page.setContent(htmlContent, {
-      waitUntil: 'networkidle0'
-    });
-
-    // Render high-resolution print PDF
-    const pdfBuffer = await page.pdf({
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    return await page.pdf({
       format: 'A4',
       printBackground: true,
       preferCSSPageSize: true
     });
+  } finally {
+    await browser.close();
+  }
+};
 
-    return pdfBuffer;
+/**
+ * Compiles the Invoice HTML template and generates a PDF buffer using Puppeteer
+ */
+exports.generateInvoicePdf = async ({ invoice, loe, company }) => {
+  const htmlContent = generateInvoiceTemplate({ invoice, loe, company });
+
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
+    ]
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    return await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true
+    });
   } finally {
     await browser.close();
   }

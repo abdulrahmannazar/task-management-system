@@ -1,6 +1,6 @@
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
-const { generateLoePdf } = require('../services/pdfService');
+const { generateLoePdf, generateInvoicePdf } = require('../services/pdfService');
 
 /**
  * Automatically creates a Job and corresponding Task records for all services in an approved LOE
@@ -54,7 +54,6 @@ async function createTasksForApprovedLoe(loeId, managerEmpId) {
 // STANDARD CRUD ENDPOINTS
 // ==========================================
 
-// GET /api/loes (Secured: filters to user's department unless ADMIN)
 exports.getAll = asyncHandler(async (req, res) => {
   const role = req.query.role;
   const deptId = parseInt(req.query.department_id);
@@ -75,7 +74,6 @@ exports.getAll = asyncHandler(async (req, res) => {
     orderBy: { loe_id: 'desc' }
   };
 
-  // Restrict database query to LOEs involving the user's department
   if (role !== 'ADMIN' && !isNaN(deptId)) {
     query.where = {
       loe_items: {
@@ -90,7 +88,6 @@ exports.getAll = asyncHandler(async (req, res) => {
   res.json(loes);
 });
 
-// GET /api/loes/:id
 exports.getById = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) {
@@ -117,7 +114,6 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(loe);
 });
 
-// POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
   const { company_id, created_by, type, start_date, end_date, loe_items } = req.body;
 
@@ -148,7 +144,6 @@ exports.create = asyncHandler(async (req, res) => {
   res.status(201).json(newLoe);
 });
 
-// PUT /api/loes/:id
 exports.update = asyncHandler(async (req, res) => {
   const { company_id, type, start_date, end_date, loe_items } = req.body;
   const loeId = parseInt(req.params.id);
@@ -364,7 +359,7 @@ exports.approveAll = asyncHandler(async (req, res) => {
 });
 
 // ==========================================
-// PDF GENERATION ENDPOINT
+// PDF GENERATION: LOE DOCUMENT
 // ==========================================
 
 exports.generatePdf = asyncHandler(async (req, res) => {
@@ -377,11 +372,7 @@ exports.generatePdf = asyncHandler(async (req, res) => {
     where: { loe_id: loeId },
     include: {
       loe_items: {
-        include: {
-          service: {
-            include: { department: true }
-          }
-        }
+        include: { service: { include: { department: true } } }
       }
     }
   });
@@ -398,6 +389,87 @@ exports.generatePdf = asyncHandler(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename=LOE-${loe.loe_id}.pdf`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.end(pdfBuffer);
+});
+
+// ==========================================
+// PDF GENERATION: INVOICE (APPROVED LOE ONLY)
+// ==========================================
+
+exports.generateInvoicePdf = asyncHandler(async (req, res) => {
+  const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) {
+    return res.status(400).json({ error: 'Invalid LOE ID format' });
+  }
+
+  const loe = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: {
+      company: true,
+      loe_items: {
+        include: { service: { include: { department: true } } }
+      }
+    }
+  });
+
+  if (!loe) {
+    return res.status(404).json({ error: 'LOE record not found' });
+  }
+
+  // Enforce rule: Invoices can only be generated for approved LOEs
+  if (loe.status !== 'Approved') {
+    return res.status(400).json({ error: 'Invoices can only be generated for approved LOEs' });
+  }
+
+  // Ensure Job record exists
+  let job = await prisma.job.findUnique({
+    where: { loe_id: loeId }
+  });
+
+  if (!job) {
+    job = await prisma.job.create({
+      data: {
+        loe_id: loeId,
+        manager_id: loe.approved_by || loe.created_by,
+        status: 'In-Progress'
+      }
+    });
+  }
+
+  // Calculate total amount from approved service lines
+  const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+
+  // Find or create official Invoice record
+  let invoice = await prisma.invoice.findUnique({
+    where: { job_id: job.job_id }
+  });
+
+  if (!invoice) {
+    const issuedDate = new Date();
+    const dueDate = new Date();
+    dueDate.setDate(issuedDate.getDate() + 30);
+
+    invoice = await prisma.invoice.create({
+      data: {
+        job_id: job.job_id,
+        total_amount: totalAmount,
+        status: 'Issued',
+        issued_date: issuedDate,
+        due_date: dueDate
+      }
+    });
+  } else if (Number(invoice.total_amount) !== totalAmount) {
+    invoice = await prisma.invoice.update({
+      where: { invoice_id: invoice.invoice_id },
+      data: { total_amount: totalAmount }
+    });
+  }
+
+  const pdfBuffer = await generateInvoicePdf({ invoice, loe, company: loe.company });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=Invoice-LOE-${loe.loe_id}.pdf`);
   res.setHeader('Content-Length', pdfBuffer.length);
   res.end(pdfBuffer);
 });
