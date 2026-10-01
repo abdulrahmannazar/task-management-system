@@ -28,6 +28,8 @@ export default function LoeManager() {
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
   
   const canEdit = user.role === 'ADMIN' || user.role === 'MANAGER';
+  const isAdmin = user.role === 'ADMIN';
+  const userDeptId = user.department_id || 1;
 
   useEffect(() => {
     fetchLoes();
@@ -36,7 +38,6 @@ export default function LoeManager() {
     fetchCompanies();
   }, []);
 
-  // Handle edit trigger from Details page navigation
   useEffect(() => {
     if (location.state?.editLoeId && loes.length > 0 && services.length > 0) {
       const target = loes.find(l => l.loe_id === location.state.editLoeId);
@@ -61,7 +62,12 @@ export default function LoeManager() {
   const fetchLoes = async () => {
     try {
       if (!token) return setError("Invalid token.");
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/loes', {
+      
+      const url = isAdmin 
+        ? 'https://task-management-system-6ifq.onrender.com/api/loes?role=ADMIN'
+        : `https://task-management-system-6ifq.onrender.com/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
+
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -322,7 +328,7 @@ export default function LoeManager() {
   };
 
   const handleDownloadPdf = async (e, loeId) => {
-    e.stopPropagation(); // Avoid triggering card click navigation
+    e.stopPropagation(); 
     try {
       setDownloadingId(loeId);
       setError('');
@@ -363,6 +369,11 @@ export default function LoeManager() {
     if (status === 'Approval Pending') return { background: '#ffc107', color: '#000' };
     return { background: '#6c757d', color: '#fff' };
   };
+
+  const displayedLoes = loes.filter(loe => {
+    if (isAdmin) return true;
+    return (loe.loe_items || []).some(item => item.service?.department_id === userDeptId);
+  });
 
   return (
     <div style={styles.pageContainer}>
@@ -610,10 +621,14 @@ export default function LoeManager() {
             Click any card to view its full details and service scopes.
           </p>
 
-          {loes.length === 0 ? <p>No LOEs found.</p> : (
+          {displayedLoes.length === 0 ? <p>No LOEs found for your department.</p> : (
             <div style={styles.grid}>
-              {loes.map((loe) => {
+              {displayedLoes.map((loe) => {
                 const badgeStyle = getStatusBadgeStyle(loe.status);
+
+                const relevantItems = isAdmin 
+                  ? (loe.loe_items || [])
+                  : (loe.loe_items || []).filter(item => item.service?.department_id === userDeptId);
 
                 return (
                   <div 
@@ -632,10 +647,10 @@ export default function LoeManager() {
 
                     <div style={styles.cardItemsList}>
                       <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>
-                        Services Included ({loe.loe_items?.length || 0}):
+                        Services Included ({relevantItems.length}):
                       </span>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                        {(loe.loe_items || []).slice(0, 3).map((item) => (
+                        {relevantItems.slice(0, 3).map((item) => (
                           <div key={item.loe_item_id} style={styles.miniItemRow}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
                               {item.service?.name}
@@ -649,9 +664,9 @@ export default function LoeManager() {
                             </span>
                           </div>
                         ))}
-                        {(loe.loe_items?.length || 0) > 3 && (
+                        {relevantItems.length > 3 && (
                           <span style={{ fontSize: '11px', color: '#007bff' }}>
-                            + {(loe.loe_items.length - 3)} more (click to view all)
+                            + {(relevantItems.length - 3)} more (click to view all)
                           </span>
                         )}
                       </div>
