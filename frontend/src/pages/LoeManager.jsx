@@ -127,6 +127,7 @@ export default function LoeManager() {
         { 
           department_id: '', 
           service_id: '', 
+          amount: '',
           status: 'Pending',
           rejection_reason: null,
           selectedScopeChoice: '', 
@@ -151,6 +152,7 @@ export default function LoeManager() {
         ...updated[serviceIndex],
         department_id: deptId,
         service_id: '',
+        amount: '',
         selectedScopeChoice: '',
         scopes: []
       };
@@ -159,13 +161,26 @@ export default function LoeManager() {
   };
 
   const handleServiceChange = (serviceIndex, serviceId) => {
+    const selectedSrv = services.find(s => s.service_id === Number(serviceId));
     setFormData(prev => {
       const updated = [...prev.loe_services];
       updated[serviceIndex] = {
         ...updated[serviceIndex],
         service_id: serviceId,
+        amount: selectedSrv?.price ? Number(selectedSrv.price) : 0,
         selectedScopeChoice: '',
         scopes: []
+      };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  const handleAmountChange = (serviceIndex, amount) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      updated[serviceIndex] = {
+        ...updated[serviceIndex],
+        amount
       };
       return { ...prev, loe_services: updated };
     });
@@ -234,6 +249,7 @@ export default function LoeManager() {
         const newBlock = {
           department_id: matched ? matched.department_id : '',
           service_id: sId,
+          amount: item.amount !== undefined && item.amount !== null ? Number(item.amount) : (matched?.price || 0),
           status: item.status,
           rejection_reason: item.rejection_reason,
           selectedScopeChoice: '',
@@ -273,12 +289,13 @@ export default function LoeManager() {
 
       const validScopes = srvBlock.scopes.filter(s => s.trim().length > 0);
       const isApproved = srvBlock.status === 'Approved';
+      const itemAmount = Number(srvBlock.amount || 0);
 
       if (validScopes.length === 0) {
         flattenedItems.push({
           service_id: Number(srvBlock.service_id),
           custom_scope: 'Standard Service Scope',
-          amount: 0,
+          amount: itemAmount,
           status: isApproved ? 'Approved' : 'Pending'
         });
       } else {
@@ -286,7 +303,7 @@ export default function LoeManager() {
           flattenedItems.push({
             service_id: Number(srvBlock.service_id),
             custom_scope: sc,
-            amount: 0,
+            amount: itemAmount,
             status: isApproved ? 'Approved' : 'Pending'
           });
         });
@@ -429,7 +446,7 @@ export default function LoeManager() {
               />
 
               <div style={styles.itemsWrapper}>
-                <h3 style={{ fontSize: '15px', margin: '0 0 10px 0' }}>Services &amp; Scope Requirements</h3>
+                <h3 style={{ fontSize: '15px', margin: '0 0 10px 0' }}>Services, Pricing &amp; Scope Requirements</h3>
                 
                 {formData.loe_services.map((srvBlock, srvIdx) => {
                   const departmentServices = services.filter(
@@ -496,10 +513,26 @@ export default function LoeManager() {
                           </option>
                           {departmentServices.map(srv => (
                             <option key={srv.service_id} value={srv.service_id}>
-                              {srv.name}
+                              {srv.name} (Base: ${Number(srv.price || 0).toFixed(2)})
                             </option>
                           ))}
                         </select>
+
+                        {/* Editable Service Price Input */}
+                        <div style={styles.priceInputWrapper}>
+                          <span style={styles.currencyPrefix}>$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="Price"
+                            value={srvBlock.amount !== undefined ? srvBlock.amount : ''}
+                            onChange={(e) => handleAmountChange(srvIdx, e.target.value)}
+                            required
+                            style={styles.servicePriceInput}
+                            title="Custom Price for this Engagement"
+                          />
+                        </div>
 
                         <button 
                           type="button" 
@@ -630,6 +663,9 @@ export default function LoeManager() {
                   ? (loe.loe_items || [])
                   : (loe.loe_items || []).filter(item => item.service?.department_id === userDeptId);
 
+                // Calculate total fees for this LOE
+                const totalFee = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+
                 return (
                   <div 
                     key={loe.loe_id} 
@@ -641,26 +677,33 @@ export default function LoeManager() {
                       <span style={{ ...styles.badge, ...badgeStyle }}>{loe.status}</span>
                     </div>
 
-                    <p style={{ marginTop: '8px', marginBottom: '4px' }}>
+                    <p style={{ marginTop: '8px', marginBottom: '2px' }}>
                       <strong>Company:</strong> {getCompanyName(loe.company_id)}
+                    </p>
+
+                    <p style={{ margin: '2px 0 8px', fontSize: '13px', color: '#2b6cb0', fontWeight: 'bold' }}>
+                      Total Engagement: ${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
 
                     <div style={styles.cardItemsList}>
                       <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>
-                        Services Included ({relevantItems.length}):
+                        Services &amp; Pricing ({relevantItems.length}):
                       </span>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
                         {relevantItems.slice(0, 3).map((item) => (
                           <div key={item.loe_item_id} style={styles.miniItemRow}>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
                               {item.service?.name}
+                            </span>
+                            <span style={{ fontWeight: 'bold', color: '#2d3748', fontSize: '11px' }}>
+                              ${Number(item.amount || 0).toFixed(2)}
                             </span>
                             <span style={{
                               fontSize: '11px',
                               fontWeight: 'bold',
                               color: item.status === 'Approved' ? '#28a745' : item.status === 'Rejected' ? '#dc3545' : '#856404'
                             }}>
-                              {item.status === 'Approved' ? '✅' : item.status === 'Rejected' ? '❌' : '⏳'} {item.status}
+                              {item.status === 'Approved' ? '✅' : item.status === 'Rejected' ? '❌' : '⏳'}
                             </span>
                           </div>
                         ))}
@@ -714,6 +757,9 @@ const styles = {
   serviceCard: { background: '#fff', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   topSelectRow: { display: 'flex', gap: '8px', alignItems: 'center' },
   dropdownInput: { flex: '1', padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
+  priceInputWrapper: { display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', padding: '0 6px', width: '105px' },
+  currencyPrefix: { fontSize: '13px', color: '#6c757d', fontWeight: 'bold' },
+  servicePriceInput: { border: 'none', outline: 'none', padding: '8px 4px', width: '100%', fontSize: '13px', fontWeight: 'bold' },
   removeServiceBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   scopeSelectionSection: { marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' },
   scopeToolbar: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' },
