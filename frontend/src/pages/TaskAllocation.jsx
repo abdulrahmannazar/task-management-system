@@ -18,13 +18,15 @@ export default function TaskAllocation() {
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : null;
   const userDeptId = user?.department_id || 1;
+  
+  // Role Access Flags
   const isAdmin = user?.role === 'ADMIN';
+  const isManager = user?.role === 'MANAGER';
+  const isEmployee = !isAdmin && !isManager; 
 
-  // Detail Modal Form State
   const [serviceDeadline, setServiceDeadline] = useState('');
   const [formScopes, setFormScopes] = useState([]);
 
-  // Create Modal Form State
   const [newTaskForm, setNewTaskForm] = useState({
     loe_id: '',
     department_id: isAdmin ? '' : userDeptId,
@@ -36,12 +38,11 @@ export default function TaskAllocation() {
 
   useEffect(() => {
     fetchTasks();
-    fetchLoes();
+    if (!isEmployee) fetchLoes(); // Employees don't need to load all LOEs for the creation modal
     fetchEmployees();
   }, []);
 
   useEffect(() => {
-    // Group individual scope tasks into parent Service rows
     const groupsMap = new Map();
     tasks.forEach(t => {
       const key = `${t.job_id}-${t.service_id}`;
@@ -62,9 +63,13 @@ export default function TaskAllocation() {
 
   const fetchTasks = async () => {
     try {
-      const url = isAdmin
-        ? `https://task-management-system-6ifq.onrender.com/api/tasks?role=ADMIN`
-        : `https://task-management-system-6ifq.onrender.com/api/tasks?department_id=${userDeptId}&role=MANAGER`;
+      let url = `https://task-management-system-6ifq.onrender.com/api/tasks?emp_id=${user?.emp_id}&role=EMPLOYEE`;
+      if (isAdmin) {
+        url = `https://task-management-system-6ifq.onrender.com/api/tasks?role=ADMIN`;
+      } else if (isManager) {
+        url = `https://task-management-system-6ifq.onrender.com/api/tasks?department_id=${userDeptId}&role=MANAGER`;
+      }
+
       const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
       if (response.ok) setTasks(Array.isArray(data) ? data : []);
@@ -88,11 +93,9 @@ export default function TaskAllocation() {
     } catch (err) {}
   };
 
-  // Select Group and populate internal modal state
   const handleRowClick = (group) => {
     setSelectedServiceGroup(group);
     
-    // Auto-populate overall service deadline if it exists in any scope
     const existingDeadline = group.scopes.find(s => s.service_deadline)?.service_deadline;
     setServiceDeadline(existingDeadline ? existingDeadline.split('T')[0] : '');
 
@@ -107,7 +110,6 @@ export default function TaskAllocation() {
     setValidationWarning('');
   };
 
-  // Auto-calculate dates based on duration_days and starting dates
   useEffect(() => {
     if (!selectedServiceGroup || !serviceDeadline) return;
 
@@ -123,10 +125,9 @@ export default function TaskAllocation() {
       if (sc.duration_days && Number(sc.duration_days) > 0) {
         let endDate = new Date(currentStart);
         endDate.setDate(endDate.getDate() + Number(sc.duration_days));
-        currentStart = new Date(endDate); // The next scope will begin where this one ends
+        currentStart = new Date(endDate); 
 
         if (endDate > finalDeadline) totalExceeds = true;
-
         return { ...sc, calculated_deadline: endDate.toISOString() };
       }
       return { ...sc, calculated_deadline: null };
@@ -143,8 +144,8 @@ export default function TaskAllocation() {
     }
   }, [formScopes.map(s => s.duration_days).join(','), serviceDeadline]);
 
-  // Handle Checkbox Toggles for Employee multi-select
   const toggleAssignee = (index, empId) => {
+    if (isEmployee) return; // Prevent employees from changing assignees
     setFormScopes(prev => {
       const updated = [...prev];
       const currentIds = updated[index].assignee_ids;
@@ -159,12 +160,11 @@ export default function TaskAllocation() {
 
   const handleSaveAllocation = async (e) => {
     e.preventDefault();
-    if (validationWarning) return alert('Please fix validation warnings before saving.');
+    if (validationWarning && !isEmployee) return alert('Please fix validation warnings before saving.');
     setSaving(true);
     setError('');
 
     try {
-      // Loop over every scope item to send the array of assignee IDs and new deadlines
       await Promise.all(formScopes.map(sc => 
         fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${sc.task_id}`, {
           method: 'PUT',
@@ -212,7 +212,6 @@ export default function TaskAllocation() {
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
 
-  // Helper arrays for filtering Dropdowns
   const selectedLoeObj = loes.find(l => l.loe_id === Number(newTaskForm.loe_id));
   const availableServicesInLoe = selectedLoeObj ? selectedLoeObj.loe_items.map(i => i.service).filter(Boolean) : [];
   const availableDepartmentsInLoe = [];
@@ -227,6 +226,12 @@ export default function TaskAllocation() {
   const createModalServices = availableServicesInLoe.filter(srv => !newTaskForm.department_id || srv.department_id === Number(newTaskForm.department_id));
   const editModalEmployees = employees.filter(emp => isAdmin || emp.department_id === selectedServiceGroup?.service?.department_id);
 
+  const getStatusBadgeStyle = (status) => {
+    if (status === 'Completed') return { background: '#28a745', color: '#fff' };
+    if (status === 'In-Progress') return { background: '#007bff', color: '#fff' };
+    return { background: '#ffc107', color: '#000' };
+  };
+
   return (
     <div style={styles.pageContainer}>
       <Navbar />
@@ -234,12 +239,18 @@ export default function TaskAllocation() {
         
         <div style={styles.headerRow}>
           <div>
-            <h2 style={{ margin: 0 }}>Task Allocation &amp; Scope Deadlines</h2>
+            <h2 style={{ margin: 0 }}>{isEmployee ? 'My Tasks & Scopes' : 'Task Allocation & Scope Deadlines'}</h2>
             <p style={{ margin: '4px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-              Click any Service row to assign team members and sequence scope deadlines.
+              {isEmployee 
+                ? 'Click any row to view details and update your progress status.' 
+                : 'Click any Service row to assign team members and sequence scope deadlines.'}
             </p>
           </div>
-          <button onClick={() => setIsCreateOpen(true)} style={styles.createTaskBtn}>+ Create Custom Scope</button>
+          
+          {/* Hide custom scope creation for standard employees */}
+          {!isEmployee && (
+            <button onClick={() => setIsCreateOpen(true)} style={styles.createTaskBtn}>+ Create Custom Scope</button>
+          )}
         </div>
 
         {error && <div style={styles.errorBox}>{error}</div>}
@@ -258,7 +269,7 @@ export default function TaskAllocation() {
             </thead>
             <tbody>
               {groupedServices.length === 0 ? (
-                <tr><td colSpan="6" style={styles.emptyCell}>No approved tasks available.</td></tr>
+                <tr><td colSpan="6" style={styles.emptyCell}>No assigned tasks available.</td></tr>
               ) : (
                 groupedServices.map((group) => {
                   const uniqueStaff = new Set();
@@ -293,12 +304,12 @@ export default function TaskAllocation() {
           </table>
         </div>
 
-        {/* Modal: Update Scope Assignments & Sequence Dates */}
+        {/* Modal: View & Update Grouped Service Scopes */}
         {selectedServiceGroup && (
           <div style={styles.modalOverlay} onClick={() => setSelectedServiceGroup(null)}>
             <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
-                <h3 style={{ margin: 0 }}>Service Allocation: {selectedServiceGroup.service?.name}</h3>
+                <h3 style={{ margin: 0 }}>Service Details: {selectedServiceGroup.service?.name}</h3>
                 <button style={styles.closeBtn} onClick={() => setSelectedServiceGroup(null)}>✕</button>
               </div>
 
@@ -312,19 +323,22 @@ export default function TaskAllocation() {
                   {/* Master Service Deadline */}
                   <div style={{ background: '#eef2f7', padding: '14px', borderRadius: '6px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{...styles.label, fontSize: '14px', color: '#0056b3'}}>Target Deadline for Entire Service *</label>
-                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6c757d' }}>Scope completion dates cannot exceed this date.</p>
+                      <label style={{...styles.label, fontSize: '14px', color: '#0056b3'}}>Target Deadline for Entire Service</label>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6c757d' }}>
+                        {isEmployee ? 'The final due date set by your manager.' : 'Scope completion dates cannot exceed this date.'}
+                      </p>
                     </div>
                     <input
                       type="date"
                       required
+                      disabled={isEmployee}
                       value={serviceDeadline}
                       onChange={(e) => setServiceDeadline(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '14px', fontWeight: 'bold' }}
+                      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '14px', fontWeight: 'bold', background: isEmployee ? '#e9ecef' : '#fff' }}
                     />
                   </div>
 
-                  {validationWarning && <div style={styles.warningBanner}>{validationWarning}</div>}
+                  {validationWarning && !isEmployee && <div style={styles.warningBanner}>{validationWarning}</div>}
 
                   {/* Individual Scopes Breakdown */}
                   <h4 style={{ margin: '0 0 10px 0', borderBottom: '2px solid #dee2e6', paddingBottom: '6px' }}>Breakdown &amp; Scope Assignments</h4>
@@ -337,14 +351,14 @@ export default function TaskAllocation() {
                         </div>
 
                         <div style={styles.formRow}>
-                          {/* Left Column: Multiple Assignees Checkbox */}
                           <div style={{ flex: '1.5' }}>
                             <label style={styles.label}>Assigned Employees</label>
-                            <div style={styles.multiSelectBox}>
+                            <div style={{ ...styles.multiSelectBox, background: isEmployee ? '#f8f9fa' : '#fff' }}>
                               {editModalEmployees.map(emp => (
-                                <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '2px 0', cursor: 'pointer' }}>
+                                <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '2px 0', cursor: isEmployee ? 'default' : 'pointer' }}>
                                   <input 
                                     type="checkbox" 
+                                    disabled={isEmployee}
                                     checked={scope.assignee_ids.includes(emp.emp_id)} 
                                     onChange={() => toggleAssignee(idx, emp.emp_id)}
                                   />
@@ -354,21 +368,21 @@ export default function TaskAllocation() {
                             </div>
                           </div>
 
-                          {/* Middle Column: Auto Date Sequence */}
                           <div style={{ flex: '0.8', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <div>
                               <label style={styles.label}>Duration (Days)</label>
                               <input
                                 type="number"
                                 min="0"
+                                disabled={isEmployee}
                                 value={scope.duration_days}
                                 onChange={(e) => {
                                   const updated = [...formScopes];
                                   updated[idx].duration_days = e.target.value;
                                   setFormScopes(updated);
                                 }}
-                                placeholder="e.g., 7"
-                                style={styles.selectInput}
+                                placeholder={isEmployee ? "—" : "e.g., 7"}
+                                style={{ ...styles.selectInput, background: isEmployee ? '#e9ecef' : '#fff' }}
                               />
                             </div>
                             <div>
@@ -379,9 +393,8 @@ export default function TaskAllocation() {
                             </div>
                           </div>
 
-                          {/* Right Column: Status */}
                           <div style={{ flex: '0.8' }}>
-                            <label style={styles.label}>Status</label>
+                            <label style={styles.label}>Update Progress</label>
                             <select
                               value={scope.status}
                               onChange={(e) => {
@@ -403,8 +416,8 @@ export default function TaskAllocation() {
 
                   <div style={styles.modalActions}>
                     <button type="button" onClick={() => setSelectedServiceGroup(null)} style={styles.cancelBtn}>Cancel</button>
-                    <button type="submit" disabled={saving || validationWarning} style={styles.saveBtn}>
-                      {saving ? 'Saving...' : 'Confirm Assignments'}
+                    <button type="submit" disabled={saving || (validationWarning && !isEmployee)} style={styles.saveBtn}>
+                      {saving ? 'Saving...' : 'Update Status'}
                     </button>
                   </div>
                 </form>
@@ -413,8 +426,8 @@ export default function TaskAllocation() {
           </div>
         )}
 
-        {/* Create Manual Custom Scope Modal */}
-        {isCreateOpen && (
+        {/* Create Manual Scope Modal (Hidden for Employees) */}
+        {isCreateOpen && !isEmployee && (
           <div style={styles.modalOverlay} onClick={() => setIsCreateOpen(false)}>
              <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
                <div style={styles.modalHeader}>
