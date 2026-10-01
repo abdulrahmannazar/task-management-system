@@ -38,7 +38,7 @@ export default function TaskAllocation() {
 
   useEffect(() => {
     fetchTasks();
-    if (!isEmployee) fetchLoes(); // Employees don't need to load all LOEs for the creation modal
+    if (!isEmployee) fetchLoes();
     fetchEmployees();
   }, []);
 
@@ -145,7 +145,7 @@ export default function TaskAllocation() {
   }, [formScopes.map(s => s.duration_days).join(','), serviceDeadline]);
 
   const toggleAssignee = (index, empId) => {
-    if (isEmployee) return; // Prevent employees from changing assignees
+    if (isEmployee) return; 
     setFormScopes(prev => {
       const updated = [...prev];
       const currentIds = updated[index].assignee_ids;
@@ -247,7 +247,6 @@ export default function TaskAllocation() {
             </p>
           </div>
           
-          {/* Hide custom scope creation for standard employees */}
           {!isEmployee && (
             <button onClick={() => setIsCreateOpen(true)} style={styles.createTaskBtn}>+ Create Custom Scope</button>
           )}
@@ -351,24 +350,27 @@ export default function TaskAllocation() {
                         </div>
 
                         <div style={styles.formRow}>
-                          <div style={{ flex: '1.5' }}>
-                            <label style={styles.label}>Assigned Employees</label>
-                            <div style={{ ...styles.multiSelectBox, background: isEmployee ? '#f8f9fa' : '#fff' }}>
-                              {editModalEmployees.map(emp => (
-                                <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '2px 0', cursor: isEmployee ? 'default' : 'pointer' }}>
-                                  <input 
-                                    type="checkbox" 
-                                    disabled={isEmployee}
-                                    checked={scope.assignee_ids.includes(emp.emp_id)} 
-                                    onChange={() => toggleAssignee(idx, emp.emp_id)}
-                                  />
-                                  {emp.name} <span style={{ color: '#888', fontSize: '11px' }}>({emp.role})</span>
-                                </label>
-                              ))}
+                          
+                          {/* Hide Assigned Employees box entirely for standard Employees */}
+                          {!isEmployee && (
+                            <div style={{ flex: '1.5' }}>
+                              <label style={styles.label}>Assigned Employees</label>
+                              <div style={styles.multiSelectBox}>
+                                {editModalEmployees.map(emp => (
+                                  <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '2px 0', cursor: 'pointer' }}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={scope.assignee_ids.includes(emp.emp_id)} 
+                                      onChange={() => toggleAssignee(idx, emp.emp_id)}
+                                    />
+                                    {emp.name} <span style={{ color: '#888', fontSize: '11px' }}>({emp.role})</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
 
-                          <div style={{ flex: '0.8', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <div>
                               <label style={styles.label}>Duration (Days)</label>
                               <input
@@ -393,7 +395,7 @@ export default function TaskAllocation() {
                             </div>
                           </div>
 
-                          <div style={{ flex: '0.8' }}>
+                          <div style={{ flex: '1' }}>
                             <label style={styles.label}>Update Progress</label>
                             <select
                               value={scope.status}
