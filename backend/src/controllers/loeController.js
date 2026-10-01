@@ -54,8 +54,12 @@ async function createTasksForApprovedLoe(loeId, managerEmpId) {
 // STANDARD CRUD ENDPOINTS
 // ==========================================
 
+// GET /api/loes (Secured: filters to user's department unless ADMIN)
 exports.getAll = asyncHandler(async (req, res) => {
-  const loes = await prisma.loe.findMany({
+  const role = req.query.role;
+  const deptId = parseInt(req.query.department_id);
+
+  const query = {
     include: { 
       company: true,
       creator: { select: { emp_id: true, name: true, email: true } },
@@ -69,10 +73,24 @@ exports.getAll = asyncHandler(async (req, res) => {
       } 
     },
     orderBy: { loe_id: 'desc' }
-  });
+  };
+
+  // Restrict database query to LOEs involving the user's department
+  if (role !== 'ADMIN' && !isNaN(deptId)) {
+    query.where = {
+      loe_items: {
+        some: {
+          service: { department_id: deptId }
+        }
+      }
+    };
+  }
+
+  const loes = await prisma.loe.findMany(query);
   res.json(loes);
 });
 
+// GET /api/loes/:id
 exports.getById = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) {
@@ -99,6 +117,7 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(loe);
 });
 
+// POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
   const { company_id, created_by, type, start_date, end_date, loe_items } = req.body;
 
@@ -129,6 +148,7 @@ exports.create = asyncHandler(async (req, res) => {
   res.status(201).json(newLoe);
 });
 
+// PUT /api/loes/:id
 exports.update = asyncHandler(async (req, res) => {
   const { company_id, type, start_date, end_date, loe_items } = req.body;
   const loeId = parseInt(req.params.id);
