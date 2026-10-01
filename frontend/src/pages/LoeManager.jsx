@@ -22,7 +22,8 @@ export default function LoeManager() {
   
   const [editingId, setEditingId] = useState(null);
   const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
-  const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -62,7 +63,7 @@ export default function LoeManager() {
 
   const fetchLoes = async () => {
     try {
-      if (!token) return setError("Invalid token.");
+      if (!token) return setFormError("Invalid token.");
       
       const url = isAdmin 
         ? 'https://task-management-system-6ifq.onrender.com/api/loes?role=ADMIN'
@@ -276,7 +277,8 @@ export default function LoeManager() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setFormError('');
+    setActionError('');
 
     const url = editingId 
       ? `https://task-management-system-6ifq.onrender.com/api/loes/${editingId}`
@@ -312,7 +314,7 @@ export default function LoeManager() {
     });
 
     if (flattenedItems.length === 0) {
-      setError('Please add at least one service with scope deliverables.');
+      setFormError('Please add at least one service with scope deliverables.');
       return;
     }
 
@@ -341,7 +343,7 @@ export default function LoeManager() {
       setEditingPreviousStatus(null);
       setFormData({ company_id: '', type: 'Standard', start_date: '', loe_services: [] });
     } catch (err) {
-      setError(err.message);
+      setFormError(err.message);
     }
   };
 
@@ -349,7 +351,7 @@ export default function LoeManager() {
     e.stopPropagation(); 
     try {
       setDownloadingId(loeId);
-      setError('');
+      setActionError('');
 
       const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/pdf`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -370,7 +372,7 @@ export default function LoeManager() {
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
-      setError(err.message || 'Error generating PDF');
+      setActionError(err.message || 'Error generating PDF');
     } finally {
       setDownloadingId(null);
     }
@@ -380,7 +382,7 @@ export default function LoeManager() {
     e.stopPropagation();
     try {
       setDownloadingInvoiceId(loeId);
-      setError('');
+      setActionError('');
 
       const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/invoice-pdf`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -401,7 +403,7 @@ export default function LoeManager() {
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
-      setError(err.message || 'Error generating Invoice PDF');
+      setActionError(err.message || 'Error generating Invoice PDF');
     } finally {
       setDownloadingInvoiceId(null);
     }
@@ -440,7 +442,7 @@ export default function LoeManager() {
               </div>
             )}
 
-            {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+            {formError && <p style={{ color: 'red', marginTop: '10px' }}>{formError}</p>}
             
             <form onSubmit={handleSubmit} style={styles.form}>
               <select 
@@ -685,6 +687,12 @@ export default function LoeManager() {
             Click any card to view its full details and service scopes.
           </p>
 
+          {actionError && (
+            <div style={{ background: '#fed7d7', color: '#c53030', padding: '10px 14px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #feb2b2', fontSize: '13px' }}>
+              {actionError}
+            </div>
+          )}
+
           {displayedLoes.length === 0 ? <p>No LOEs found for your department.</p> : (
             <div style={styles.grid}>
               {displayedLoes.map((loe) => {
@@ -767,7 +775,6 @@ export default function LoeManager() {
                         {downloadingId === loe.loe_id ? 'PDF...' : 'LOE PDF'}
                       </button>
 
-                      {/* Invoice Generation: Only for approved LOEs */}
                       {isApproved && (
                         <button 
                           onClick={(e) => handleDownloadInvoice(e, loe.loe_id)} 
