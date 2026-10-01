@@ -18,12 +18,16 @@ export default function Navbar() {
       <div style={styles.links}>
         <Link to="/dashboard" style={styles.link}>Dashboard</Link>
         <Link to="/loes" style={styles.link}>LOE Manager</Link>
+        
         {isPrivileged && (
           <Link to="/approvals" style={styles.link}>Approvals</Link>
         )}
-        {isPrivileged && (
-          <Link to="/tasks" style={styles.link}>Task Allocation</Link>
-        )}
+        
+        {/* Task Link: Visible to everyone, wording changes based on role */}
+        <Link to="/tasks" style={styles.link}>
+          {isPrivileged ? 'Task Allocation' : 'My Tasks'}
+        </Link>
+        
         {isPrivileged && (
           <Link to="/employees" style={styles.link}>Employees</Link>
         )}
@@ -33,6 +37,7 @@ export default function Navbar() {
         {isPrivileged && (
           <Link to="/companies" style={styles.link}>Companies</Link>
         )}
+        
         <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
       </div>
     </nav>
