@@ -14,7 +14,10 @@ export default function LoeDetails() {
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
+  
   const canEdit = user.role === 'ADMIN' || user.role === 'MANAGER';
+  const isAdmin = user.role === 'ADMIN';
+  const userDeptId = user.department_id || 1;
 
   useEffect(() => {
     fetchLoeDetails();
@@ -78,6 +81,11 @@ export default function LoeDetails() {
     if (status === 'Rejected') return { background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' };
     return { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' };
   };
+
+  // FILTER LOGIC: Restrict rendered items in the full details page to the user's department
+  const relevantItems = isAdmin 
+    ? (loe?.loe_items || [])
+    : (loe?.loe_items || []).filter(item => item.service?.department_id === userDeptId);
 
   return (
     <div style={styles.pageContainer}>
@@ -200,7 +208,7 @@ export default function LoeDetails() {
                 </div>
                 <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Services Count</span>
-                  <span style={styles.detailValue}>{loe.loe_items?.length || 0} items</span>
+                  <span style={styles.detailValue}>{relevantItems.length} items</span>
                 </div>
               </div>
             </div>
@@ -209,11 +217,11 @@ export default function LoeDetails() {
             <div style={styles.card}>
               <h3 style={styles.sectionHeader}>Contracted Services &amp; Scope Requirements</h3>
               
-              {(!loe.loe_items || loe.loe_items.length === 0) ? (
-                <p style={{ color: '#718096', fontStyle: 'italic' }}>No services specified for this engagement.</p>
+              {relevantItems.length === 0 ? (
+                <p style={{ color: '#718096', fontStyle: 'italic' }}>No services specified for your department.</p>
               ) : (
                 <div style={styles.itemsList}>
-                  {loe.loe_items.map((item, idx) => (
+                  {relevantItems.map((item, idx) => (
                     <div key={item.loe_item_id || idx} style={styles.itemCard}>
                       <div style={styles.itemHeader}>
                         <div>
