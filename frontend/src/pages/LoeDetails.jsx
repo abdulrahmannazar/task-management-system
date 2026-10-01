@@ -10,6 +10,7 @@ export default function LoeDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -69,6 +70,36 @@ export default function LoeDetails() {
     }
   };
 
+  const handleDownloadInvoice = async () => {
+    try {
+      setDownloadingInvoice(true);
+      setError('');
+
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}/invoice-pdf`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Invoices can only be generated for approved LOEs');
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `Invoice-LOE-${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      setError(err.message || 'Error generating Invoice PDF');
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
+
   const getStatusBadgeStyle = (status) => {
     if (status === 'Approved') return { background: '#28a745', color: '#fff' };
     if (status === 'Rejected') return { background: '#dc3545', color: '#fff' };
@@ -82,10 +113,11 @@ export default function LoeDetails() {
     return { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' };
   };
 
-  // FILTER LOGIC: Restrict rendered items in the full details page to the user's department
   const relevantItems = isAdmin 
     ? (loe?.loe_items || [])
     : (loe?.loe_items || []).filter(item => item.service?.department_id === userDeptId);
+
+  const totalFee = (loe?.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
 
   return (
     <div style={styles.pageContainer}>
@@ -107,13 +139,24 @@ export default function LoeDetails() {
                 {loe?.status === 'Rejected' ? 'Edit & Resubmit' : 'Edit LOE'}
               </button>
             )}
+
             <button 
               onClick={handleDownloadPdf} 
               disabled={downloading} 
               style={styles.downloadBtn}
             >
-              {downloading ? 'Generating PDF...' : 'Download PDF'}
+              {downloading ? 'Generating PDF...' : 'Download LOE PDF'}
             </button>
+
+            {loe?.status === 'Approved' && (
+              <button 
+                onClick={handleDownloadInvoice} 
+                disabled={downloadingInvoice} 
+                style={styles.invoiceBtn}
+              >
+                {downloadingInvoice ? 'Generating Invoice...' : 'Download Invoice PDF'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -129,9 +172,14 @@ export default function LoeDetails() {
             {/* Top Overview Card */}
             <div style={styles.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h1 style={{ margin: 0, fontSize: '24px', color: '#1a202c' }}>
-                  Letter of Engagement #{loe.loe_id}
-                </h1>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '24px', color: '#1a202c' }}>
+                    Letter of Engagement #{loe.loe_id}
+                  </h1>
+                  <p style={{ margin: '4px 0 0', color: '#2b6cb0', fontWeight: 'bold' }}>
+                    Total Contract Value: ${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
                 <span style={{ ...styles.badge, ...getStatusBadgeStyle(loe.status) }}>
                   {loe.status}
                 </span>
@@ -215,7 +263,7 @@ export default function LoeDetails() {
 
             {/* Services & Scopes Breakdown */}
             <div style={styles.card}>
-              <h3 style={styles.sectionHeader}>Contracted Services &amp; Scope Requirements</h3>
+              <h3 style={styles.sectionHeader}>Contracted Services, Pricing &amp; Scope Requirements</h3>
               
               {relevantItems.length === 0 ? (
                 <p style={{ color: '#718096', fontStyle: 'italic' }}>No services specified for your department.</p>
@@ -237,9 +285,14 @@ export default function LoeDetails() {
                           )}
                         </div>
 
-                        <span style={{ ...styles.itemStatusBadge, ...getItemBadgeStyle(item.status) }}>
-                          {item.status === 'Approved' ? '✅' : item.status === 'Rejected' ? '❌' : '⏳'} {item.status}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={styles.priceTag}>
+                            ${Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span style={{ ...styles.itemStatusBadge, ...getItemBadgeStyle(item.status) }}>
+                            {item.status === 'Approved' ? '✅' : item.status === 'Rejected' ? '❌' : '⏳'} {item.status}
+                          </span>
+                        </div>
                       </div>
 
                       <div style={styles.scopeBox}>
@@ -277,6 +330,7 @@ const styles = {
   actionButtons: { display: 'flex', gap: '10px' },
   editBtn: { padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
   downloadBtn: { padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
+  invoiceBtn: { padding: '8px 16px', background: '#6f42c1', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
   errorBanner: { padding: '12px 16px', background: '#fed7d7', color: '#c53030', borderRadius: '6px', marginBottom: '20px', border: '1px solid #feb2b2' },
   loadingBox: { padding: '40px', textAlign: 'center', color: '#718096', fontSize: '16px' },
   content: { display: 'flex', flexDirection: 'column', gap: '20px' },
@@ -287,6 +341,7 @@ const styles = {
   detailLabel: { color: '#718096', fontWeight: '500' },
   detailValue: { color: '#1a202c', fontWeight: '600' },
   badge: { padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },
+  priceTag: { background: '#e6fffa', color: '#234e52', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #b2f5ea' },
   rejectedBanner: { marginTop: '14px', padding: '10px 14px', background: '#fff5f5', color: '#c53030', borderRadius: '4px', fontSize: '13px', border: '1px solid #feb2b2' },
   itemsList: { display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' },
   itemCard: { border: '1px solid #e2e8f0', borderRadius: '6px', padding: '14px', background: '#fafbfc' },

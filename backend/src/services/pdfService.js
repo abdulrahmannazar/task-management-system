@@ -1,54 +1,61 @@
 const puppeteer = require('puppeteer');
-const { renderLoeHtml } = require('../templates/loeTemplate');
+const generateLoeTemplate = require('../templates/loeTemplate');
+const generateInvoiceTemplate = require('../templates/invoiceTemplate');
 
 /**
- * Compiles LOE data into HTML and converts it into a PDF buffer via Puppeteer
- * @param {Object} payload - { loe, company }
- * @returns {Promise<Buffer>}
+ * Compiles the LOE HTML template and generates a PDF buffer using Puppeteer
  */
-async function generateLoePdf({ loe, company }) {
-  const htmlContent = renderLoeHtml({ loe, company });
+exports.generateLoePdf = async ({ loe, company }) => {
+  const htmlContent = generateLoeTemplate({ loe, company });
 
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: 'new',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process', // Critical: keeps memory footprint low on Render free tier
       '--disable-gpu'
     ]
   });
 
   try {
     const page = await browser.newPage();
-
-    // Disable unnecessary timeouts and render purely from DOM readiness
-    page.setDefaultNavigationTimeout(60000);
-
-    await page.setContent(htmlContent, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60000
-    });
-
-    const pdfBuffer = await page.pdf({
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    return await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: {
-        top: '12mm',
-        right: '12mm',
-        bottom: '12mm',
-        left: '12mm'
-      }
+      preferCSSPageSize: true
     });
-
-    return pdfBuffer;
   } finally {
     await browser.close();
   }
-}
+};
 
-module.exports = { generateLoePdf };
+/**
+ * Compiles the Invoice HTML template and generates a PDF buffer using Puppeteer
+ */
+exports.generateInvoicePdf = async ({ invoice, loe, company }) => {
+  const htmlContent = generateInvoiceTemplate({ invoice, loe, company });
+
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
+    ]
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    return await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true
+    });
+  } finally {
+    await browser.close();
+  }
+};

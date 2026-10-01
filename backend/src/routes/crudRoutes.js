@@ -13,6 +13,12 @@ const createCrudRouter = (controller) => {
     router.get('/:id/pdf', controller.generatePdf);
   }
 
+  // Invoice PDF generation route
+  if (typeof controller.generateInvoicePdf === 'function') {
+    router.get('/:id/invoice-pdf', controller.generateInvoicePdf);
+    router.get('/:id/invoice/pdf', controller.generateInvoicePdf);
+  }
+
   // Item-level approval actions
   if (typeof controller.approveItem === 'function') {
     router.put('/:id/items/:itemId/approve', controller.approveItem);
