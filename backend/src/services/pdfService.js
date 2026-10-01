@@ -14,18 +14,33 @@ exports.generateLoePdf = async ({ loe, company }) => {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--no-first-run'
     ]
   });
 
   try {
     const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    return await page.pdf({
+    page.setDefaultNavigationTimeout(60000);
+
+    // Using 'domcontentloaded' generates the PDF immediately without waiting for network idle
+    await page.setContent(htmlContent, {
+      waitUntil: 'domcontentloaded'
+    });
+
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      preferCSSPageSize: true
+      preferCSSPageSize: true,
+      margin: {
+        top: '15mm',
+        bottom: '15mm',
+        left: '15mm',
+        right: '15mm'
+      }
     });
+
+    return pdfBuffer;
   } finally {
     await browser.close();
   }
@@ -43,18 +58,32 @@ exports.generateInvoicePdf = async ({ invoice, loe, company }) => {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--no-first-run'
     ]
   });
 
   try {
     const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    return await page.pdf({
+    page.setDefaultNavigationTimeout(60000);
+
+    await page.setContent(htmlContent, {
+      waitUntil: 'domcontentloaded'
+    });
+
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      preferCSSPageSize: true
+      preferCSSPageSize: true,
+      margin: {
+        top: '15mm',
+        bottom: '15mm',
+        left: '15mm',
+        right: '15mm'
+      }
     });
+
+    return pdfBuffer;
   } finally {
     await browser.close();
   }
