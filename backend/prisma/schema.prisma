@@ -37,7 +37,7 @@ model Employee {
   loes_approved        Loe[]                   @relation("LoeApprover")
   department_approvals LoeDepartmentApproval[] @relation("DepartmentReviewer")
   jobs_managed         Job[]                   @relation("JobManager")
-  tasks                Task[]                  @relation("TaskAssignees") // Updated: Many-to-many relation
+  tasks                Task[]                  @relation("TaskAssignees")
 
   @@map("employees")
 }
@@ -63,6 +63,7 @@ model Service {
   sub_category  String?     @db.VarChar(100)
   scope         String?     @db.Text
   billing_type  String      @db.VarChar(50)
+  price         Decimal     @default(0.00) @db.Decimal(12, 2)
   is_active     Boolean     @default(true)
 
   // Relations
