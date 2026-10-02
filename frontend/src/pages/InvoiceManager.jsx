@@ -266,7 +266,7 @@ export default function InvoiceManager() {
         <div style={styles.filterCard}>
           <div style={styles.filterHeader}>
             <span style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#1a365d' }}>
-              🔍 Filter Invoices
+               Filter Invoices
             </span>
             {hasActiveFilters && (
               <button onClick={handleResetFilters} style={styles.clearFiltersBtn}>
