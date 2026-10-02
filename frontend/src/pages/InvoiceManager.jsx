@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from '../components/Navbar';
 
 export default function InvoiceManager() {
   const [invoices, setInvoices] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
@@ -15,8 +17,16 @@ export default function InvoiceManager() {
   const isAdmin = user.role === 'ADMIN';
   const userDeptId = user.department_id || 1;
 
+  // Filter States
+  const [selectedCompany, setSelectedCompany] = useState('ALL');
+  const [selectedDepartment, setSelectedDepartment] = useState(isAdmin ? 'ALL' : String(userDeptId));
+  const [scopeSearch, setScopeSearch] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+
   useEffect(() => {
     fetchInvoices();
+    fetchDepartments();
+    fetchCompanies();
   }, []);
 
   const fetchInvoices = async () => {
@@ -33,6 +43,30 @@ export default function InvoiceManager() {
     } catch (err) {
       console.error(err);
       setError('Failed to load invoices');
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) setDepartments(data);
+    } catch (err) {
+      console.error('Failed to load departments', err);
+    }
+  };
+
+  const fetchCompanies = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCompanies(Array.isArray(data) ? data : data.companies || []);
+      }
+    } catch (err) {
+      console.error('Failed to load companies', err);
     }
   };
 
@@ -95,12 +129,83 @@ export default function InvoiceManager() {
     }
   };
 
-  const getStatusBadgeStyle = (status) => {
-    if (status === 'Paid') return { background: '#28a745', color: '#fff' };
-    return { background: '#dc3545', color: '#fff' }; // "Not Paid"
+  const handleResetFilters = () => {
+    setSelectedCompany('ALL');
+    setSelectedDepartment(isAdmin ? 'ALL' : String(userDeptId));
+    setScopeSearch('');
+    setSelectedStatus('ALL');
   };
 
-  // Group line items by service for the detailed modal
+  // ----------------------------------------------------------------------
+  // FILTERING LOGIC
+  // ----------------------------------------------------------------------
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((inv) => {
+      const companyId = inv.job?.loe?.company?.company_id || inv.job?.loe?.company_id;
+      const loeItems = inv.job?.loe?.loe_items || [];
+
+      // 1. Company Filter
+      if (selectedCompany !== 'ALL' && companyId !== Number(selectedCompany)) {
+        return false;
+      }
+
+      // 2. Department Filter
+      if (selectedDepartment !== 'ALL') {
+        const matchesDept = loeItems.some(
+          (item) => item.service?.department_id === Number(selectedDepartment)
+        );
+        if (!matchesDept) return false;
+      }
+
+      // 3. Payment Status Filter
+      if (selectedStatus !== 'ALL' && inv.status !== selectedStatus) {
+        return false;
+      }
+
+      // 4. Scope & Deliverable Keyword Search
+      if (scopeSearch.trim()) {
+        const query = scopeSearch.toLowerCase().trim();
+        const matchesScopeOrService = loeItems.some((item) => {
+          const customScopeText = (item.custom_scope || '').toLowerCase();
+          const serviceNameText = (item.service?.name || '').toLowerCase();
+          const serviceScopeText = (item.service?.scope || '').toLowerCase();
+          return (
+            customScopeText.includes(query) ||
+            serviceNameText.includes(query) ||
+            serviceScopeText.includes(query)
+          );
+        });
+
+        // Also allow quick matching by invoice reference (e.g. "INV-00004" or "4")
+        const invCode = `inv-${String(inv.invoice_id).padStart(5, '0')}`.toLowerCase();
+        const matchesRef = invCode.includes(query) || String(inv.invoice_id) === query;
+
+        if (!matchesScopeOrService && !matchesRef) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [invoices, selectedCompany, selectedDepartment, selectedStatus, scopeSearch]);
+
+  const hasActiveFilters =
+    selectedCompany !== 'ALL' ||
+    (isAdmin && selectedDepartment !== 'ALL') ||
+    selectedStatus !== 'ALL' ||
+    scopeSearch.trim() !== '';
+
+  const getStatusBadgeStyle = (status) => {
+    if (status === 'Paid') return { background: '#28a745', color: '#fff' };
+    return { background: '#dc3545', color: '#fff' };
+  };
+
+  const getDepartmentName = (deptId) => {
+    const found = departments.find(d => d.department_id === Number(deptId));
+    return found ? found.name : `Dept #${deptId}`;
+  };
+
+  // Group line items by service for the detailed preview modal
   const getGroupedItems = (loeItems) => {
     const map = new Map();
     (loeItems || []).forEach(item => {
@@ -119,10 +224,10 @@ export default function InvoiceManager() {
     return Array.from(map.values());
   };
 
-  // Metrics
-  const totalInvoiced = invoices.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
-  const paidCount = invoices.filter(i => i.status === 'Paid').length;
-  const unpaidCount = invoices.filter(i => i.status !== 'Paid').length;
+  // Filtered metrics calculation
+  const totalInvoiced = filteredInvoices.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+  const paidCount = filteredInvoices.filter(i => i.status === 'Paid').length;
+  const unpaidCount = filteredInvoices.filter(i => i.status !== 'Paid').length;
 
   return (
     <div style={styles.pageContainer}>
@@ -134,13 +239,13 @@ export default function InvoiceManager() {
           <div>
             <h2 style={{ margin: 0 }}>Invoice Management &amp; Accounts Receivable</h2>
             <p style={{ margin: '4px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-              Track issued invoices, update client payment statuses, and download official invoices.
+              Track invoices, filter by company or scope, and record payment receipts.
             </p>
           </div>
 
           <div style={styles.metricsGroup}>
             <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Total Invoiced</span>
+              <span style={styles.metricLabel}>Filtered Total</span>
               <strong style={styles.metricValue}>
                 ${totalInvoiced.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>
@@ -158,6 +263,98 @@ export default function InvoiceManager() {
 
         {error && <div style={styles.errorBox}>{error}</div>}
 
+        {/* Filter Controls Card */}
+        <div style={styles.filterCard}>
+          <div style={styles.filterHeader}>
+            <span style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#1a365d' }}>
+              🔍 Filter &amp; Search Invoices
+            </span>
+            {hasActiveFilters && (
+              <button onClick={handleResetFilters} style={styles.clearFiltersBtn}>
+                Reset Filters
+              </button>
+            )}
+          </div>
+
+          <div style={styles.filterRow}>
+            {/* 1. Filter by Company */}
+            <div style={styles.filterCol}>
+              <label style={styles.filterLabel}>Company / Client</label>
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Companies</option>
+                {companies.map((comp) => (
+                  <option key={comp.company_id} value={comp.company_id}>
+                    {comp.name || comp.company_name || `Company #${comp.company_id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Filter by Department */}
+            <div style={styles.filterCol}>
+              <label style={styles.filterLabel}>Department</label>
+              {isAdmin ? (
+                <select
+                  value={selectedDepartment}
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  style={styles.filterSelect}
+                >
+                  <option value="ALL">All Departments</option>
+                  {departments.map((dept) => (
+                    <option key={dept.department_id} value={dept.department_id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  disabled
+                  value={getDepartmentName(userDeptId)}
+                  style={{ ...styles.filterSelect, background: '#f8f9fa', color: '#495057' }}
+                />
+              )}
+            </div>
+
+            {/* 3. Filter by Scope / Deliverable */}
+            <div style={{ ...styles.filterCol, flex: 1.5 }}>
+              <label style={styles.filterLabel}>Scope / Deliverable / Service</label>
+              <input
+                type="text"
+                placeholder="Search scope, service, or INV #..."
+                value={scopeSearch}
+                onChange={(e) => setScopeSearch(e.target.value)}
+                style={styles.filterInput}
+              />
+            </div>
+
+            {/* 4. Filter by Payment Status */}
+            <div style={styles.filterCol}>
+              <label style={styles.filterLabel}>Payment Status</label>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="Not Paid">Not Paid</option>
+                <option value="Paid">Paid</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Results Counter */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <span style={{ fontSize: '13px', color: '#6c757d' }}>
+            Showing <strong>{filteredInvoices.length}</strong> of <strong>{invoices.length}</strong> total invoices
+          </span>
+        </div>
+
         {/* Invoices List Table */}
         <div style={styles.tableCard}>
           <table style={styles.table}>
@@ -174,14 +371,14 @@ export default function InvoiceManager() {
               </tr>
             </thead>
             <tbody>
-              {invoices.length === 0 ? (
+              {filteredInvoices.length === 0 ? (
                 <tr>
                   <td colSpan="8" style={styles.emptyCell}>
-                    No invoices generated yet. Invoices are automatically created when an LOE is approved.
+                    No invoices match the selected filter criteria.
                   </td>
                 </tr>
               ) : (
-                invoices.map((inv) => {
+                filteredInvoices.map((inv) => {
                   const company = inv.job?.loe?.company;
                   const isPaid = inv.status === 'Paid';
 
@@ -357,11 +554,22 @@ export default function InvoiceManager() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { padding: '40px' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '25px' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' },
   metricsGroup: { display: 'flex', gap: '15px' },
   metricCard: { background: '#fff', padding: '12px 18px', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', minWidth: '130px' },
   metricLabel: { display: 'block', fontSize: '11.5px', color: '#718096', textTransform: 'uppercase', fontWeight: 'bold' },
   metricValue: { fontSize: '16px', color: '#1a202c', marginTop: '2px', display: 'block' },
+  
+  // Filter Card
+  filterCard: { background: '#fff', padding: '16px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: '20px' },
+  filterHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' },
+  clearFiltersBtn: { padding: '4px 10px', background: '#edf2f7', color: '#4a5568', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  filterRow: { display: 'flex', gap: '14px', flexWrap: 'wrap' },
+  filterCol: { flex: 1, minWidth: '170px', display: 'flex', flexDirection: 'column', gap: '4px' },
+  filterLabel: { fontSize: '12px', fontWeight: 'bold', color: '#4a5568' },
+  filterSelect: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px', background: '#fff' },
+  filterInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px' },
+
   tableCard: { background: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' },
   thRow: { background: '#f8f9fa', borderBottom: '2px solid #dee2e6' },
