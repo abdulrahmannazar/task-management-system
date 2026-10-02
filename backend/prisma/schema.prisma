@@ -146,6 +146,7 @@ model Job {
 
 model Task {
   task_id          Int        @id @default(autoincrement())
+  task_code        String?    @db.VarChar(50)   // e.g. "abc/reg/001"
   job_id           Int
   service_id       Int
   status           String     @db.VarChar(50)

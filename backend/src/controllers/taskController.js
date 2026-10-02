@@ -1,5 +1,6 @@
 const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
+const { generateTaskCode } = require('../utils/taskCodeHelper');
 
 // GET /api/tasks
 exports.getAll = asyncHandler(async (req, res) => {
@@ -27,7 +28,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   };
 
   if (role === 'ADMIN') {
-    // Admins see all tasks
+    // Admins see all
   } else if (role === 'MANAGER' && !isNaN(deptId)) {
     query.where = { service: { department_id: deptId } };
   } else if (!isNaN(empId)) {
@@ -35,7 +36,20 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const tasks = await prisma.task.findMany(query);
-  res.json(tasks);
+
+  // Dynamic fallback for any existing tasks that don't have task_code saved yet
+  const enriched = tasks.map((t, idx) => {
+    if (!t.task_code) {
+      const companyName = t.job?.loe?.company?.name || 'CMP';
+      return {
+        ...t,
+        task_code: generateTaskCode(companyName, t.scope || t.service?.name, t.task_id || idx + 1)
+      };
+    }
+    return t;
+  });
+
+  res.json(enriched);
 });
 
 // GET /api/tasks/:id
@@ -53,6 +67,15 @@ exports.getById = asyncHandler(async (req, res) => {
   });
 
   if (!task) return res.status(404).json({ error: 'Task not found' });
+
+  if (!task.task_code) {
+    task.task_code = generateTaskCode(
+      task.job?.loe?.company?.name || 'CMP',
+      task.scope || task.service?.name,
+      task.task_id
+    );
+  }
+
   res.json(task);
 });
 
@@ -83,8 +106,18 @@ exports.create = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Valid LOE and Service selection required' });
   }
 
+  // Determine Company Name and sequential task number for ID generation
+  const jobWithCompany = await prisma.job.findUnique({
+    where: { job_id: targetJobId },
+    include: { loe: { include: { company: true } } }
+  });
+  const compName = jobWithCompany?.loe?.company?.name || 'CMP';
+  const existingCount = await prisma.task.count({ where: { job_id: targetJobId } });
+  const taskCode = generateTaskCode(compName, scope, existingCount + 1);
+
   const task = await prisma.task.create({
     data: {
+      task_code: taskCode,
       job_id: targetJobId,
       service_id: parseInt(service_id),
       status: status || 'Pending',

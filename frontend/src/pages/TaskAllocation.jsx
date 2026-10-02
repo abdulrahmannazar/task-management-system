@@ -19,7 +19,6 @@ export default function TaskAllocation() {
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : null;
   const userDeptId = user?.department_id || 1;
   
-  // Role Access Flags
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'MANAGER';
   const isEmployee = !isAdmin && !isManager; 
@@ -101,6 +100,7 @@ export default function TaskAllocation() {
 
     setFormScopes(group.scopes.map(s => ({
       task_id: s.task_id,
+      task_code: s.task_code,
       scope: s.scope,
       status: s.status,
       duration_days: s.duration_days || '',
@@ -226,12 +226,6 @@ export default function TaskAllocation() {
   const createModalServices = availableServicesInLoe.filter(srv => !newTaskForm.department_id || srv.department_id === Number(newTaskForm.department_id));
   const editModalEmployees = employees.filter(emp => isAdmin || emp.department_id === selectedServiceGroup?.service?.department_id);
 
-  const getStatusBadgeStyle = (status) => {
-    if (status === 'Completed') return { background: '#28a745', color: '#fff' };
-    if (status === 'In-Progress') return { background: '#007bff', color: '#fff' };
-    return { background: '#ffc107', color: '#000' };
-  };
-
   return (
     <div style={styles.pageContainer}>
       <Navbar />
@@ -258,7 +252,8 @@ export default function TaskAllocation() {
           <table style={styles.table}>
             <thead>
               <tr style={styles.thRow}>
-                <th style={styles.th}>LOE ID</th>
+                <th style={styles.th}>Task ID(s)</th>
+                <th style={styles.th}>LOE Ref</th>
                 <th style={styles.th}>Department</th>
                 <th style={styles.th}>Service Category</th>
                 <th style={styles.th}># of Scopes</th>
@@ -268,7 +263,7 @@ export default function TaskAllocation() {
             </thead>
             <tbody>
               {groupedServices.length === 0 ? (
-                <tr><td colSpan="6" style={styles.emptyCell}>No assigned tasks available.</td></tr>
+                <tr><td colSpan="7" style={styles.emptyCell}>No assigned tasks available.</td></tr>
               ) : (
                 groupedServices.map((group) => {
                   const uniqueStaff = new Set();
@@ -281,6 +276,20 @@ export default function TaskAllocation() {
 
                   return (
                     <tr key={group.key} onClick={() => handleRowClick(group)} style={styles.tr}>
+                      <td style={styles.td}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {group.scopes.slice(0, 2).map((s, idx) => (
+                            <span key={idx} style={styles.taskCodeBadge}>
+                              {s.task_code || `task/${s.task_id}`}
+                            </span>
+                          ))}
+                          {group.scopes.length > 2 && (
+                            <span style={{ fontSize: '11px', color: '#6c757d' }}>
+                              +{group.scopes.length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td style={styles.td}><strong>#{group.job?.loe?.loe_id || 'N/A'}</strong></td>
                       <td style={styles.td}><span style={styles.deptBadge}>{group.service?.department?.name}</span></td>
                       <td style={styles.td}><strong>{group.service?.name}</strong></td>
@@ -308,7 +317,12 @@ export default function TaskAllocation() {
           <div style={styles.modalOverlay} onClick={() => setSelectedServiceGroup(null)}>
             <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
-                <h3 style={{ margin: 0 }}>Service Details: {selectedServiceGroup.service?.name}</h3>
+                <div>
+                  <h3 style={{ margin: 0 }}>Service Details: {selectedServiceGroup.service?.name}</h3>
+                  <span style={{ fontSize: '12.5px', color: '#6c757d' }}>
+                    LOE #{selectedServiceGroup.job?.loe?.loe_id} &bull; {selectedServiceGroup.job?.loe?.company?.name}
+                  </span>
+                </div>
                 <button style={styles.closeBtn} onClick={() => setSelectedServiceGroup(null)}>✕</button>
               </div>
 
@@ -345,13 +359,17 @@ export default function TaskAllocation() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {formScopes.map((scope, idx) => (
                       <div key={scope.task_id} style={styles.scopeAssignmentCard}>
-                        <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#333', marginBottom: '10px' }}>
-                          <span style={styles.numberBadge}>{idx + 1}</span> {scope.scope || 'General Delivery'}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#333' }}>
+                            <span style={styles.numberBadge}>{idx + 1}</span> {scope.scope || 'General Delivery'}
+                          </div>
+                          {/* Structured Task ID Badge */}
+                          <span style={styles.taskCodeBadge}>
+                            {scope.task_code || `task/${scope.task_id}`}
+                          </span>
                         </div>
 
                         <div style={styles.formRow}>
-                          
-                          {/* Hide Assigned Employees box entirely for standard Employees */}
                           {!isEmployee && (
                             <div style={{ flex: '1.5' }}>
                               <label style={styles.label}>Assigned Employees</label>
@@ -428,7 +446,7 @@ export default function TaskAllocation() {
           </div>
         )}
 
-        {/* Create Manual Scope Modal (Hidden for Employees) */}
+        {/* Create Manual Scope Modal */}
         {isCreateOpen && !isEmployee && (
           <div style={styles.modalOverlay} onClick={() => setIsCreateOpen(false)}>
              <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -487,6 +505,8 @@ const styles = {
   tr: { borderBottom: '1px solid #dee2e6', cursor: 'pointer' },
   td: { padding: '14px 16px', verticalAlign: 'middle' },
   deptBadge: { background: '#e9ecef', color: '#495057', padding: '3px 8px', borderRadius: '4px', fontSize: '12px' },
+  taskCodeBadge: { background: '#e8f0fe', color: '#1a73e8', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #d2e3fc', display: 'inline-block' },
+  numberBadge: { background: '#6c757d', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginRight: '6px' },
   emptyCell: { textAlign: 'center', padding: '30px', color: '#6c757d' },
   errorBox: { background: '#f8d7da', color: '#721c24', padding: '10px 15px', borderRadius: '4px', marginBottom: '15px' },
   warningBanner: { background: '#fff3cd', color: '#856404', padding: '10px', borderRadius: '4px', border: '1px solid #ffeeba', fontSize: '13px', fontWeight: 'bold', marginBottom: '15px' },
@@ -497,7 +517,6 @@ const styles = {
   modalBody: { marginTop: '16px', display: 'flex', flexDirection: 'column' },
   loeDetailsBox: { background: '#f1f5f9', padding: '12px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13.5px', marginBottom: '15px' },
   scopeAssignmentCard: { border: '1px solid #dee2e6', padding: '14px', borderRadius: '6px', background: '#fafbfc' },
-  numberBadge: { background: '#6c757d', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginRight: '6px' },
   formRow: { display: 'flex', gap: '15px' },
   formCol: { flex: 1, display: 'flex', flexDirection: 'column' },
   label: { fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#495057' },
