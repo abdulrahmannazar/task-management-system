@@ -10,7 +10,6 @@ export default function LoeDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
-  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -70,36 +69,6 @@ export default function LoeDetails() {
     }
   };
 
-  const handleDownloadInvoice = async () => {
-    try {
-      setDownloadingInvoice(true);
-      setError('');
-
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}/invoice-pdf`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Invoices can only be generated for approved LOEs');
-      }
-
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', `Invoice-LOE-${id}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-    } catch (err) {
-      setError(err.message || 'Error generating Invoice PDF');
-    } finally {
-      setDownloadingInvoice(false);
-    }
-  };
-
   const getStatusBadgeStyle = (status) => {
     if (status === 'Approved') return { background: '#28a745', color: '#fff' };
     if (status === 'Rejected') return { background: '#dc3545', color: '#fff' };
@@ -147,16 +116,6 @@ export default function LoeDetails() {
             >
               {downloading ? 'Generating PDF...' : 'Download LOE PDF'}
             </button>
-
-            {loe?.status === 'Approved' && (
-              <button 
-                onClick={handleDownloadInvoice} 
-                disabled={downloadingInvoice} 
-                style={styles.invoiceBtn}
-              >
-                {downloadingInvoice ? 'Generating Invoice...' : 'Download Invoice PDF'}
-              </button>
-            )}
           </div>
         </div>
 
@@ -330,7 +289,6 @@ const styles = {
   actionButtons: { display: 'flex', gap: '10px' },
   editBtn: { padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
   downloadBtn: { padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
-  invoiceBtn: { padding: '8px 16px', background: '#6f42c1', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
   errorBanner: { padding: '12px 16px', background: '#fed7d7', color: '#c53030', borderRadius: '6px', marginBottom: '20px', border: '1px solid #feb2b2' },
   loadingBox: { padding: '40px', textAlign: 'center', color: '#718096', fontSize: '16px' },
   content: { display: 'flex', flexDirection: 'column', gap: '20px' },

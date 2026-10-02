@@ -23,10 +23,13 @@ export default function Navbar() {
           <Link to="/approvals" style={styles.link}>Approvals</Link>
         )}
         
-        {/* Task Link: Visible to everyone, wording changes based on role */}
         <Link to="/tasks" style={styles.link}>
           {isPrivileged ? 'Task Allocation' : 'My Tasks'}
         </Link>
+
+        {isPrivileged && (
+          <Link to="/invoices" style={styles.link}>Invoices</Link>
+        )}
         
         {isPrivileged && (
           <Link to="/employees" style={styles.link}>Employees</Link>

@@ -11,7 +11,6 @@ export default function LoeManager() {
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
-  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState(null);
   
   const [formData, setFormData] = useState({
     company_id: '',
@@ -378,37 +377,6 @@ export default function LoeManager() {
     }
   };
 
-  const handleDownloadInvoice = async (e, loeId) => {
-    e.stopPropagation();
-    try {
-      setDownloadingInvoiceId(loeId);
-      setActionError('');
-
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/invoice-pdf`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Invoices can only be generated for approved LOEs');
-      }
-
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', `Invoice-LOE-${loeId}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-    } catch (err) {
-      setActionError(err.message || 'Error generating Invoice PDF');
-    } finally {
-      setDownloadingInvoiceId(null);
-    }
-  };
-
   const getCompanyName = (companyId) => {
     const found = companies.find(c => c.company_id === companyId);
     return found ? (found.name || found.company_name) : `Company ID: ${companyId}`;
@@ -703,7 +671,6 @@ export default function LoeManager() {
                   : (loe.loe_items || []).filter(item => item.service?.department_id === userDeptId);
 
                 const totalFee = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-                const isApproved = loe.status === 'Approved';
 
                 return (
                   <div 
@@ -772,19 +739,8 @@ export default function LoeManager() {
                         disabled={downloadingId === loe.loe_id}
                         style={styles.downloadButton}
                       >
-                        {downloadingId === loe.loe_id ? 'PDF...' : 'LOE PDF'}
+                        {downloadingId === loe.loe_id ? 'PDF...' : 'Download LOE PDF'}
                       </button>
-
-                      {isApproved && (
-                        <button 
-                          onClick={(e) => handleDownloadInvoice(e, loe.loe_id)} 
-                          disabled={downloadingInvoiceId === loe.loe_id}
-                          style={styles.invoiceButton}
-                          title="Generate Tax & Billing Invoice"
-                        >
-                          {downloadingInvoiceId === loe.loe_id ? 'Inv...' : 'Invoice'}
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -834,8 +790,7 @@ const styles = {
   badge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
   cardItemsList: { margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '4px' },
   miniItemRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
-  cardActions: { display: 'flex', gap: '6px', marginTop: '14px' },
-  editButton: { flex: '1', padding: '6px 8px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  downloadButton: { flex: '1', padding: '6px 8px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  invoiceButton: { flex: '1', padding: '6px 8px', background: '#6f42c1', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  cardActions: { display: 'flex', gap: '8px', marginTop: '14px' },
+  editButton: { flex: '1', padding: '6px 12px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  downloadButton: { flex: '1.4', padding: '6px 12px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };
