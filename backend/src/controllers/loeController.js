@@ -1,17 +1,18 @@
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
-const { generateLoePdf, generateInvoicePdf } = require('../services/pdfService');
+const { generateLoePdf } = require('../services/pdfService');
 
 /**
- * Automatically creates a Job and corresponding Task records for all services in an approved LOE
+ * Automatically creates a Job, Tasks, and an Invoice with "Not Paid" status when an LOE is approved
  */
-async function createTasksForApprovedLoe(loeId, managerEmpId) {
+async function processApprovedLoe(loeId, managerEmpId) {
   const loe = await prisma.loe.findUnique({
     where: { loe_id: loeId },
     include: { loe_items: { include: { service: true } } }
   });
   if (!loe) return;
 
+  // 1. Ensure Job record exists
   let job = await prisma.job.findUnique({
     where: { loe_id: loeId }
   });
@@ -26,6 +27,7 @@ async function createTasksForApprovedLoe(loeId, managerEmpId) {
     });
   }
 
+  // 2. Generate Tasks for services
   for (const item of loe.loe_items) {
     const existingTask = await prisma.task.findFirst({
       where: {
@@ -47,6 +49,34 @@ async function createTasksForApprovedLoe(loeId, managerEmpId) {
         }
       });
     }
+  }
+
+  // 3. Automatically create Invoice with status "Not Paid"
+  const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const existingInvoice = await prisma.invoice.findUnique({
+    where: { job_id: job.job_id }
+  });
+
+  if (!existingInvoice) {
+    const issuedDate = new Date();
+    const dueDate = new Date();
+    dueDate.setDate(issuedDate.getDate() + 30); // 30-day payment term
+
+    await prisma.invoice.create({
+      data: {
+        job_id: job.job_id,
+        total_amount: totalAmount,
+        status: 'Not Paid',
+        issued_date: issuedDate,
+        due_date: dueDate
+      }
+    });
+  } else {
+    // Keep total amount synchronized with LOE items
+    await prisma.invoice.update({
+      where: { invoice_id: existingInvoice.invoice_id },
+      data: { total_amount: totalAmount }
+    });
   }
 }
 
@@ -185,7 +215,7 @@ exports.update = asyncHandler(async (req, res) => {
   });
 
   if (allApproved) {
-    await createTasksForApprovedLoe(loeId, updatedLoe.approved_by);
+    await processApprovedLoe(loeId, updatedLoe.approved_by);
   }
 
   res.json(updatedLoe);
@@ -289,7 +319,7 @@ exports.approveItem = asyncHandler(async (req, res) => {
   });
 
   if (allApproved) {
-    await createTasksForApprovedLoe(loeId, emp_id);
+    await processApprovedLoe(loeId, emp_id);
   }
 
   res.json(updatedLoe);
@@ -353,7 +383,7 @@ exports.approveAll = asyncHandler(async (req, res) => {
     }
   });
 
-  await createTasksForApprovedLoe(loeId, emp_id);
+  await processApprovedLoe(loeId, emp_id);
 
   res.json(updatedLoe);
 });
@@ -389,87 +419,6 @@ exports.generatePdf = asyncHandler(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename=LOE-${loe.loe_id}.pdf`);
-  res.setHeader('Content-Length', pdfBuffer.length);
-  res.end(pdfBuffer);
-});
-
-// ==========================================
-// PDF GENERATION: INVOICE (APPROVED LOE ONLY)
-// ==========================================
-
-exports.generateInvoicePdf = asyncHandler(async (req, res) => {
-  const loeId = parseInt(req.params.id);
-  if (isNaN(loeId)) {
-    return res.status(400).json({ error: 'Invalid LOE ID format' });
-  }
-
-  const loe = await prisma.loe.findUnique({
-    where: { loe_id: loeId },
-    include: {
-      company: true,
-      loe_items: {
-        include: { service: { include: { department: true } } }
-      }
-    }
-  });
-
-  if (!loe) {
-    return res.status(404).json({ error: 'LOE record not found' });
-  }
-
-  // Enforce rule: Invoices can only be generated for approved LOEs
-  if (loe.status !== 'Approved') {
-    return res.status(400).json({ error: 'Invoices can only be generated for approved LOEs' });
-  }
-
-  // Ensure Job record exists
-  let job = await prisma.job.findUnique({
-    where: { loe_id: loeId }
-  });
-
-  if (!job) {
-    job = await prisma.job.create({
-      data: {
-        loe_id: loeId,
-        manager_id: loe.approved_by || loe.created_by,
-        status: 'In-Progress'
-      }
-    });
-  }
-
-  // Calculate total amount from approved service lines
-  const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-
-  // Find or create official Invoice record
-  let invoice = await prisma.invoice.findUnique({
-    where: { job_id: job.job_id }
-  });
-
-  if (!invoice) {
-    const issuedDate = new Date();
-    const dueDate = new Date();
-    dueDate.setDate(issuedDate.getDate() + 30);
-
-    invoice = await prisma.invoice.create({
-      data: {
-        job_id: job.job_id,
-        total_amount: totalAmount,
-        status: 'Issued',
-        issued_date: issuedDate,
-        due_date: dueDate
-      }
-    });
-  } else if (Number(invoice.total_amount) !== totalAmount) {
-    invoice = await prisma.invoice.update({
-      where: { invoice_id: invoice.invoice_id },
-      data: { total_amount: totalAmount }
-    });
-  }
-
-  const pdfBuffer = await generateInvoicePdf({ invoice, loe, company: loe.company });
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename=Invoice-LOE-${loe.loe_id}.pdf`);
   res.setHeader('Content-Length', pdfBuffer.length);
   res.end(pdfBuffer);
 });

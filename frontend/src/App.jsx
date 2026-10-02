@@ -10,6 +10,7 @@ import ServiceManager from './pages/ServiceManager';
 import CompanyManager from './pages/CompanyManager';
 import TaskAllocation from './pages/TaskAllocation';
 import EmployeeManager from './pages/EmployeeManager';
+import InvoiceManager from './pages/InvoiceManager';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/loes/:id" element={<LoeDetails />} />
         <Route path="/approvals" element={<ManagerDashboard />} />
         <Route path="/tasks" element={<TaskAllocation />} />
+        <Route path="/invoices" element={<InvoiceManager />} />
         <Route path="/employees" element={<EmployeeManager />} />
         <Route path="/services" element={<ServiceManager />} />
         <Route path="/companies" element={<CompanyManager />} />
