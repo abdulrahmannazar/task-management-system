@@ -20,7 +20,7 @@ export default function InvoiceManager() {
   // Filter States
   const [selectedCompany, setSelectedCompany] = useState('ALL');
   const [selectedDepartment, setSelectedDepartment] = useState(isAdmin ? 'ALL' : String(userDeptId));
-  const [scopeSearch, setScopeSearch] = useState('');
+  const [selectedScope, setSelectedScope] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
 
   useEffect(() => {
@@ -132,9 +132,25 @@ export default function InvoiceManager() {
   const handleResetFilters = () => {
     setSelectedCompany('ALL');
     setSelectedDepartment(isAdmin ? 'ALL' : String(userDeptId));
-    setScopeSearch('');
+    setSelectedScope('ALL');
     setSelectedStatus('ALL');
   };
+
+  // ----------------------------------------------------------------------
+  // DYNAMICALLY EXTRACT ALL AVAILABLE UNIQUE SCOPES ACROSS INVOICES
+  // ----------------------------------------------------------------------
+  const availableScopes = useMemo(() => {
+    const scopesSet = new Set();
+    invoices.forEach(inv => {
+      const loeItems = inv.job?.loe?.loe_items || [];
+      loeItems.forEach(item => {
+        if (item.custom_scope && item.custom_scope.trim()) {
+          scopesSet.add(item.custom_scope.trim());
+        }
+      });
+    });
+    return Array.from(scopesSet).sort();
+  }, [invoices]);
 
   // ----------------------------------------------------------------------
   // FILTERING LOGIC
@@ -162,38 +178,23 @@ export default function InvoiceManager() {
         return false;
       }
 
-      // 4. Scope & Deliverable Keyword Search
-      if (scopeSearch.trim()) {
-        const query = scopeSearch.toLowerCase().trim();
-        const matchesScopeOrService = loeItems.some((item) => {
-          const customScopeText = (item.custom_scope || '').toLowerCase();
-          const serviceNameText = (item.service?.name || '').toLowerCase();
-          const serviceScopeText = (item.service?.scope || '').toLowerCase();
-          return (
-            customScopeText.includes(query) ||
-            serviceNameText.includes(query) ||
-            serviceScopeText.includes(query)
-          );
-        });
-
-        // Also allow quick matching by invoice reference (e.g. "INV-00004" or "4")
-        const invCode = `inv-${String(inv.invoice_id).padStart(5, '0')}`.toLowerCase();
-        const matchesRef = invCode.includes(query) || String(inv.invoice_id) === query;
-
-        if (!matchesScopeOrService && !matchesRef) {
-          return false;
-        }
+      // 4. Scope Dropdown Filter
+      if (selectedScope !== 'ALL') {
+        const matchesScope = loeItems.some(
+          (item) => (item.custom_scope || '').trim().toLowerCase() === selectedScope.toLowerCase()
+        );
+        if (!matchesScope) return false;
       }
 
       return true;
     });
-  }, [invoices, selectedCompany, selectedDepartment, selectedStatus, scopeSearch]);
+  }, [invoices, selectedCompany, selectedDepartment, selectedStatus, selectedScope]);
 
   const hasActiveFilters =
     selectedCompany !== 'ALL' ||
     (isAdmin && selectedDepartment !== 'ALL') ||
     selectedStatus !== 'ALL' ||
-    scopeSearch.trim() !== '';
+    selectedScope !== 'ALL';
 
   const getStatusBadgeStyle = (status) => {
     if (status === 'Paid') return { background: '#28a745', color: '#fff' };
@@ -205,7 +206,6 @@ export default function InvoiceManager() {
     return found ? found.name : `Dept #${deptId}`;
   };
 
-  // Group line items by service for the detailed preview modal
   const getGroupedItems = (loeItems) => {
     const map = new Map();
     (loeItems || []).forEach(item => {
@@ -224,7 +224,6 @@ export default function InvoiceManager() {
     return Array.from(map.values());
   };
 
-  // Filtered metrics calculation
   const totalInvoiced = filteredInvoices.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
   const paidCount = filteredInvoices.filter(i => i.status === 'Paid').length;
   const unpaidCount = filteredInvoices.filter(i => i.status !== 'Paid').length;
@@ -267,7 +266,7 @@ export default function InvoiceManager() {
         <div style={styles.filterCard}>
           <div style={styles.filterHeader}>
             <span style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#1a365d' }}>
-               Filter &amp; Search Invoices
+              🔍 Filter Invoices
             </span>
             {hasActiveFilters && (
               <button onClick={handleResetFilters} style={styles.clearFiltersBtn}>
@@ -320,16 +319,21 @@ export default function InvoiceManager() {
               )}
             </div>
 
-            {/* 3. Filter by Scope / Deliverable */}
-            <div style={{ ...styles.filterCol, flex: 1.5 }}>
-              <label style={styles.filterLabel}>Scope / Deliverable / Service</label>
-              <input
-                type="text"
-                placeholder="Search scope, service, or INV #..."
-                value={scopeSearch}
-                onChange={(e) => setScopeSearch(e.target.value)}
-                style={styles.filterInput}
-              />
+            {/* 3. Filter by Scope Dropdown */}
+            <div style={{ ...styles.filterCol, flex: 1.4 }}>
+              <label style={styles.filterLabel}>Contracted Scope</label>
+              <select
+                value={selectedScope}
+                onChange={(e) => setSelectedScope(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Scopes ({availableScopes.length})</option>
+                {availableScopes.map((scope, idx) => (
+                  <option key={idx} value={scope}>
+                    {scope.length > 55 ? `${scope.substring(0, 52)}...` : scope}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* 4. Filter by Payment Status */}
@@ -568,7 +572,6 @@ const styles = {
   filterCol: { flex: 1, minWidth: '170px', display: 'flex', flexDirection: 'column', gap: '4px' },
   filterLabel: { fontSize: '12px', fontWeight: 'bold', color: '#4a5568' },
   filterSelect: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px', background: '#fff' },
-  filterInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px' },
 
   tableCard: { background: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' },
