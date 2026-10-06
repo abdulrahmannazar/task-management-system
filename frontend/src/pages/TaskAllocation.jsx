@@ -138,7 +138,7 @@ export default function TaskAllocation() {
     }
     
     if (totalExceeds) {
-      setValidationWarning('⚠️ Cumulative scope days exceed the main Service Deadline! Please adjust the durations or the final deadline.');
+      setValidationWarning('⚠️️ Cumulative scope days exceed the main Service Deadline! Please adjust the durations or the final deadline.');
     } else {
       setValidationWarning('');
     }
@@ -370,6 +370,7 @@ export default function TaskAllocation() {
                         </div>
 
                         <div style={styles.formRow}>
+                          {/* Left Column: Multiple Assignees Checkbox */}
                           {!isEmployee && (
                             <div style={{ flex: '1.5' }}>
                               <label style={styles.label}>Assigned Employees</label>
@@ -388,6 +389,7 @@ export default function TaskAllocation() {
                             </div>
                           )}
 
+                          {/* Middle Column: Auto Date Sequence */}
                           <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <div>
                               <label style={styles.label}>Duration (Days)</label>
@@ -413,7 +415,8 @@ export default function TaskAllocation() {
                             </div>
                           </div>
 
-                          <div style={{ flex: '1' }}>
+                          {/* Right Column: Status & Manual Reminder */}
+                          <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <label style={styles.label}>Update Progress</label>
                             <select
                               value={scope.status}
@@ -428,6 +431,27 @@ export default function TaskAllocation() {
                               <option value="In-Progress">In-Progress</option>
                               <option value="Completed">Completed</option>
                             </select>
+
+                            {/* Manual Task Reminder Button */}
+                            {!isEmployee && scope.status !== 'Completed' && (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  try {
+                                    const res = await fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${scope.task_id}/remind`, {
+                                      method: 'POST',
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    if(!res.ok) throw new Error("Failed to send reminder");
+                                    alert(`Reminders dispatched successfully for task ${scope.task_code}!`);
+                                  } catch(err) { alert("Error sending reminders."); }
+                                }}
+                                style={styles.remindBtn}
+                              >
+                                🔔 Remind Staff
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -446,7 +470,7 @@ export default function TaskAllocation() {
           </div>
         )}
 
-        {/* Create Manual Scope Modal */}
+        {/* Create Manual Custom Scope Modal */}
         {isCreateOpen && !isEmployee && (
           <div style={styles.modalOverlay} onClick={() => setIsCreateOpen(false)}>
              <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -522,6 +546,7 @@ const styles = {
   label: { fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#495057' },
   selectInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px', width: '100%', boxSizing: 'border-box' },
   multiSelectBox: { background: '#fff', border: '1px solid #ced4da', borderRadius: '4px', padding: '8px 10px', maxHeight: '110px', overflowY: 'auto' },
+  remindBtn: { marginTop: '5px', padding: '6px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
   modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #dee2e6', paddingTop: '15px' },
   cancelBtn: { padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   saveBtn: { padding: '8px 20px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
