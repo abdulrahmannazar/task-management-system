@@ -15,6 +15,7 @@ export default function LoeManager() {
   const [formData, setFormData] = useState({
     company_id: '',
     type: 'Standard',
+    billing_frequency: 'One-Time',
     start_date: '',
     loe_services: [] 
   });
@@ -62,7 +63,10 @@ export default function LoeManager() {
 
   const fetchLoes = async () => {
     try {
-      if (!token) return setFormError("Invalid token.");
+      if (!token) {
+        setActionError("Authentication token missing.");
+        return;
+      }
       
       const url = isAdmin 
         ? 'https://task-management-system-6ifq.onrender.com/api/loes?role=ADMIN'
@@ -72,9 +76,15 @@ export default function LoeManager() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      if (response.ok) setLoes(Array.isArray(data) ? data : data.loes || []);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch LOEs');
+      }
+
+      setLoes(Array.isArray(data) ? data : data.loes || []);
     } catch (err) {
       console.error(err);
+      setActionError(err.message || 'Failed to load LOEs from server.');
     }
   };
 
@@ -267,6 +277,7 @@ export default function LoeManager() {
     setFormData({
       company_id: loe.company_id,
       type: loe.type,
+      billing_frequency: loe.billing_frequency || 'One-Time',
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
       loe_services: grouped
     });
@@ -328,6 +339,7 @@ export default function LoeManager() {
           company_id: Number(formData.company_id),
           created_by: user.emp_id || 2, 
           type: formData.type,
+          billing_frequency: formData.billing_frequency,
           start_date: formData.start_date,
           loe_items: flattenedItems
         })
@@ -340,7 +352,7 @@ export default function LoeManager() {
       
       setEditingId(null);
       setEditingPreviousStatus(null);
-      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_services: [] });
+      setFormData({ company_id: '', type: 'Standard', billing_frequency: 'One-Time', start_date: '', loe_services: [] });
     } catch (err) {
       setFormError(err.message);
     }
@@ -428,15 +440,30 @@ export default function LoeManager() {
                 ))}
               </select>
 
-              <input 
-                type="text" 
-                name="type" 
-                value={formData.type} 
-                onChange={handleChange} 
-                placeholder="LOE Type (e.g. Standard, Retainer)" 
-                required 
-                style={styles.input} 
-              />
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <input 
+                  type="text" 
+                  name="type" 
+                  value={formData.type} 
+                  onChange={handleChange} 
+                  placeholder="LOE Type (e.g. Standard, Retainer)" 
+                  required 
+                  style={{ ...styles.input, flex: 1 }} 
+                />
+
+                <select
+                  name="billing_frequency"
+                  value={formData.billing_frequency}
+                  onChange={handleChange}
+                  required
+                  style={{ ...styles.input, flex: 1 }}
+                >
+                  <option value="One-Time">One-Time Billing (Standard)</option>
+                  <option value="Monthly">Monthly Recurring Retainer</option>
+                  <option value="Quarterly">Quarterly Recurring</option>
+                  <option value="Annually">Annually Recurring</option>
+                </select>
+              </div>
 
               <input 
                 type="date" 
@@ -636,7 +663,7 @@ export default function LoeManager() {
                     onClick={() => { 
                       setEditingId(null); 
                       setEditingPreviousStatus(null);
-                      setFormData({ company_id: '', type: 'Standard', start_date: '', loe_services: [] }); 
+                      setFormData({ company_id: '', type: 'Standard', billing_frequency: 'One-Time', start_date: '', loe_services: [] }); 
                     }} 
                     style={styles.cancelButton}
                   >
@@ -685,6 +712,10 @@ export default function LoeManager() {
 
                     <p style={{ marginTop: '8px', marginBottom: '2px' }}>
                       <strong>Company:</strong> {getCompanyName(loe.company_id)}
+                    </p>
+
+                    <p style={{ margin: '2px 0 2px 0', fontSize: '13px', color: '#6f42c1', fontWeight: 'bold' }}>
+                      Billing: {loe.billing_frequency || 'One-Time'}
                     </p>
 
                     <p style={{ margin: '2px 0 8px', fontSize: '13px', color: '#2b6cb0', fontWeight: 'bold' }}>
@@ -790,7 +821,7 @@ const styles = {
   badge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
   cardItemsList: { margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '4px' },
   miniItemRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
-  cardActions: { display: 'flex', gap: '8px', marginTop: '14px' },
-  editButton: { flex: '1', padding: '6px 12px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  downloadButton: { flex: '1.4', padding: '6px 12px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
+  cardActions: { display: 'flex', gap: '6px', marginTop: '14px' },
+  editButton: { flex: '1', padding: '6px 8px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  downloadButton: { flex: '1', padding: '6px 8px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };
