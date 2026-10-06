@@ -1,6 +1,19 @@
 const prisma = require('../config/db');
+const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateTaskCode } = require('../utils/taskCodeHelper');
+const { sendTaskReminderEmail, sendTaskCompletedEmail } = require('../services/emailService');
+
+const getEmpId = (req) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'your_jwt_secret');
+      return decoded.emp_id;
+    } catch {}
+  }
+  return null;
+};
 
 // GET /api/tasks
 exports.getAll = asyncHandler(async (req, res) => {
@@ -28,7 +41,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   };
 
   if (role === 'ADMIN') {
-    // Admins see all
+    // Admin sees all
   } else if (role === 'MANAGER' && !isNaN(deptId)) {
     query.where = { service: { department_id: deptId } };
   } else if (!isNaN(empId)) {
@@ -37,7 +50,6 @@ exports.getAll = asyncHandler(async (req, res) => {
 
   const tasks = await prisma.task.findMany(query);
 
-  // Dynamic fallback for any existing tasks that don't have task_code saved yet
   const enriched = tasks.map((t, idx) => {
     if (!t.task_code) {
       const companyName = t.job?.loe?.company?.name || 'CMP';
@@ -106,7 +118,6 @@ exports.create = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Valid LOE and Service selection required' });
   }
 
-  // Determine Company Name and sequential task number for ID generation
   const jobWithCompany = await prisma.job.findUnique({
     where: { job_id: targetJobId },
     include: { loe: { include: { company: true } } }
@@ -139,10 +150,6 @@ exports.create = asyncHandler(async (req, res) => {
   res.status(201).json(task);
 });
 
-
-
-const { sendTaskReminderEmail, sendTaskCompletedEmail } = require('../services/emailService');
-
 // PUT /api/tasks/:id
 exports.update = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
@@ -150,7 +157,6 @@ exports.update = asyncHandler(async (req, res) => {
 
   const { assignee_ids, deadline, duration_days, service_deadline, status, scope } = req.body;
 
-  // Get previous task state to detect status changes
   const prevTask = await prisma.task.findUnique({
     where: { task_id: id },
     include: { assignees: true, job: { include: { manager: true } } }
@@ -174,61 +180,79 @@ exports.update = asyncHandler(async (req, res) => {
     }
   });
 
-  // Completion Logic: If status changed to 'Completed', trigger emails and notifications
+  // Completion notification flow
   if (status === 'Completed' && prevTask && prevTask.status !== 'Completed') {
-    // Notify Assignees
+    const currentEmpId = getEmpId(req);
+
+    // 1. Notify all assignees
     for (const emp of updatedTask.assignees) {
-      await sendTaskCompletedEmail(emp.email, emp.name, updatedTask.task_code, updatedTask.scope, false);
       await prisma.notification.create({
         data: {
           emp_id: emp.emp_id,
           title: 'Task Completed',
-          message: `Your task ${updatedTask.task_code} has been successfully logged as completed.`
+          message: `Task ${updatedTask.task_code} (${updatedTask.scope || 'Standard'}) was marked as Completed.`
         }
       });
+      sendTaskCompletedEmail(emp.email, emp.name, updatedTask.task_code, updatedTask.scope, false);
     }
-    // Notify Manager
+
+    // 2. Notify manager
     if (updatedTask.job?.manager) {
       const manager = updatedTask.job.manager;
-      await sendTaskCompletedEmail(manager.email, manager.name, updatedTask.task_code, updatedTask.scope, true);
       await prisma.notification.create({
         data: {
           emp_id: manager.emp_id,
           title: 'Team Task Completed',
-          message: `The team has marked task ${updatedTask.task_code} as Completed. Ready for review.`
+          message: `Team marked Task ${updatedTask.task_code} as Completed. Ready for review.`
         }
       });
+      sendTaskCompletedEmail(manager.email, manager.name, updatedTask.task_code, updatedTask.scope, true);
     }
   }
 
   res.json(updatedTask);
 });
 
-// POST /api/tasks/:id/remind
+// POST /api/tasks/:id/remind (Immediate notification + Async email)
 exports.remind = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });
 
   const task = await prisma.task.findUnique({
     where: { task_id: id },
-    include: { assignees: true }
+    include: { assignees: true, job: { include: { manager: true } } }
   });
 
   if (!task) return res.status(404).json({ error: 'Task not found' });
   if (task.status === 'Completed') return res.status(400).json({ error: 'Cannot remind for a completed task' });
 
+  const currentEmpId = getEmpId(req);
+
+  // 1. In-App Notifications for assignees
   for (const emp of task.assignees) {
-    await sendTaskReminderEmail(emp.email, emp.name, task.task_code, task.scope, task.deadline);
-    
     await prisma.notification.create({
       data: {
         emp_id: emp.emp_id,
-        title: 'Manual Task Reminder',
+        title: 'Task Deadline Reminder',
         message: `Your manager requested an update on Task ${task.task_code}. Due date: ${task.deadline ? new Date(task.deadline).toLocaleDateString() : 'N/A'}.`
+      }
+    });
+
+    sendTaskReminderEmail(emp.email, emp.name, task.task_code, task.scope, task.deadline);
+  }
+
+  // 2. In-App Notification for the sender
+  if (currentEmpId) {
+    await prisma.notification.create({
+      data: {
+        emp_id: currentEmpId,
+        title: 'Task Reminders Sent',
+        message: `You dispatched deadline reminders for Task ${task.task_code} to ${task.assignees.length} assigned member(s).`
       }
     });
   }
 
+  // 3. Update DB tracker
   const updatedTask = await prisma.task.update({
     where: { task_id: id },
     data: { last_reminded_at: new Date() }
@@ -236,8 +260,6 @@ exports.remind = asyncHandler(async (req, res) => {
 
   res.json({ message: 'Reminders dispatched to assigned staff successfully', task: updatedTask });
 });
-
-
 
 // DELETE /api/tasks/:id
 const deleteTask = asyncHandler(async (req, res) => {
