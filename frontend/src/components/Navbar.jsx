@@ -12,7 +12,12 @@ export default function Navbar() {
   const isPrivileged = user.role === 'MANAGER' || user.role === 'ADMIN';
 
   useEffect(() => {
-    if (token) fetchNotifications();
+    if (token) {
+      fetchNotifications();
+      // Auto-poll notifications every 5 seconds
+      const interval = setInterval(fetchNotifications, 5000);
+      return () => clearInterval(interval);
+    }
   }, [token]);
 
   const fetchNotifications = async () => {
@@ -22,7 +27,7 @@ export default function Navbar() {
       });
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data);
+        setNotifications(Array.isArray(data) ? data : []);
       }
     } catch (e) {}
   };
@@ -34,6 +39,16 @@ export default function Navbar() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(prev => prev.map(n => n.notification_id === id ? { ...n, is_read: true } : n));
+    } catch (e) {}
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await fetch(`https://task-management-system-6ifq.onrender.com/api/notifications/read-all`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     } catch (e) {}
   };
 
@@ -62,16 +77,24 @@ export default function Navbar() {
         {isPrivileged && <Link to="/services" style={styles.link}>Services</Link>}
         {isPrivileged && <Link to="/companies" style={styles.link}>Companies</Link>}
         
-        {/* Notification Bell */}
+        {/* Real-time Notification Bell */}
         <div style={styles.notifContainer}>
-          <button onClick={() => setShowNotifs(!showNotifs)} style={styles.bellBtn}>
+          <button onClick={() => setShowNotifs(!showNotifs)} style={styles.bellBtn} title="Notifications">
             🔔
             {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
           </button>
           
           {showNotifs && (
             <div style={styles.notifDropdown}>
-              <h4 style={{ margin: '0 0 10px', fontSize: '13px', color: '#1a365d' }}>Notifications</h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ margin: 0, fontSize: '13px', color: '#1a365d' }}>Notifications</h4>
+                {unreadCount > 0 && (
+                  <button onClick={handleMarkAllRead} style={styles.markAllBtn}>
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
               {notifications.length === 0 ? (
                 <p style={{ margin: 0, fontSize: '12px', color: '#718096' }}>No notifications yet.</p>
               ) : (
@@ -88,10 +111,15 @@ export default function Navbar() {
                         cursor: n.is_read ? 'default' : 'pointer'
                       }}
                     >
-                      <strong style={{ fontSize: '12px', color: '#2d3748', display: 'block' }}>{n.title}</strong>
-                      <span style={{ fontSize: '11px', color: '#4a5568', marginTop: '2px', display: 'block' }}>{n.message}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '12px', color: '#2d3748' }}>{n.title}</strong>
+                        {!n.is_read && <span style={styles.unreadDot}>●</span>}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#4a5568', marginTop: '2px', display: 'block' }}>
+                        {n.message}
+                      </span>
                       <span style={{ fontSize: '10px', color: '#a0aec0', marginTop: '4px', display: 'block' }}>
-                        {new Date(n.created_at).toLocaleDateString()}
+                        {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; {new Date(n.created_at).toLocaleDateString()}
                       </span>
                     </div>
                   ))}
@@ -116,5 +144,7 @@ const styles = {
   notifContainer: { position: 'relative' },
   bellBtn: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', position: 'relative' },
   badge: { position: 'absolute', top: '-4px', right: '-6px', background: '#dc3545', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '2px 5px', borderRadius: '10px' },
-  notifDropdown: { position: 'absolute', top: '35px', right: '0', width: '280px', maxHeight: '350px', overflowY: 'auto', background: '#fff', padding: '15px', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #e2e8f0', color: '#000', zIndex: 1000 }
+  unreadDot: { color: '#28a745', fontSize: '12px' },
+  markAllBtn: { background: 'none', border: 'none', color: '#007bff', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', padding: 0 },
+  notifDropdown: { position: 'absolute', top: '35px', right: '0', width: '310px', maxHeight: '380px', overflowY: 'auto', background: '#fff', padding: '15px', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #e2e8f0', color: '#000', zIndex: 1000 }
 };
