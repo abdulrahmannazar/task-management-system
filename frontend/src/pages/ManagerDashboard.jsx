@@ -7,10 +7,10 @@ export default function ManagerDashboard() {
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
-  const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : null;
+  const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
   
-  const userDeptId = user?.department_id || 1;
-  const isAdmin = user?.role === 'ADMIN';
+  const userDeptId = user.department_id || 1;
+  const isAdmin = user.role === 'ADMIN';
 
   useEffect(() => {
     fetchLoes();
@@ -18,15 +18,28 @@ export default function ManagerDashboard() {
 
   const fetchLoes = async () => {
     try {
-      const url = `https://task-management-system-6ifq.onrender.com/api/loes/pending?department_id=${userDeptId}&role=${user?.role || 'MANAGER'}`;
+      if (!token) {
+        setError('Authentication token missing.');
+        return;
+      }
+
+      // Safe URL construction passing role and department
+      const url = `https://task-management-system-6ifq.onrender.com/api/loes/pending?department_id=${userDeptId}&role=${user.role || 'MANAGER'}`;
       
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       const data = await response.json();
-      if (response.ok) setApprovalLoes(data);
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch LOEs from the server.');
+      }
+      
+      setApprovalLoes(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError('Failed to fetch LOEs.');
+      console.error('Fetch Error:', err);
+      setError('Failed to fetch pending LOEs. Please try refreshing.');
     }
   };
 
@@ -38,18 +51,17 @@ export default function ManagerDashboard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ emp_id: user?.emp_id || 2 })
+        body: JSON.stringify({ emp_id: user.emp_id || 2 })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to approve service');
-      }
 
       const updatedLoe = await response.json();
 
+      if (!response.ok) {
+        throw new Error(updatedLoe.error || 'Failed to approve service');
+      }
+
       // Check if this manager's department has any remaining pending items
-      const hasPendingInDept = updatedLoe.loe_items.some(
+      const hasPendingInDept = (updatedLoe.loe_items || []).some(
         item => (isAdmin || item.service?.department_id === userDeptId) && item.status === 'Pending'
       );
 
@@ -65,7 +77,7 @@ export default function ManagerDashboard() {
 
   const handleRejectItem = async (loeId, itemId) => {
     const reason = window.prompt("Enter reason for rejecting this service (optional):");
-    if (reason === null) return; // User cancelled prompt
+    if (reason === null) return; 
 
     try {
       const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/reject`, {
@@ -75,14 +87,15 @@ export default function ManagerDashboard() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          emp_id: user?.emp_id || 2,
+          emp_id: user.emp_id || 2,
           reason: reason.trim() || 'Revision requested'
         })
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to reject service');
+        throw new Error(data.error || 'Failed to reject service');
       }
 
       // Rejection immediately transitions LOE to 'Rejected', removing from pending queue
@@ -93,6 +106,8 @@ export default function ManagerDashboard() {
   };
 
   const handleApproveAll = async (loeId) => {
+    if (!window.confirm("Are you sure you want to force-approve ALL pending services in this LOE?")) return;
+
     try {
       const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/approve-all`, {
         method: 'PUT',
@@ -100,7 +115,7 @@ export default function ManagerDashboard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ emp_id: user?.emp_id || 2 })
+        body: JSON.stringify({ emp_id: user.emp_id || 2 })
       });
 
       if (!response.ok) {
@@ -115,7 +130,14 @@ export default function ManagerDashboard() {
   };
 
   if (!user || (user.role !== 'MANAGER' && user.role !== 'ADMIN')) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied. Managers and Admins only.</div>;
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center', color: '#dc3545', fontWeight: 'bold' }}>
+          Access Denied. Managers and Admins only.
+        </div>
+      </div>
+    );
   }
 
   const getItemStatusBadge = (status) => {
@@ -129,10 +151,10 @@ export default function ManagerDashboard() {
       <Navbar />
       <div style={styles.container}>
         <h2>{isAdmin ? 'Company-Wide Service Approvals (Admin View)' : `Department Approvals (Dept ID: ${userDeptId})`}</h2>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <p style={styles.errorBox}>{error}</p>}
         
         {approvalLoes.length === 0 ? (
-          <p>No services require your department's approval right now.</p>
+          <p style={styles.emptyText}>No services require your department's approval right now.</p>
         ) : (
           <div style={styles.grid}>
             {approvalLoes.map((loe) => (
@@ -145,15 +167,18 @@ export default function ManagerDashboard() {
                 <p style={{ marginTop: '8px', marginBottom: '2px' }}>
                   <strong>Company:</strong> {loe.company?.name || `ID #${loe.company_id}`}
                 </p>
-                <p style={{ margin: '2px 0 10px 0' }}>
+                <p style={{ margin: '2px 0 2px 0' }}>
                   <strong>Engagement Type:</strong> {loe.type}
+                </p>
+                <p style={{ margin: '2px 0 10px 0', fontSize: '13px', color: '#6f42c1', fontWeight: 'bold' }}>
+                  <strong>Billing Cycle:</strong> {loe.billing_frequency || 'One-Time'}
                 </p>
 
                 <div style={styles.servicesBox}>
                   <strong>Services for Review:</strong>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
-                    {loe.loe_items.map((item) => {
+                    {(loe.loe_items || []).map((item) => {
                       const isMyDept = isAdmin || item.service?.department_id === userDeptId;
                       const badge = getItemStatusBadge(item.status);
 
@@ -176,6 +201,10 @@ export default function ManagerDashboard() {
                             }}>
                               {item.status}
                             </span>
+                          </div>
+
+                          <div style={{ marginTop: '4px', fontSize: '13px', color: '#1a365d', fontWeight: 'bold' }}>
+                            Fee: ${Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </div>
 
                           {item.custom_scope && (
@@ -239,6 +268,8 @@ export default function ManagerDashboard() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { padding: '40px' },
+  errorBox: { padding: '10px 14px', background: '#fed7d7', color: '#c53030', borderRadius: '4px', border: '1px solid #feb2b2', fontWeight: 'bold' },
+  emptyText: { color: '#4a5568', fontSize: '15px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px', marginTop: '20px' },
   card: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' },
   badge: { background: '#ffc107', color: '#000', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },

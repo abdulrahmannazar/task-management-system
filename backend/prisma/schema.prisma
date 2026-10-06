@@ -38,8 +38,23 @@ model Employee {
   department_approvals LoeDepartmentApproval[] @relation("DepartmentReviewer")
   jobs_managed         Job[]                   @relation("JobManager")
   tasks                Task[]                  @relation("TaskAssignees")
+  notifications        Notification[]          // NEW: In-app notifications
 
   @@map("employees")
+}
+
+// NEW: Notifications Table
+model Notification {
+  notification_id Int      @id @default(autoincrement())
+  emp_id          Int
+  title           String   @db.VarChar(150)
+  message         String   @db.Text
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now())
+
+  employee        Employee @relation(fields: [emp_id], references: [emp_id], onDelete: Cascade)
+
+  @@map("notifications")
 }
 
 model Company {
@@ -81,6 +96,7 @@ model Loe {
   approved_by          Int?
   status               String                  @db.VarChar(50)
   type                 String                  @db.VarChar(50)
+  billing_frequency    String                  @default("One-Time") @db.VarChar(50) // NEW: Billing Frequency
   start_date           DateTime                @db.Date
   end_date             DateTime?               @db.Date
 
@@ -139,14 +155,14 @@ model Job {
   loe        Loe       @relation(fields: [loe_id], references: [loe_id])
   manager    Employee  @relation("JobManager", fields: [manager_id], references: [emp_id])
   tasks      Task[]
-  invoice    Invoice?
+  invoices   Invoice[] // CHANGED: 1-to-Many
 
   @@map("jobs")
 }
 
 model Task {
   task_id          Int        @id @default(autoincrement())
-  task_code        String?    @db.VarChar(50)   // e.g. "abc/reg/001"
+  task_code        String?    @db.VarChar(50)
   job_id           Int
   service_id       Int
   status           String     @db.VarChar(50)
@@ -165,7 +181,7 @@ model Task {
 
 model Invoice {
   invoice_id   Int      @id @default(autoincrement())
-  job_id       Int      @unique
+  job_id       Int      // REMOVED @unique
   total_amount Decimal  @db.Decimal(12, 2)
   status       String   @db.VarChar(50)
   issued_date  DateTime @db.Date

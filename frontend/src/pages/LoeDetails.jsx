@@ -26,6 +26,8 @@ export default function LoeDetails() {
   const fetchLoeDetails = async () => {
     try {
       setLoading(true);
+      if (!token) throw new Error('Authentication token missing.');
+
       const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -190,6 +192,10 @@ export default function LoeDetails() {
                   <span style={styles.detailValue}>{loe.type || 'Standard'}</span>
                 </div>
                 <div style={styles.detailRow}>
+                  <span style={styles.detailLabel}>Billing Cycle</span>
+                  <span style={{ ...styles.detailValue, color: '#6f42c1' }}>{loe.billing_frequency || 'One-Time'}</span>
+                </div>
+                <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Commencement Date</span>
                   <span style={styles.detailValue}>
                     {loe.start_date ? new Date(loe.start_date).toLocaleDateString() : 'N/A'}
@@ -212,10 +218,6 @@ export default function LoeDetails() {
                   <span style={styles.detailValue}>
                     {loe.approver?.name ? `${loe.approver.name}` : loe.status === 'Approved' ? 'Management' : 'Pending final approval'}
                   </span>
-                </div>
-                <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Services Count</span>
-                  <span style={styles.detailValue}>{relevantItems.length} items</span>
                 </div>
               </div>
             </div>

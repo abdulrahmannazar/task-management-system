@@ -1,8 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+
+// Import routing modules
 const authRoutes = require('./routes/authRoutes');
 const createCrudRouter = require('./routes/crudRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
+// Import Controllers
 const companyController = require('./controllers/companyController');
 const departmentController = require('./controllers/departmentController');
 const employeeController = require('./controllers/employeeController');
@@ -11,8 +15,10 @@ const loeController = require('./controllers/loeController');
 const jobController = require('./controllers/jobController');
 const taskController = require('./controllers/taskController');
 const invoiceController = require('./controllers/invoiceController');
-
 const errorHandler = require('./middlewares/errorHandler');
+
+// Initialize Cron Background Service
+require('./services/cronService');
 
 const app = express();
 
@@ -31,6 +37,7 @@ app.use('/api/loes', createCrudRouter(loeController));
 app.use('/api/jobs', createCrudRouter(jobController));
 app.use('/api/tasks', createCrudRouter(taskController));
 app.use('/api/invoices', createCrudRouter(invoiceController));
+app.use('/api/notifications', notificationRoutes); // NEW: Notification endpoints
 
 // Global Error Handler
 app.use(errorHandler);
