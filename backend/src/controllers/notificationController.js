@@ -1,6 +1,7 @@
 const prisma = require('../config/db');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middlewares/asyncHandler');
+const { runAutomationSweep } = require('../services/cronService');
 
 const getEmpId = (req) => {
   const authHeader = req.headers.authorization;
@@ -13,6 +14,7 @@ const getEmpId = (req) => {
   return null;
 };
 
+// GET /api/notifications
 exports.getMyNotifications = asyncHandler(async (req, res) => {
   const empId = getEmpId(req);
   if (!empId) return res.status(401).json({ error: 'Unauthorized' });
@@ -20,12 +22,13 @@ exports.getMyNotifications = asyncHandler(async (req, res) => {
   const notifications = await prisma.notification.findMany({
     where: { emp_id: empId },
     orderBy: { created_at: 'desc' },
-    take: 20
+    take: 25
   });
   
   res.json(notifications);
 });
 
+// PUT /api/notifications/:id/read
 exports.markAsRead = asyncHandler(async (req, res) => {
   const notificationId = parseInt(req.params.id);
   if (isNaN(notificationId)) return res.status(400).json({ error: 'Invalid ID' });
@@ -36,4 +39,23 @@ exports.markAsRead = asyncHandler(async (req, res) => {
   });
   
   res.json({ success: true });
+});
+
+// PUT /api/notifications/read-all
+exports.markAllAsRead = asyncHandler(async (req, res) => {
+  const empId = getEmpId(req);
+  if (!empId) return res.status(401).json({ error: 'Unauthorized' });
+
+  await prisma.notification.updateMany({
+    where: { emp_id: empId, is_read: false },
+    data: { is_read: true }
+  });
+
+  res.json({ success: true });
+});
+
+// POST /api/notifications/trigger-cron (Manual test endpoint)
+exports.triggerCron = asyncHandler(async (req, res) => {
+  runAutomationSweep();
+  res.json({ message: 'Automation sweep triggered successfully in background' });
 });

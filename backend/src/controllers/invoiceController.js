@@ -1,6 +1,19 @@
 const prisma = require('../config/db');
+const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateInvoicePdf } = require('../services/pdfService');
+const { sendInvoiceReminderEmail } = require('../services/emailService');
+
+const getEmpId = (req) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'your_jwt_secret');
+      return decoded.emp_id;
+    } catch {}
+  }
+  return null;
+};
 
 // GET /api/invoices
 exports.getAll = asyncHandler(async (req, res) => {
@@ -31,7 +44,6 @@ exports.getAll = asyncHandler(async (req, res) => {
     orderBy: { invoice_id: 'desc' }
   };
 
-  // Managers only view invoices that contain services for their department
   if (role !== 'ADMIN' && !isNaN(deptId)) {
     query.where = {
       job: {
@@ -81,7 +93,7 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(invoice);
 });
 
-// PUT /api/invoices/:id (Update status: "Not Paid" -> "Paid")
+// PUT /api/invoices/:id
 exports.update = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
@@ -116,6 +128,50 @@ exports.update = asyncHandler(async (req, res) => {
   });
 
   res.json(updatedInvoice);
+});
+
+// POST /api/invoices/:id/remind (Immediate notification + Async email)
+exports.remind = asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { invoice_id: id },
+    include: { job: { include: { loe: { include: { company: true } }, manager: true } } }
+  });
+
+  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+  if (invoice.status === 'Paid') return res.status(400).json({ error: 'Invoice is already marked as Paid' });
+
+  const company = invoice.job.loe.company;
+  const currentEmpId = getEmpId(req);
+
+  // 1. In-App Notifications written immediately
+  const notifTargets = new Set();
+  if (currentEmpId) notifTargets.add(currentEmpId);
+  if (invoice.job.manager_id) notifTargets.add(invoice.job.manager_id);
+
+  for (const empId of notifTargets) {
+    await prisma.notification.create({
+      data: {
+        emp_id: empId,
+        title: 'Invoice Reminder Dispatched',
+        message: `Payment reminder sent to ${company.name} for Invoice INV-${String(invoice.invoice_id).padStart(5, '0')} ($${Number(invoice.total_amount).toFixed(2)}).`
+      }
+    });
+  }
+
+  // 2. Update DB timestamp
+  const updatedInvoice = await prisma.invoice.update({
+    where: { invoice_id: id },
+    data: { last_reminded_at: new Date() },
+    include: { job: { include: { loe: { include: { company: true } } } } }
+  });
+
+  // 3. Email sent in background (No await so response is fast)
+  sendInvoiceReminderEmail(company.email, company.name, invoice.invoice_id, invoice.total_amount, invoice.due_date);
+
+  res.json({ message: 'Reminder dispatched successfully', invoice: updatedInvoice });
 });
 
 // GET /api/invoices/:id/pdf
@@ -165,47 +221,6 @@ const deleteInvoice = asyncHandler(async (req, res) => {
 
   await prisma.invoice.delete({ where: { invoice_id: id } });
   res.json({ message: 'Invoice deleted successfully' });
-});
-
-// ... existing code in invoiceController.js (leave getAll, getById, update, generatePdf as they are)
-
-// POST /api/invoices/:id/remind
-const { sendInvoiceReminderEmail } = require('../services/emailService');
-
-exports.remind = asyncHandler(async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
-
-  const invoice = await prisma.invoice.findUnique({
-    where: { invoice_id: id },
-    include: { job: { include: { loe: { include: { company: true } }, manager: true } } }
-  });
-
-  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-  if (invoice.status === 'Paid') return res.status(400).json({ error: 'Invoice is already paid' });
-
-  const company = invoice.job.loe.company;
-
-  // Send manual email
-  await sendInvoiceReminderEmail(company.email, company.name, invoice.invoice_id, invoice.total_amount, invoice.due_date);
-
-  // Notify manager that they sent a reminder
-  await prisma.notification.create({
-    data: {
-      emp_id: invoice.job.manager_id,
-      title: 'Manual Invoice Reminder Sent',
-      message: `You successfully sent a payment reminder to ${company.name} for INV-${String(invoice.invoice_id).padStart(5, '0')}.`
-    }
-  });
-
-  // Update DB tracker
-  const updatedInvoice = await prisma.invoice.update({
-    where: { invoice_id: id },
-    data: { last_reminded_at: new Date() },
-    include: { job: { include: { loe: { include: { company: true } } } } }
-  });
-
-  res.json({ message: 'Reminder sent successfully', invoice: updatedInvoice });
 });
 
 exports.remove = deleteInvoice;
