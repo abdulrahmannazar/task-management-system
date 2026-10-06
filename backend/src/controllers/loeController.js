@@ -1,11 +1,8 @@
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
-const { generateLoePdf, generateInvoicePdf } = require('../services/pdfService');
+const { generateLoePdf } = require('../services/pdfService');
 const { generateTaskCode } = require('../utils/taskCodeHelper');
 
-/**
- * Automatically creates a Job, Tasks, and an Invoice with "Not Paid" status when an LOE is approved
- */
 async function processApprovedLoe(loeId, managerEmpId) {
   const loe = await prisma.loe.findUnique({
     where: { loe_id: loeId },
@@ -16,7 +13,6 @@ async function processApprovedLoe(loeId, managerEmpId) {
   });
   if (!loe) return;
 
-  // 1. Ensure Job record exists
   let job = await prisma.job.findUnique({
     where: { loe_id: loeId }
   });
@@ -31,15 +27,10 @@ async function processApprovedLoe(loeId, managerEmpId) {
     });
   }
 
-  // 2. Generate Tasks for services with custom Task IDs
   for (let i = 0; i < loe.loe_items.length; i++) {
     const item = loe.loe_items[i];
     const existingTask = await prisma.task.findFirst({
-      where: {
-        job_id: job.job_id,
-        service_id: item.service_id,
-        scope: item.custom_scope
-      }
+      where: { job_id: job.job_id, service_id: item.service_id, scope: item.custom_scope }
     });
 
     if (!existingTask) {
@@ -63,10 +54,12 @@ async function processApprovedLoe(loeId, managerEmpId) {
     }
   }
 
-  // 3. Automatically create Invoice with status "Not Paid"
   const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-  const existingInvoice = await prisma.invoice.findUnique({
-    where: { job_id: job.job_id }
+  
+  // FIXED: Changed to findFirst since Invoice is now 1-to-Many
+  const existingInvoice = await prisma.invoice.findFirst({
+    where: { job_id: job.job_id },
+    orderBy: { issued_date: 'desc' }
   });
 
   if (!existingInvoice) {
@@ -91,10 +84,6 @@ async function processApprovedLoe(loeId, managerEmpId) {
   }
 }
 
-// ==========================================
-// STANDARD CRUD ENDPOINTS
-// ==========================================
-
 // GET /api/loes
 exports.getAll = asyncHandler(async (req, res) => {
   const role = req.query.role;
@@ -105,26 +94,13 @@ exports.getAll = asyncHandler(async (req, res) => {
       company: true,
       creator: { select: { emp_id: true, name: true, email: true } },
       approver: { select: { emp_id: true, name: true, email: true } },
-      loe_items: {
-        include: { 
-          service: {
-            include: { department: true }
-          } 
-        }
-      } 
+      loe_items: { include: { service: { include: { department: true } } } } 
     },
     orderBy: { loe_id: 'desc' }
   };
 
-  // Managers/employees only see LOEs relevant to their department; Admin sees all
   if (role !== 'ADMIN' && !isNaN(deptId)) {
-    query.where = {
-      loe_items: {
-        some: {
-          service: { department_id: deptId }
-        }
-      }
-    };
+    query.where = { loe_items: { some: { service: { department_id: deptId } } } };
   }
 
   const loes = await prisma.loe.findMany(query);
@@ -134,9 +110,7 @@ exports.getAll = asyncHandler(async (req, res) => {
 // GET /api/loes/:id
 exports.getById = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
-  if (isNaN(loeId)) {
-    return res.status(400).json({ error: 'Invalid LOE ID format' });
-  }
+  if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
 
   const loe = await prisma.loe.findUnique({
     where: { loe_id: loeId },
@@ -144,13 +118,7 @@ exports.getById = asyncHandler(async (req, res) => {
       company: true,
       creator: { select: { emp_id: true, name: true, email: true } },
       approver: { select: { emp_id: true, name: true, email: true } },
-      loe_items: {
-        include: { 
-          service: {
-            include: { department: true }
-          } 
-        }
-      } 
+      loe_items: { include: { service: { include: { department: true } } } } 
     }
   });
   
@@ -160,7 +128,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
-  const { company_id, created_by, type, start_date, end_date, loe_items } = req.body;
+  const { company_id, created_by, type, billing_frequency, start_date, end_date, loe_items } = req.body;
 
   const newLoe = await prisma.loe.create({
     data: {
@@ -168,6 +136,7 @@ exports.create = asyncHandler(async (req, res) => {
       created_by: parseInt(created_by),
       status: 'Approval Pending',
       type: type || 'Standard',
+      billing_frequency: billing_frequency || 'One-Time', // SAVED HERE
       start_date: new Date(start_date),
       end_date: end_date ? new Date(end_date) : undefined,
       loe_items: { 
@@ -180,10 +149,7 @@ exports.create = asyncHandler(async (req, res) => {
         }))
       }
     },
-    include: { 
-      company: true,
-      loe_items: { include: { service: true } }
-    }
+    include: { company: true, loe_items: { include: { service: true } } }
   });
   
   res.status(201).json(newLoe);
@@ -191,11 +157,9 @@ exports.create = asyncHandler(async (req, res) => {
 
 // PUT /api/loes/:id
 exports.update = asyncHandler(async (req, res) => {
-  const { company_id, type, start_date, end_date, loe_items } = req.body;
+  const { company_id, type, billing_frequency, start_date, end_date, loe_items } = req.body;
   const loeId = parseInt(req.params.id);
-  if (isNaN(loeId)) {
-    return res.status(400).json({ error: 'Invalid LOE ID format' });
-  }
+  if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
 
   const itemsToCreate = (loe_items || []).map(item => {
     const isApproved = item.status === 'Approved';
@@ -216,32 +180,23 @@ exports.update = asyncHandler(async (req, res) => {
       company_id: company_id ? parseInt(company_id) : undefined,
       status: allApproved ? 'Approved' : 'Approval Pending',
       type: type || 'Standard',
+      billing_frequency: billing_frequency || 'One-Time', // SAVED HERE
       start_date: start_date ? new Date(start_date) : undefined,
       end_date: end_date ? new Date(end_date) : undefined,
       approved_by: allApproved ? undefined : null,
-      loe_items: {
-        deleteMany: {}, 
-        create: itemsToCreate
-      }
+      loe_items: { deleteMany: {}, create: itemsToCreate }
     },
-    include: { 
-      company: true,
-      loe_items: { include: { service: true } }
-    }
+    include: { company: true, loe_items: { include: { service: true } } }
   });
 
-  if (allApproved) {
-    await processApprovedLoe(loeId, updatedLoe.approved_by);
-  }
+  if (allApproved) await processApprovedLoe(loeId, updatedLoe.approved_by);
 
   res.json(updatedLoe);
 });
 
 const deleteLoe = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
-  if (isNaN(loeId)) {
-    return res.status(400).json({ error: 'Invalid LOE ID format' });
-  }
+  if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
   await prisma.loe.delete({ where: { loe_id: loeId } });
   res.json({ message: 'LOE deleted successfully' });
 });
@@ -249,140 +204,73 @@ const deleteLoe = asyncHandler(async (req, res) => {
 exports.remove = deleteLoe;
 exports.delete = deleteLoe;
 
-// ==========================================
-// ITEM-LEVEL & BATCH APPROVAL WORKFLOW
-// ==========================================
-
 // GET /api/loes/pending
 exports.getPending = asyncHandler(async (req, res) => {
   const role = req.query.role;
   const deptId = parseInt(req.query.department_id);
 
   const query = {
-    include: {
-      company: true,
-      loe_items: {
-        include: { 
-          service: {
-            include: { department: true }
-          }
-        } 
-      }
-    },
+    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } },
     orderBy: { loe_id: 'desc' }
   };
 
-  if (role === 'ADMIN') {
-    query.where = { status: 'Approval Pending' };
-  } else {
-    query.where = {
-      status: 'Approval Pending',
-      loe_items: {
-        some: {
-          service: { department_id: deptId },
-          status: 'Pending'
-        }
-      }
-    };
-  }
+  if (role === 'ADMIN') query.where = { status: 'Approval Pending' };
+  else query.where = { status: 'Approval Pending', loe_items: { some: { service: { department_id: deptId }, status: 'Pending' } } };
 
   const loes = await prisma.loe.findMany(query);
   res.json(loes);
 });
 
-// PUT /api/loes/:id/items/:itemId/approve
 exports.approveItem = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   const itemId = parseInt(req.params.itemId);
   const { emp_id } = req.body;
 
-  if (isNaN(loeId) || isNaN(itemId)) {
-    return res.status(400).json({ error: 'Invalid ID parameters' });
-  }
-
   await prisma.loeItem.update({
     where: { loe_item_id: itemId },
-    data: { 
-      status: 'Approved', 
-      rejection_reason: null 
-    }
+    data: { status: 'Approved', rejection_reason: null }
   });
 
-  const allItems = await prisma.loeItem.findMany({
-    where: { loe_id: loeId }
-  });
-
+  const allItems = await prisma.loeItem.findMany({ where: { loe_id: loeId } });
   const allApproved = allItems.every(i => i.status === 'Approved');
   const hasRejected = allItems.some(i => i.status === 'Rejected');
 
   let newLoeStatus = 'Approval Pending';
-  if (allApproved) {
-    newLoeStatus = 'Approved';
-  } else if (hasRejected) {
-    newLoeStatus = 'Rejected';
-  }
+  if (allApproved) newLoeStatus = 'Approved';
+  else if (hasRejected) newLoeStatus = 'Rejected';
 
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
-    data: {
-      status: newLoeStatus,
-      approved_by: allApproved ? parseInt(emp_id) : undefined
-    },
-    include: {
-      company: true,
-      loe_items: {
-        include: { service: { include: { department: true } } }
-      }
-    }
+    data: { status: newLoeStatus, approved_by: allApproved ? parseInt(emp_id) : undefined },
+    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } }
   });
 
-  if (allApproved) {
-    await processApprovedLoe(loeId, emp_id);
-  }
-
+  if (allApproved) await processApprovedLoe(loeId, emp_id);
   res.json(updatedLoe);
 });
 
-// PUT /api/loes/:id/items/:itemId/reject
 exports.rejectItem = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   const itemId = parseInt(req.params.itemId);
   const { reason } = req.body;
 
-  if (isNaN(loeId) || isNaN(itemId)) {
-    return res.status(400).json({ error: 'Invalid ID parameters' });
-  }
-
   await prisma.loeItem.update({
     where: { loe_item_id: itemId },
-    data: {
-      status: 'Rejected',
-      rejection_reason: reason || 'Revision required by department manager'
-    }
+    data: { status: 'Rejected', rejection_reason: reason || 'Revision required' }
   });
 
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
     data: { status: 'Rejected' },
-    include: {
-      company: true,
-      loe_items: {
-        include: { service: { include: { department: true } } }
-      }
-    }
+    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } }
   });
 
   res.json(updatedLoe);
 });
 
-// PUT /api/loes/:id/approve-all
 exports.approveAll = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   const { emp_id } = req.body;
-
-  if (isNaN(loeId)) {
-    return res.status(400).json({ error: 'Invalid LOE ID' });
-  }
 
   await prisma.loeItem.updateMany({
     where: { loe_id: loeId },
@@ -391,54 +279,23 @@ exports.approveAll = asyncHandler(async (req, res) => {
 
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
-    data: {
-      status: 'Approved',
-      approved_by: emp_id ? parseInt(emp_id) : undefined
-    },
-    include: {
-      company: true,
-      loe_items: {
-        include: { service: { include: { department: true } } }
-      }
-    }
+    data: { status: 'Approved', approved_by: emp_id ? parseInt(emp_id) : undefined },
+    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } }
   });
 
   await processApprovedLoe(loeId, emp_id);
-
   res.json(updatedLoe);
 });
 
-// ==========================================
-// PDF GENERATION: LOE DOCUMENT
-// ==========================================
-
-// GET /api/loes/:id/pdf
 exports.generatePdf = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
-  if (isNaN(loeId)) {
-    return res.status(400).json({ error: 'Invalid LOE ID format' });
-  }
-
   const loe = await prisma.loe.findUnique({
     where: { loe_id: loeId },
-    include: {
-      loe_items: {
-        include: {
-          service: {
-            include: { department: true }
-          }
-        }
-      }
-    }
+    include: { loe_items: { include: { service: { include: { department: true } } } } }
   });
 
-  if (!loe) {
-    return res.status(404).json({ error: 'LOE record not found' });
-  }
-
-  const company = await prisma.company.findUnique({
-    where: { company_id: loe.company_id }
-  });
+  if (!loe) return res.status(404).json({ error: 'LOE record not found' });
+  const company = await prisma.company.findUnique({ where: { company_id: loe.company_id } });
 
   const pdfBuffer = await generateLoePdf({ loe, company });
 
@@ -447,73 +304,3 @@ exports.generatePdf = asyncHandler(async (req, res) => {
   res.setHeader('Content-Length', pdfBuffer.length);
   res.end(pdfBuffer);
 });
-
-// GET /api/loes/:id/invoice-pdf
-exports.generateInvoicePdf = asyncHandler(async (req, res) => {
-  const loeId = parseInt(req.params.id);
-  if (isNaN(loeId)) {
-    return res.status(400).json({ error: 'Invalid LOE ID format' });
-  }
-
-  const loe = await prisma.loe.findUnique({
-    where: { loe_id: loeId },
-    include: {
-      company: true,
-      loe_items: {
-        include: { service: { include: { department: true } } }
-      }
-    }
-  });
-
-  if (!loe) {
-    return res.status(404).json({ error: 'LOE record not found' });
-  }
-
-  if (loe.status !== 'Approved') {
-    return res.status(400).json({ error: 'Invoices can only be generated for approved LOEs' });
-  }
-
-  let job = await prisma.job.findUnique({
-    where: { loe_id: loeId }
-  });
-
-  if (!job) {
-    job = await prisma.job.create({
-      data: {
-        loe_id: loeId,
-        manager_id: loe.approved_by || loe.created_by,
-        status: 'In-Progress'
-      }
-    });
-  }
-
-  const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-
-  let invoice = await prisma.invoice.findUnique({
-    where: { job_id: job.job_id }
-  });
-
-  if (!invoice) {
-    const issuedDate = new Date();
-    const dueDate = new Date();
-    dueDate.setDate(issuedDate.getDate() + 30);
-
-    invoice = await prisma.invoice.create({
-      data: {
-        job_id: job.job_id,
-        total_amount: totalAmount,
-        status: 'Not Paid',
-        issued_date: issuedDate,
-        due_date: dueDate
-      }
-    });
-  }
-
-  const pdfBuffer = await generateInvoicePdf({ invoice, loe, company: loe.company });
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename=Invoice-LOE-${loe.loe_id}.pdf`);
-  res.setHeader('Content-Length', pdfBuffer.length);
-  res.end(pdfBuffer);
-});
-
