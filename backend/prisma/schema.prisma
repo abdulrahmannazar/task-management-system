@@ -170,6 +170,7 @@ model Task {
   deadline         DateTime?  @db.Date
   duration_days    Int?       
   scope            String?    @db.Text
+  last_reminded_at DateTime?  @db.Timestamp() // NEW: For reminder tracking
 
   // Relations
   job              Job        @relation(fields: [job_id], references: [job_id], onDelete: Cascade)
@@ -180,15 +181,16 @@ model Task {
 }
 
 model Invoice {
-  invoice_id   Int      @id @default(autoincrement())
-  job_id       Int      // REMOVED @unique
-  total_amount Decimal  @db.Decimal(12, 2)
-  status       String   @db.VarChar(50)
-  issued_date  DateTime @db.Date
-  due_date     DateTime @db.Date
+  invoice_id       Int      @id @default(autoincrement())
+  job_id           Int      
+  total_amount     Decimal  @db.Decimal(12, 2)
+  status           String   @db.VarChar(50)
+  issued_date      DateTime @db.Date
+  due_date         DateTime @db.Date
+  last_reminded_at DateTime? @db.Timestamp() // NEW: For reminder tracking
 
   // Relations
-  job          Job      @relation(fields: [job_id], references: [job_id])
+  job              Job      @relation(fields: [job_id], references: [job_id])
 
   @@map("invoices")
 }
