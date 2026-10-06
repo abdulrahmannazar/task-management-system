@@ -1,26 +1,55 @@
 const nodemailer = require('nodemailer');
 
-// Factory to create a transporter with strict timeouts to prevent hanging
 function createTransporter() {
   const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
+  const pass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : null;
 
   if (!user || !pass) {
-    console.warn('[Email Warning] EMAIL_USER or EMAIL_PASS not set in environment variables. Email dispatch will be skipped.');
+    console.warn('[Email Warning] EMAIL_USER or EMAIL_PASS not set in environment variables. Email dispatch skipped.');
     return null;
   }
 
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    family: 4, // CRITICAL: Forces IPv4 to bypass Render's ENETUNREACH IPv6 issue
     auth: { user, pass },
-    connectionTimeout: 5000,
-    greetingTimeout: 5000,
-    socketTimeout: 5000
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000
   });
 }
 
+// Diagnostic test helper to verify credentials
+async function verifyAndSendTestEmail(targetEmail) {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+
+  if (!user || !pass) {
+    throw new Error('EMAIL_USER or EMAIL_PASS environment variable is missing on Render.');
+  }
+
+  const transporter = createTransporter();
+  if (!transporter) throw new Error('Could not initialize mail transporter.');
+
+  await transporter.verify();
+
+  const info = await transporter.sendMail({
+    from: `"Task Management System" <${user}>`,
+    to: targetEmail || user,
+    subject: 'SMTP Test: Task Management System',
+    text: `Your email setup is working correctly!\n\nSent from: ${user}\nTimestamp: ${new Date().toISOString()}`
+  });
+
+  return info;
+}
+
 async function sendInvoiceEmail(toEmail, companyName, invoiceId, amount) {
-  if (!toEmail) return;
+  if (!toEmail) {
+    console.warn('[Email Warning] Recipient email is empty. Cannot send invoice.');
+    return;
+  }
   const transporter = createTransporter();
   if (!transporter) return;
 
@@ -33,12 +62,15 @@ async function sendInvoiceEmail(toEmail, companyName, invoiceId, amount) {
     });
     console.log(`[Email Success] Invoice sent to ${toEmail}`);
   } catch (err) {
-    console.error('[Email Error] Failed to send invoice email:', err.message);
+    console.error(`[Email Error] Failed to send invoice email to ${toEmail}:`, err.message);
   }
 }
 
 async function sendInvoiceReminderEmail(toEmail, companyName, invoiceId, amount, dueDate) {
-  if (!toEmail) return;
+  if (!toEmail) {
+    console.warn('[Email Warning] Company recipient email is empty. Cannot send invoice reminder.');
+    return;
+  }
   const transporter = createTransporter();
   if (!transporter) return;
 
@@ -51,12 +83,15 @@ async function sendInvoiceReminderEmail(toEmail, companyName, invoiceId, amount,
     });
     console.log(`[Email Success] Invoice reminder sent to ${toEmail}`);
   } catch (err) {
-    console.error('[Email Error] Failed to send invoice reminder:', err.message);
+    console.error(`[Email Error] Failed to send invoice reminder to ${toEmail}:`, err.message);
   }
 }
 
 async function sendTaskReminderEmail(toEmail, empName, taskCode, scope, deadline) {
-  if (!toEmail) return;
+  if (!toEmail) {
+    console.warn(`[Email Warning] Employee email for ${empName} is empty. Cannot send task reminder.`);
+    return;
+  }
   const transporter = createTransporter();
   if (!transporter) return;
 
@@ -70,7 +105,7 @@ async function sendTaskReminderEmail(toEmail, empName, taskCode, scope, deadline
     });
     console.log(`[Email Success] Task reminder sent to ${toEmail}`);
   } catch (err) {
-    console.error('[Email Error] Failed to send task reminder:', err.message);
+    console.error(`[Email Error] Failed to send task reminder to ${toEmail}:`, err.message);
   }
 }
 
@@ -86,7 +121,7 @@ async function sendTaskCompletedEmail(toEmail, empName, taskCode, scope, isManag
     
     const body = isManager
       ? `Hello,\n\nThe following task has been marked as Completed by the assigned team members:\n\nTask Code: ${taskCode}\nScope: ${scope || 'Standard Deliverable'}\n\nPlease review the deliverables in the system.`
-      : `Hi ${empName},\n\nThank you for completing your task.\n\nTask Code: ${taskCode}\nScope: ${scope || 'Standard Deliverable'}\n\nYour manager has been notified.\n\nGreat job!`;
+      : `Hi ${empName},\n\nThank you for completing your task.\n\nTask Code: ${taskCode}\nScope: ${scope || 'Standard Deliverable'}\n\nYour manager has been notified of your completion.\n\nGreat job!`;
 
     await transporter.sendMail({
       from: `"Task Management System" <${process.env.EMAIL_USER}>`,
@@ -96,11 +131,12 @@ async function sendTaskCompletedEmail(toEmail, empName, taskCode, scope, isManag
     });
     console.log(`[Email Success] Task completed notification sent to ${toEmail}`);
   } catch (err) {
-    console.error('[Email Error] Failed to send completion email:', err.message);
+    console.error(`[Email Error] Failed to send completion email to ${toEmail}:`, err.message);
   }
 }
 
 module.exports = { 
+  verifyAndSendTestEmail,
   sendInvoiceEmail, 
   sendInvoiceReminderEmail, 
   sendTaskReminderEmail, 

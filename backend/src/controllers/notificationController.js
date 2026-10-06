@@ -2,6 +2,7 @@ const prisma = require('../config/db');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { runAutomationSweep } = require('../services/cronService');
+const { verifyAndSendTestEmail } = require('../services/emailService');
 
 const getEmpId = (req) => {
   const authHeader = req.headers.authorization;
@@ -54,8 +55,29 @@ exports.markAllAsRead = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-// POST /api/notifications/trigger-cron (Manual test endpoint)
+// POST /api/notifications/trigger-cron
 exports.triggerCron = asyncHandler(async (req, res) => {
   runAutomationSweep();
   res.json({ message: 'Automation sweep triggered successfully in background' });
+});
+
+// GET /api/notifications/test-email (Live browser diagnostic)
+exports.testEmail = asyncHandler(async (req, res) => {
+  const targetEmail = req.query.to || process.env.EMAIL_USER;
+  try {
+    const info = await verifyAndSendTestEmail(targetEmail);
+    res.json({
+      success: true,
+      message: `Test email successfully delivered to ${targetEmail}`,
+      sender: process.env.EMAIL_USER,
+      messageId: info.messageId
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      senderConfigured: Boolean(process.env.EMAIL_USER),
+      passwordConfigured: Boolean(process.env.EMAIL_PASS)
+    });
+  }
 });
