@@ -2,32 +2,31 @@ const nodemailer = require('nodemailer');
 
 function createTransporter() {
   const user = process.env.EMAIL_USER;
-  // Remove any whitespace that Google automatically formats into App Passwords
+  // Automatically strip spaces if the Google App Password was pasted with spaces
   const pass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : null;
 
   if (!user || !pass) {
-    console.warn('[Email Warning] EMAIL_USER or EMAIL_PASS not set on this server. Email dispatch skipped.');
+    console.warn('[Email Warning] EMAIL_USER or EMAIL_PASS not set on this server. Skipping email dispatch.');
     return null;
   }
 
-  // Use Port 587 with STARTTLS (bypasses port 465 timeout on cloud hosting)
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
-    secure: false, // Must be false for 587 to allow STARTTLS negotiation
+    secure: false, // Must be false on port 587 for STARTTLS negotiation
     requireTLS: true,
-    family: 4, // Force IPv4 to avoid Render's IPv6 ENETUNREACH error
     auth: { user, pass },
     tls: {
+      servername: 'smtp.gmail.com',
       rejectUnauthorized: false
     },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000
   });
 }
 
-// Diagnostic test endpoint function
+// Diagnostic helper to verify credentials
 async function verifyAndSendTestEmail(targetEmail) {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
@@ -38,15 +37,13 @@ async function verifyAndSendTestEmail(targetEmail) {
   const transporter = createTransporter();
   if (!transporter) throw new Error('Failed to initialize mail transporter.');
 
-  // Test the SMTP handshake
   await transporter.verify();
 
-  // Send test message
   const info = await transporter.sendMail({
     from: `"Task Management System" <${user}>`,
     to: targetEmail || user,
-    subject: 'SMTP Test: Task Management System',
-    text: `Your email notification integration is working correctly!\n\nSender: ${user}\nRecipient: ${targetEmail || user}\nTimestamp: ${new Date().toISOString()}`
+    subject: 'SMTP Connection Test: Success',
+    text: `Your email notification setup is working properly!\n\nSent from: ${user}\nTimestamp: ${new Date().toISOString()}`
   });
 
   return info;
@@ -62,7 +59,7 @@ async function sendInvoiceEmail(toEmail, companyName, invoiceId, amount) {
       from: `"Task Management System" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       subject: `New Invoice INV-${String(invoiceId).padStart(5, '0')} Generated`,
-      text: `Hello ${companyName},\n\nA new recurring invoice for $${Number(amount).toFixed(2)} has been generated and is now due.\n\nPlease log in to the portal to view and download your invoice.\n\nThank you for your business!`
+      text: `Hello ${companyName},\n\nA new recurring invoice for $${Number(amount).toFixed(2)} has been generated and is now due.\n\nPlease log in to view and download your invoice.\n\nThank you for your business!`
     });
     console.log(`[Email Success] Invoice sent to ${toEmail}`);
   } catch (err) {
@@ -80,7 +77,7 @@ async function sendInvoiceReminderEmail(toEmail, companyName, invoiceId, amount,
       from: `"Task Management Accounts" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       subject: `REMINDER: Outstanding Invoice INV-${String(invoiceId).padStart(5, '0')}`,
-      text: `Hello ${companyName},\n\nThis is a friendly reminder that Invoice INV-${String(invoiceId).padStart(5, '0')} for $${Number(amount).toFixed(2)} was due on ${new Date(dueDate).toLocaleDateString()}.\n\nPlease arrange for payment as soon as possible to avoid service disruption.\n\nThank you.`
+      text: `Hello ${companyName},\n\nThis is a friendly reminder that Invoice INV-${String(invoiceId).padStart(5, '0')} for $${Number(amount).toFixed(2)} was due on ${new Date(dueDate).toLocaleDateString()}.\n\nPlease arrange for payment as soon as possible.\n\nThank you.`
     });
     console.log(`[Email Success] Invoice reminder sent to ${toEmail}`);
   } catch (err) {
@@ -99,7 +96,7 @@ async function sendTaskReminderEmail(toEmail, empName, taskCode, scope, deadline
       from: `"Task Management System" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       subject: `ACTION REQUIRED: Approaching Deadline for Task ${taskCode}`,
-      text: `Hi ${empName},\n\nThis is an automated reminder that your assigned task (${taskCode}) is approaching its deadline on ${dateStr}.\n\nScope: ${scope || 'Standard Deliverable'}\n\nPlease update your progress in the system.\n\nBest regards,\nOperations Team`
+      text: `Hi ${empName},\n\nThis is a reminder that your assigned task (${taskCode}) is approaching its deadline on ${dateStr}.\n\nScope: ${scope || 'Standard Deliverable'}\n\nPlease update your progress in the system.\n\nBest regards,\nOperations Team`
     });
     console.log(`[Email Success] Task reminder sent to ${toEmail}`);
   } catch (err) {
