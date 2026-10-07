@@ -1,49 +1,55 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 
 function createTransporter() {
   const user = process.env.EMAIL_USER;
-  // Automatically strip spaces if the Google App Password was pasted with spaces
+  // Automatically strip any spaces if the 16-character App Password still has them
   const pass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : null;
 
   if (!user || !pass) {
-    console.warn('[Email Warning] EMAIL_USER or EMAIL_PASS not set on this server. Skipping email dispatch.');
+    console.warn('[Email Warning] EMAIL_USER or EMAIL_PASS not set on this server. Email dispatch skipped.');
     return null;
   }
 
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
-    secure: false, // Must be false on port 587 for STARTTLS negotiation
+    secure: false, // Required for Port 587 STARTTLS
     requireTLS: true,
     auth: { user, pass },
+    // CRITICAL: Forces Nodemailer socket connection to strictly resolve IPv4 only
+    lookup: (hostname, options, callback) => {
+      return dns.lookup(hostname, { ...options, family: 4 }, callback);
+    },
     tls: {
       servername: 'smtp.gmail.com',
       rejectUnauthorized: false
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000
   });
 }
 
-// Diagnostic helper to verify credentials
+// Diagnostic helper to verify SMTP credentials directly
 async function verifyAndSendTestEmail(targetEmail) {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
 
-  if (!user) throw new Error('EMAIL_USER environment variable is missing on Render.');
-  if (!pass) throw new Error('EMAIL_PASS environment variable is missing on Render.');
+  if (!user) throw new Error('EMAIL_USER environment variable is missing in Render.');
+  if (!pass) throw new Error('EMAIL_PASS environment variable is missing in Render.');
 
   const transporter = createTransporter();
   if (!transporter) throw new Error('Failed to initialize mail transporter.');
 
+  // Validate the SMTP handshake with Google
   await transporter.verify();
 
   const info = await transporter.sendMail({
     from: `"Task Management System" <${user}>`,
     to: targetEmail || user,
     subject: 'SMTP Connection Test: Success',
-    text: `Your email notification setup is working properly!\n\nSent from: ${user}\nTimestamp: ${new Date().toISOString()}`
+    text: `Your email setup is working correctly!\n\nSender: ${user}\nRecipient: ${targetEmail || user}\nTimestamp: ${new Date().toISOString()}`
   });
 
   return info;
