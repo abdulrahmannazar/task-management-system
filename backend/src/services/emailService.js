@@ -1,6 +1,6 @@
 /**
  * Email Service using EmailJS REST API (Port 443)
- * Dispatches notification emails and PDF access links.
+ * Dispatches internal notifications to Managers and Admins only.
  */
 
 const BASE_URL = process.env.BACKEND_URL || 'https://task-management-system-6ifq.onrender.com';
@@ -42,10 +42,7 @@ async function sendViaEmailJS({ toEmail, subject, textContent }) {
 }
 
 async function dispatchEmail({ toEmail, subject, textContent }) {
-  if (!toEmail) {
-    console.warn('[Email Warning] No recipient email specified.');
-    return;
-  }
+  if (!toEmail) return;
 
   try {
     await sendViaEmailJS({ toEmail, subject, textContent });
@@ -56,106 +53,123 @@ async function dispatchEmail({ toEmail, subject, textContent }) {
 }
 
 // ==========================================
-// EXPORTED DISPATCH HANDLERS
+// EXPORTED DISPATCH HANDLERS (MANAGERS & ADMINS)
 // ==========================================
 
-async function verifyAndSendTestEmail(targetEmail) {
-  const dest = targetEmail || 'rahmannazar000@gmail.com';
-  await sendViaEmailJS({
-    toEmail: dest,
-    subject: 'Task System: EmailJS Connection Test',
-    textContent: `EmailJS integration is operating correctly!\n\nDelivered to: ${dest}\nTimestamp: ${new Date().toISOString()}`
-  });
-  return { success: true, recipient: dest };
-}
-
-// 1. SIMPLE UNPAID INVOICE REMINDER WITH PDF
-async function sendInvoiceReminderEmail(toEmail, companyName, invoiceId, amount, dueDate) {
-  const invoiceCode = `INV-${String(invoiceId).padStart(5, '0')}`;
-  const pdfDownloadUrl = `${BASE_URL}/api/invoices/${invoiceId}/pdf`;
-  const formattedDate = dueDate ? new Date(dueDate).toLocaleDateString() : 'Immediate';
-
-  const textContent = 
-`Hello ${companyName},
-
-You have an unpaid invoice.
-
-Invoice Details:
-- Invoice Number: ${invoiceCode}
-- Amount Due: $${Number(amount).toFixed(2)}
-- Due Date: ${formattedDate}
-
-Download your official invoice PDF here:
-${pdfDownloadUrl}
-
-Please arrange for payment at your earliest convenience.
-
-Thank you!`;
-
-  await dispatchEmail({
-    toEmail,
-    subject: `Notice: You have an unpaid invoice (${invoiceCode})`,
-    textContent
-  });
-}
-
-// 2. NEW INVOICE GENERATION EMAIL WITH PDF
-async function sendInvoiceEmail(toEmail, companyName, invoiceId, amount) {
-  const invoiceCode = `INV-${String(invoiceId).padStart(5, '0')}`;
-  const pdfDownloadUrl = `${BASE_URL}/api/invoices/${invoiceId}/pdf`;
-
-  const textContent = 
-`Hello ${companyName},
-
-A new invoice has been generated for your account.
-
-Invoice Details:
-- Invoice Number: ${invoiceCode}
-- Total Amount: $${Number(amount).toFixed(2)}
-
-Download your official invoice PDF here:
-${pdfDownloadUrl}
-
-Please log in or review the attached link to complete your payment.
-
-Thank you!`;
-
-  await dispatchEmail({
-    toEmail,
-    subject: `New Invoice Generated: ${invoiceCode}`,
-    textContent
-  });
-}
-
-// 3. LOE APPROVED EMAIL WITH PDF
-async function sendLoeApprovedEmail(toEmail, companyName, loeId) {
+// 1. Alert Managers/Admins when a new LOE is created
+async function sendLoeCreatedEmail(toEmail, recipientName, companyName, loeId, totalAmount) {
   const loeCode = `LOE-${String(loeId).padStart(5, '0')}`;
-  const pdfDownloadUrl = `${BASE_URL}/api/loes/${loeId}/pdf`;
+  const pdfUrl = `${BASE_URL}/api/loes/${loeId}/pdf`;
 
   const textContent = 
-`Hello ${companyName},
+`Hello ${recipientName},
 
-Your Letter of Engagement has been officially approved.
+A new Letter of Engagement has been drafted and is awaiting your review and approval.
 
-LOE Details:
+Engagement Summary:
 - Reference: ${loeCode}
-- Approval Date: ${new Date().toLocaleDateString()}
+- Company: ${companyName}
+- Total Value: $${Number(totalAmount).toFixed(2)}
 
-Download and review your approved Letter of Engagement PDF here:
-${pdfDownloadUrl}
+Review or download the LOE PDF:
+${pdfUrl}
 
-Our team has initiated work on your project according to the agreed scopes.
-
-Thank you for your business!`;
+Please log in to the portal to approve or reject the deliverables.`;
 
   await dispatchEmail({
     toEmail,
-    subject: `Approved: Letter of Engagement ${loeCode}`,
+    subject: `Action Required: New ${loeCode} Created (${companyName})`,
     textContent
   });
 }
 
-// Task Handlers
+// 2. Alert Managers/Admins when an LOE has been pending approval for > 2 days
+async function sendLoePendingReminderEmail(toEmail, recipientName, companyName, loeId, daysPending) {
+  const loeCode = `LOE-${String(loeId).padStart(5, '0')}`;
+  const pdfUrl = `${BASE_URL}/api/loes/${loeId}/pdf`;
+
+  const textContent = 
+`Hello ${recipientName},
+
+This is an automated reminder that ${loeCode} for ${companyName} has been pending approval for over ${daysPending} days without approval.
+
+Details:
+- Reference: ${loeCode}
+- Company: ${companyName}
+- Current Status: Approval Pending
+
+Review the LOE PDF:
+${pdfUrl}
+
+Please review and take action in the portal to avoid delaying project onboarding.`;
+
+  await dispatchEmail({
+    toEmail,
+    subject: `REMINDER: ${loeCode} Pending Approval (${companyName})`,
+    textContent
+  });
+}
+
+// 3. Alert Managers/Admins when an invoice is created
+async function sendInvoiceCreatedEmail(toEmail, recipientName, companyName, invoiceId, amount, dueDate) {
+  const invoiceCode = `INV-${String(invoiceId).padStart(5, '0')}`;
+  const pdfUrl = `${BASE_URL}/api/invoices/${invoiceId}/pdf`;
+  const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A';
+
+  const textContent = 
+`Hello ${recipientName},
+
+A new invoice has been generated.
+
+Invoice Summary:
+- Invoice Number: ${invoiceCode}
+- Client: ${companyName}
+- Total Due: $${Number(amount).toFixed(2)}
+- Due Date: ${formattedDueDate}
+- Status: Not Paid
+
+Download Official Invoice PDF:
+${pdfUrl}
+
+The record has been logged in the portal under Invoices.`;
+
+  await dispatchEmail({
+    toEmail,
+    subject: `Notice: New Invoice ${invoiceCode} Generated (${companyName})`,
+    textContent
+  });
+}
+
+// 4. Alert Managers/Admins regarding an unpaid invoice
+async function sendInvoiceReminderEmail(toEmail, recipientName, companyName, invoiceId, amount, dueDate) {
+  const invoiceCode = `INV-${String(invoiceId).padStart(5, '0')}`;
+  const pdfUrl = `${BASE_URL}/api/invoices/${invoiceId}/pdf`;
+  const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A';
+
+  const textContent = 
+`Hello ${recipientName},
+
+This is a reminder regarding an outstanding unpaid invoice.
+
+Invoice Details:
+- Invoice Number: ${invoiceCode}
+- Client Company: ${companyName}
+- Amount Outstanding: $${Number(amount).toFixed(2)}
+- Due Date: ${formattedDueDate}
+
+Download Invoice PDF:
+${pdfUrl}
+
+Please follow up with the client or review payment collection.`;
+
+  await dispatchEmail({
+    toEmail,
+    subject: `Unpaid Invoice Notice: ${invoiceCode} (${companyName})`,
+    textContent
+  });
+}
+
+// Task Reminders (For Staff)
 async function sendTaskReminderEmail(toEmail, empName, taskCode, scope, deadline) {
   const dateStr = deadline ? new Date(deadline).toLocaleDateString() : 'N/A';
   await dispatchEmail({
@@ -177,11 +191,22 @@ async function sendTaskCompletedEmail(toEmail, empName, taskCode, scope, isManag
   await dispatchEmail({ toEmail, subject, textContent });
 }
 
+async function verifyAndSendTestEmail(targetEmail) {
+  const dest = targetEmail || 'rahmannazar000@gmail.com';
+  await sendViaEmailJS({
+    toEmail: dest,
+    subject: 'Task System: EmailJS Connection Test',
+    textContent: `EmailJS integration is operating correctly!\n\nDelivered to: ${dest}\nTimestamp: ${new Date().toISOString()}`
+  });
+  return { success: true, recipient: dest };
+}
+
 module.exports = { 
   verifyAndSendTestEmail,
-  sendInvoiceEmail, 
+  sendLoeCreatedEmail,
+  sendLoePendingReminderEmail,
+  sendInvoiceCreatedEmail,
   sendInvoiceReminderEmail, 
-  sendLoeApprovedEmail,
   sendTaskReminderEmail, 
   sendTaskCompletedEmail 
 };
