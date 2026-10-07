@@ -130,7 +130,7 @@ exports.update = asyncHandler(async (req, res) => {
   res.json(updatedInvoice);
 });
 
-// POST /api/invoices/:id/remind (Immediate notification + Async email)
+// POST /api/invoices/:id/remind (Dispatches reminders ONLY to Managers and Admins)
 exports.remind = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
@@ -144,34 +144,47 @@ exports.remind = asyncHandler(async (req, res) => {
   if (invoice.status === 'Paid') return res.status(400).json({ error: 'Invoice is already marked as Paid' });
 
   const company = invoice.job.loe.company;
-  const currentEmpId = getEmpId(req);
 
-  // 1. In-App Notifications written immediately
-  const notifTargets = new Set();
-  if (currentEmpId) notifTargets.add(currentEmpId);
-  if (invoice.job.manager_id) notifTargets.add(invoice.job.manager_id);
+  // 1. Retrieve all active Managers and Admins (Client company excluded)
+  const leaders = await prisma.employee.findMany({
+    where: { 
+      role: { in: ['ADMIN', 'MANAGER'] }, 
+      is_active: true 
+    },
+    select: { emp_id: true, name: true, email: true }
+  });
 
-  for (const empId of notifTargets) {
+  // 2. Dispatch email and in-app notifications to each Manager & Admin
+  for (const leader of leaders) {
+    sendInvoiceReminderEmail(
+      leader.email, 
+      leader.name, 
+      company.name, 
+      invoice.invoice_id, 
+      invoice.total_amount, 
+      invoice.due_date
+    );
+
     await prisma.notification.create({
       data: {
-        emp_id: empId,
-        title: 'Invoice Reminder Dispatched',
-        message: `Payment reminder sent to ${company.name} for Invoice INV-${String(invoice.invoice_id).padStart(5, '0')} ($${Number(invoice.total_amount).toFixed(2)}).`
+        emp_id: leader.emp_id,
+        title: 'Unpaid Invoice Alert',
+        message: `Notice for unpaid Invoice INV-${String(invoice.invoice_id).padStart(5, '0')} (${company.name}) for $${Number(invoice.total_amount).toFixed(2)}.`
       }
     });
   }
 
-  // 2. Update DB timestamp
+  // 3. Update database reminder timestamp
   const updatedInvoice = await prisma.invoice.update({
     where: { invoice_id: id },
     data: { last_reminded_at: new Date() },
     include: { job: { include: { loe: { include: { company: true } } } } }
   });
 
-  // 3. Email sent in background (No await so response is fast)
-  sendInvoiceReminderEmail(company.email, company.name, invoice.invoice_id, invoice.total_amount, invoice.due_date);
-
-  res.json({ message: 'Reminder dispatched successfully', invoice: updatedInvoice });
+  res.json({ 
+    message: 'Reminder dispatched to managers and admins successfully', 
+    invoice: updatedInvoice 
+  });
 });
 
 // GET /api/invoices/:id/pdf
@@ -215,6 +228,7 @@ exports.generatePdf = asyncHandler(async (req, res) => {
   res.end(pdfBuffer);
 });
 
+// DELETE /api/invoices/:id
 const deleteInvoice = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });

@@ -2,7 +2,15 @@ const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateLoePdf } = require('../services/pdfService');
 const { generateTaskCode } = require('../utils/taskCodeHelper');
-const { sendLoeApprovedEmail } = require('../services/emailService');
+const { sendLoeCreatedEmail, sendInvoiceCreatedEmail } = require('../services/emailService');
+
+// Internal helper to find all active managers and admins
+async function getManagersAndAdmins() {
+  return prisma.employee.findMany({
+    where: { role: { in: ['ADMIN', 'MANAGER'] }, is_active: true },
+    select: { emp_id: true, name: true, email: true }
+  });
+}
 
 async function processApprovedLoe(loeId, managerEmpId) {
   const loe = await prisma.loe.findUnique({
@@ -15,12 +23,7 @@ async function processApprovedLoe(loeId, managerEmpId) {
   });
   if (!loe) return;
 
-  // 1. Dispatch LOE approval email with PDF download link to client
-  if (loe.company?.email) {
-    sendLoeApprovedEmail(loe.company.email, loe.company.name, loe.loe_id);
-  }
-
-  // 2. Create Job if one doesn't exist yet
+  // 1. Create Job if not exists
   let job = await prisma.job.findUnique({
     where: { loe_id: loeId }
   });
@@ -35,7 +38,7 @@ async function processApprovedLoe(loeId, managerEmpId) {
     });
   }
 
-  // 3. Generate individual tasks for approved items
+  // 2. Generate tasks for approved items
   for (let i = 0; i < loe.loe_items.length; i++) {
     const item = loe.loe_items[i];
     const existingTask = await prisma.task.findFirst({
@@ -63,7 +66,7 @@ async function processApprovedLoe(loeId, managerEmpId) {
     }
   }
 
-  // 4. Create or update associated invoice
+  // 3. Create initial Invoice and notify Managers and Admins only
   const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   
   const existingInvoice = await prisma.invoice.findFirst({
@@ -76,7 +79,7 @@ async function processApprovedLoe(loeId, managerEmpId) {
     const dueDate = new Date();
     dueDate.setDate(issuedDate.getDate() + 30);
 
-    await prisma.invoice.create({
+    const newInvoice = await prisma.invoice.create({
       data: {
         job_id: job.job_id,
         total_amount: totalAmount,
@@ -85,6 +88,19 @@ async function processApprovedLoe(loeId, managerEmpId) {
         due_date: dueDate
       }
     });
+
+    // Notify Managers and Admins only (NO emails to company)
+    const leaders = await getManagersAndAdmins();
+    for (const leader of leaders) {
+      sendInvoiceCreatedEmail(leader.email, leader.name, loe.company.name, newInvoice.invoice_id, totalAmount, dueDate);
+      await prisma.notification.create({
+        data: {
+          emp_id: leader.emp_id,
+          title: 'Invoice Generated',
+          message: `INV-${String(newInvoice.invoice_id).padStart(5, '0')} for ${loe.company.name} ($${Number(totalAmount).toFixed(2)}) has been generated.`
+        }
+      });
+    }
   } else {
     await prisma.invoice.update({
       where: { invoice_id: existingInvoice.invoice_id },
@@ -135,9 +151,11 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(loe);
 });
 
-// POST /api/loes
+// POST /api/loes (Notify Managers and Admins only)
 exports.create = asyncHandler(async (req, res) => {
   const { company_id, created_by, type, billing_frequency, start_date, end_date, loe_items } = req.body;
+
+  const totalAmount = (loe_items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const newLoe = await prisma.loe.create({
     data: {
@@ -160,6 +178,19 @@ exports.create = asyncHandler(async (req, res) => {
     },
     include: { company: true, loe_items: { include: { service: true } } }
   });
+
+  // Notify Managers and Admins only (NO email to company)
+  const leaders = await getManagersAndAdmins();
+  for (const leader of leaders) {
+    sendLoeCreatedEmail(leader.email, leader.name, newLoe.company.name, newLoe.loe_id, totalAmount);
+    await prisma.notification.create({
+      data: {
+        emp_id: leader.emp_id,
+        title: 'New LOE Pending Approval',
+        message: `LOE-${String(newLoe.loe_id).padStart(5, '0')} for ${newLoe.company.name} was created and requires review.`
+      }
+    });
+  }
   
   res.status(201).json(newLoe);
 });
