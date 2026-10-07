@@ -2,17 +2,25 @@ const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateLoePdf } = require('../services/pdfService');
 const { generateTaskCode } = require('../utils/taskCodeHelper');
+const { sendLoeApprovedEmail } = require('../services/emailService');
 
 async function processApprovedLoe(loeId, managerEmpId) {
   const loe = await prisma.loe.findUnique({
     where: { loe_id: loeId },
     include: { 
       company: true,
+      creator: true,
       loe_items: { include: { service: true } } 
     }
   });
   if (!loe) return;
 
+  // 1. Dispatch LOE approval email with PDF download link to client
+  if (loe.company?.email) {
+    sendLoeApprovedEmail(loe.company.email, loe.company.name, loe.loe_id);
+  }
+
+  // 2. Create Job if one doesn't exist yet
   let job = await prisma.job.findUnique({
     where: { loe_id: loeId }
   });
@@ -27,6 +35,7 @@ async function processApprovedLoe(loeId, managerEmpId) {
     });
   }
 
+  // 3. Generate individual tasks for approved items
   for (let i = 0; i < loe.loe_items.length; i++) {
     const item = loe.loe_items[i];
     const existingTask = await prisma.task.findFirst({
@@ -54,9 +63,9 @@ async function processApprovedLoe(loeId, managerEmpId) {
     }
   }
 
+  // 4. Create or update associated invoice
   const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   
-  // FIXED: Changed to findFirst since Invoice is now 1-to-Many
   const existingInvoice = await prisma.invoice.findFirst({
     where: { job_id: job.job_id },
     orderBy: { issued_date: 'desc' }
@@ -136,7 +145,7 @@ exports.create = asyncHandler(async (req, res) => {
       created_by: parseInt(created_by),
       status: 'Approval Pending',
       type: type || 'Standard',
-      billing_frequency: billing_frequency || 'One-Time', // SAVED HERE
+      billing_frequency: billing_frequency || 'One-Time',
       start_date: new Date(start_date),
       end_date: end_date ? new Date(end_date) : undefined,
       loe_items: { 
@@ -180,7 +189,7 @@ exports.update = asyncHandler(async (req, res) => {
       company_id: company_id ? parseInt(company_id) : undefined,
       status: allApproved ? 'Approved' : 'Approval Pending',
       type: type || 'Standard',
-      billing_frequency: billing_frequency || 'One-Time', // SAVED HERE
+      billing_frequency: billing_frequency || 'One-Time',
       start_date: start_date ? new Date(start_date) : undefined,
       end_date: end_date ? new Date(end_date) : undefined,
       approved_by: allApproved ? undefined : null,
