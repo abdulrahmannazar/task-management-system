@@ -706,7 +706,7 @@ export default function LoeManager() {
                     style={styles.card}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: '17px' }}>LOE #{loe.loe_id}</h3>
+                      <h3 style={{ margin: 0, fontSize: '17px' }}>{loe.loe_code || `LOE #${loe.loe_id}`}</h3>
                       <span style={{ ...styles.badge, ...badgeStyle }}>{loe.status}</span>
                     </div>
 

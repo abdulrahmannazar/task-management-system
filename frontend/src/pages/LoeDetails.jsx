@@ -135,7 +135,7 @@ export default function LoeDetails() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h1 style={{ margin: 0, fontSize: '24px', color: '#1a202c' }}>
-                    Letter of Engagement #{loe.loe_id}
+                    {loe.loe_code || `Letter of Engagement #${loe.loe_id}`}
                   </h1>
                   <p style={{ margin: '4px 0 0', color: '#2b6cb0', fontWeight: 'bold' }}>
                     Total Contract Value: ${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
