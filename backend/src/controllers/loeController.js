@@ -1,10 +1,9 @@
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateLoePdf } = require('../services/pdfService');
-const { generateTaskCode } = require('../utils/taskCodeHelper');
+const { generateTaskCode, enrichLoeWithCode } = require('../utils/taskCodeHelper');
 const { sendLoeCreatedEmail, sendInvoiceCreatedEmail } = require('../services/emailService');
 
-// Internal helper to find all active managers and admins
 async function getManagersAndAdmins() {
   return prisma.employee.findMany({
     where: { role: { in: ['ADMIN', 'MANAGER'] }, is_active: true },
@@ -18,15 +17,12 @@ async function processApprovedLoe(loeId, managerEmpId) {
     include: { 
       company: true,
       creator: true,
-      loe_items: { include: { service: true } } 
+      loe_items: { include: { service: { include: { department: true } } } } 
     }
   });
   if (!loe) return;
 
-  // 1. Create Job if not exists
-  let job = await prisma.job.findUnique({
-    where: { loe_id: loeId }
-  });
+  let job = await prisma.job.findUnique({ where: { loe_id: loeId } });
 
   if (!job) {
     job = await prisma.job.create({
@@ -38,7 +34,6 @@ async function processApprovedLoe(loeId, managerEmpId) {
     });
   }
 
-  // 2. Generate tasks for approved items
   for (let i = 0; i < loe.loe_items.length; i++) {
     const item = loe.loe_items[i];
     const existingTask = await prisma.task.findFirst({
@@ -66,7 +61,6 @@ async function processApprovedLoe(loeId, managerEmpId) {
     }
   }
 
-  // 3. Create initial Invoice and notify Managers and Admins only
   const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   
   const existingInvoice = await prisma.invoice.findFirst({
@@ -89,7 +83,6 @@ async function processApprovedLoe(loeId, managerEmpId) {
       }
     });
 
-    // Notify Managers and Admins only (NO emails to company)
     const leaders = await getManagersAndAdmins();
     for (const leader of leaders) {
       sendInvoiceCreatedEmail(leader.email, leader.name, loe.company.name, newInvoice.invoice_id, totalAmount, dueDate);
@@ -129,7 +122,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const loes = await prisma.loe.findMany(query);
-  res.json(loes);
+  res.json(loes.map(enrichLoeWithCode));
 });
 
 // GET /api/loes/:id
@@ -148,13 +141,12 @@ exports.getById = asyncHandler(async (req, res) => {
   });
   
   if (!loe) return res.status(404).json({ error: 'LOE not found' });
-  res.json(loe);
+  res.json(enrichLoeWithCode(loe));
 });
 
-// POST /api/loes (Notify Managers and Admins only)
+// POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
   const { company_id, created_by, type, billing_frequency, start_date, end_date, loe_items } = req.body;
-
   const totalAmount = (loe_items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const newLoe = await prisma.loe.create({
@@ -176,23 +168,27 @@ exports.create = asyncHandler(async (req, res) => {
         }))
       }
     },
-    include: { company: true, loe_items: { include: { service: true } } }
+    include: { 
+      company: true, 
+      loe_items: { include: { service: { include: { department: true } } } } 
+    }
   });
 
-  // Notify Managers and Admins only (NO email to company)
+  const enriched = enrichLoeWithCode(newLoe);
+
   const leaders = await getManagersAndAdmins();
   for (const leader of leaders) {
-    sendLoeCreatedEmail(leader.email, leader.name, newLoe.company.name, newLoe.loe_id, totalAmount);
+    sendLoeCreatedEmail(leader.email, leader.name, enriched.company.name, enriched.loe_id, totalAmount);
     await prisma.notification.create({
       data: {
         emp_id: leader.emp_id,
         title: 'New LOE Pending Approval',
-        message: `LOE-${String(newLoe.loe_id).padStart(5, '0')} for ${newLoe.company.name} was created and requires review.`
+        message: `${enriched.loe_code} for ${enriched.company.name} was created and requires review.`
       }
     });
   }
   
-  res.status(201).json(newLoe);
+  res.status(201).json(enriched);
 });
 
 // PUT /api/loes/:id
@@ -226,12 +222,14 @@ exports.update = asyncHandler(async (req, res) => {
       approved_by: allApproved ? undefined : null,
       loe_items: { deleteMany: {}, create: itemsToCreate }
     },
-    include: { company: true, loe_items: { include: { service: true } } }
+    include: { 
+      company: true, 
+      loe_items: { include: { service: { include: { department: true } } } } 
+    }
   });
 
   if (allApproved) await processApprovedLoe(loeId, updatedLoe.approved_by);
-
-  res.json(updatedLoe);
+  res.json(enrichLoeWithCode(updatedLoe));
 });
 
 const deleteLoe = asyncHandler(async (req, res) => {
@@ -250,7 +248,10 @@ exports.getPending = asyncHandler(async (req, res) => {
   const deptId = parseInt(req.query.department_id);
 
   const query = {
-    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } },
+    include: { 
+      company: true, 
+      loe_items: { include: { service: { include: { department: true } } } } 
+    },
     orderBy: { loe_id: 'desc' }
   };
 
@@ -258,7 +259,7 @@ exports.getPending = asyncHandler(async (req, res) => {
   else query.where = { status: 'Approval Pending', loe_items: { some: { service: { department_id: deptId }, status: 'Pending' } } };
 
   const loes = await prisma.loe.findMany(query);
-  res.json(loes);
+  res.json(loes.map(enrichLoeWithCode));
 });
 
 exports.approveItem = asyncHandler(async (req, res) => {
@@ -282,11 +283,14 @@ exports.approveItem = asyncHandler(async (req, res) => {
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
     data: { status: newLoeStatus, approved_by: allApproved ? parseInt(emp_id) : undefined },
-    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } }
+    include: { 
+      company: true, 
+      loe_items: { include: { service: { include: { department: true } } } } 
+    }
   });
 
   if (allApproved) await processApprovedLoe(loeId, emp_id);
-  res.json(updatedLoe);
+  res.json(enrichLoeWithCode(updatedLoe));
 });
 
 exports.rejectItem = asyncHandler(async (req, res) => {
@@ -302,10 +306,13 @@ exports.rejectItem = asyncHandler(async (req, res) => {
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
     data: { status: 'Rejected' },
-    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } }
+    include: { 
+      company: true, 
+      loe_items: { include: { service: { include: { department: true } } } } 
+    }
   });
 
-  res.json(updatedLoe);
+  res.json(enrichLoeWithCode(updatedLoe));
 });
 
 exports.approveAll = asyncHandler(async (req, res) => {
@@ -320,27 +327,34 @@ exports.approveAll = asyncHandler(async (req, res) => {
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
     data: { status: 'Approved', approved_by: emp_id ? parseInt(emp_id) : undefined },
-    include: { company: true, loe_items: { include: { service: { include: { department: true } } } } }
+    include: { 
+      company: true, 
+      loe_items: { include: { service: { include: { department: true } } } } 
+    }
   });
 
   await processApprovedLoe(loeId, emp_id);
-  res.json(updatedLoe);
+  res.json(enrichLoeWithCode(updatedLoe));
 });
 
+// GET /api/loes/:id/pdf
 exports.generatePdf = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   const loe = await prisma.loe.findUnique({
     where: { loe_id: loeId },
-    include: { loe_items: { include: { service: { include: { department: true } } } } }
+    include: { 
+      loe_items: { include: { service: { include: { department: true } } } } 
+    }
   });
 
   if (!loe) return res.status(404).json({ error: 'LOE record not found' });
   const company = await prisma.company.findUnique({ where: { company_id: loe.company_id } });
 
-  const pdfBuffer = await generateLoePdf({ loe, company });
+  const enriched = enrichLoeWithCode({ ...loe, company });
+  const pdfBuffer = await generateLoePdf({ loe: enriched, company });
 
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename=LOE-${loe.loe_id}.pdf`);
+  res.setHeader('Content-Disposition', `attachment; filename=${enriched.loe_code.replace(/\s+/g, '_')}.pdf`);
   res.setHeader('Content-Length', pdfBuffer.length);
   res.end(pdfBuffer);
 });

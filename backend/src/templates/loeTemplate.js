@@ -48,7 +48,7 @@ module.exports = function generateLoeTemplate({ loe, company }) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Letter of Engagement - LOE #${loe.loe_id}</title>
+  <title>Letter of Engagement - ${loe.loe_code || 'LOE #' + loe.loe_id}</title>
   <style>
     @page {
       size: A4;
