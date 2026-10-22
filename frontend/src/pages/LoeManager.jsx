@@ -14,7 +14,7 @@ export default function LoeManager() {
   
   const [formData, setFormData] = useState({
     company_id: '',
-    type: 'Standard',
+    type: 'Adhoc',
     billing_frequency: 'One-Time',
     start_date: '',
     loe_services: [] 
@@ -127,7 +127,27 @@ export default function LoeManager() {
   };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    if (name === 'type') {
+      if (value === 'Adhoc') {
+        setFormData(prev => ({
+          ...prev,
+          type: value,
+          billing_frequency: 'One-Time'
+        }));
+      } else if (value === 'Retainer') {
+        setFormData(prev => ({
+          ...prev,
+          type: value,
+          billing_frequency: prev.billing_frequency === 'One-Time' ? 'Monthly' : prev.billing_frequency
+        }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const addServiceCard = () => {
@@ -276,8 +296,8 @@ export default function LoeManager() {
 
     setFormData({
       company_id: loe.company_id,
-      type: loe.type,
-      billing_frequency: loe.billing_frequency || 'One-Time',
+      type: loe.type === 'Retainer' ? 'Retainer' : 'Adhoc',
+      billing_frequency: loe.billing_frequency || (loe.type === 'Retainer' ? 'Monthly' : 'One-Time'),
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
       loe_services: grouped
     });
@@ -352,7 +372,7 @@ export default function LoeManager() {
       
       setEditingId(null);
       setEditingPreviousStatus(null);
-      setFormData({ company_id: '', type: 'Standard', billing_frequency: 'One-Time', start_date: '', loe_services: [] });
+      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', start_date: '', loe_services: [] });
     } catch (err) {
       setFormError(err.message);
     }
@@ -441,16 +461,19 @@ export default function LoeManager() {
               </select>
 
               <div style={{ display: 'flex', gap: '15px' }}>
-                <input 
-                  type="text" 
-                  name="type" 
-                  value={formData.type} 
-                  onChange={handleChange} 
-                  placeholder="LOE Type (e.g. Standard, Retainer)" 
-                  required 
-                  style={{ ...styles.input, flex: 1 }} 
-                />
+                {/* 1. Engagement Type Dropdown: Adhoc vs Retainer */}
+                <select
+                  name="type"
+                  value={formData.type}
+                  onChange={handleChange}
+                  required
+                  style={{ ...styles.input, flex: 1 }}
+                >
+                  <option value="Adhoc">Adhoc</option>
+                  <option value="Retainer">Retainer</option>
+                </select>
 
+                {/* 2. Billing Frequency: One-Time for Adhoc; Recurring options for Retainer */}
                 <select
                   name="billing_frequency"
                   value={formData.billing_frequency}
@@ -458,10 +481,15 @@ export default function LoeManager() {
                   required
                   style={{ ...styles.input, flex: 1 }}
                 >
-                  <option value="One-Time">One-Time Billing (Standard)</option>
-                  <option value="Monthly">Monthly Recurring Retainer</option>
-                  <option value="Quarterly">Quarterly Recurring</option>
-                  <option value="Annually">Annually Recurring</option>
+                  {formData.type === 'Adhoc' ? (
+                    <option value="One-Time">One-Time Billing (Standard)</option>
+                  ) : (
+                    <>
+                      <option value="Monthly">Monthly Recurring Retainer</option>
+                      <option value="Quarterly">Quarterly Recurring</option>
+                      <option value="Annually">Annually Recurring</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -542,13 +570,13 @@ export default function LoeManager() {
                           </option>
                           {departmentServices.map(srv => (
                             <option key={srv.service_id} value={srv.service_id}>
-                              {srv.name} (Base: ${Number(srv.price || 0).toFixed(2)})
+                              {srv.name} (Base: \${Number(srv.price || 0).toFixed(2)})
                             </option>
                           ))}
                         </select>
 
                         <div style={styles.priceInputWrapper}>
-                          <span style={styles.currencyPrefix}>$</span>
+                          <span style={styles.currencyPrefix}>\$</span>
                           <input
                             type="number"
                             step="0.01"
@@ -663,7 +691,7 @@ export default function LoeManager() {
                     onClick={() => { 
                       setEditingId(null); 
                       setEditingPreviousStatus(null);
-                      setFormData({ company_id: '', type: 'Standard', billing_frequency: 'One-Time', start_date: '', loe_services: [] }); 
+                      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', start_date: '', loe_services: [] }); 
                     }} 
                     style={styles.cancelButton}
                   >
@@ -719,7 +747,7 @@ export default function LoeManager() {
                     </p>
 
                     <p style={{ margin: '2px 0 8px', fontSize: '13px', color: '#2b6cb0', fontWeight: 'bold' }}>
-                      Total Engagement: ${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      Total Engagement: \${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
 
                     <div style={styles.cardItemsList}>
@@ -733,7 +761,7 @@ export default function LoeManager() {
                               {item.service?.name}
                             </span>
                             <span style={{ fontWeight: 'bold', color: '#2d3748', fontSize: '11px' }}>
-                              ${Number(item.amount || 0).toFixed(2)}
+                              \${Number(item.amount || 0).toFixed(2)}
                             </span>
                             <span style={{
                               fontSize: '11px',
