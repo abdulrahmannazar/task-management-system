@@ -172,7 +172,7 @@ export default function Dashboard() {
             >
               {activeTab === 'tasks' ? 'Open Task Allocation →' : 'Open LOE Manager →'}
             </button>
-          </div>
+          </div> 
 
           {loading ? (
             <div style={styles.loadingState}>Loading insights...</div>

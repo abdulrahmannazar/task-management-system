@@ -198,6 +198,7 @@ export default function Navbar() {
         <h2 style={styles.brand}>Task System</h2>
         <div style={styles.links}>
           <Link to="/dashboard" style={styles.link}>Dashboard</Link>
+          <Link to="/dispatch" style={styles.link}>Client Dispatch</Link>
           <Link to="/loes" style={styles.link}>LOE Manager</Link>
           
           {isPrivileged && <Link to="/approvals" style={styles.link}>Approvals</Link>}

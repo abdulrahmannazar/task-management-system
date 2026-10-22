@@ -11,6 +11,7 @@ import CompanyManager from './pages/CompanyManager';
 import TaskAllocation from './pages/TaskAllocation';
 import EmployeeManager from './pages/EmployeeManager';
 import InvoiceManager from './pages/InvoiceManager';
+import DispatchTracker from './pages/DispatchTracker';
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
         <Route path="/employees" element={<EmployeeManager />} />
         <Route path="/services" element={<ServiceManager />} />
         <Route path="/companies" element={<CompanyManager />} />
+        <Route path="/dispatch" element={<DispatchTracker />} />
       </Routes>
     </BrowserRouter>
   );
