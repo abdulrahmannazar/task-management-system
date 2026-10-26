@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
+const CURRENCY_SYMBOLS = {
+  LKR: 'Rs.',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AED: 'AED',
+  SAR: 'SAR',
+  INR: '₹',
+  AUD: 'A$',
+  CAD: 'C$',
+  SGD: 'S$'
+};
+
 export default function LoeDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -89,6 +102,8 @@ export default function LoeDetails() {
     : (loe?.loe_items || []).filter(item => item.service?.department_id === userDeptId);
 
   const totalFee = (loe?.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const loeCurrency = loe?.currency || 'LKR';
+  const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || loeCurrency;
 
   return (
     <div style={styles.pageContainer}>
@@ -138,7 +153,7 @@ export default function LoeDetails() {
                     {loe.loe_code || `Letter of Engagement #${loe.loe_id}`}
                   </h1>
                   <p style={{ margin: '4px 0 0', color: '#2b6cb0', fontWeight: 'bold' }}>
-                    Total Contract Value: ${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    Total Contract Value ({loeCurrency}): {loeSymbol} {totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <span style={{ ...styles.badge, ...getStatusBadgeStyle(loe.status) }}>
@@ -168,106 +183,86 @@ export default function LoeDetails() {
                 </div>
                 <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Registration No.</span>
-                  <span style={styles.detailValue}>{loe.company?.reg_number || 'None provided'}</span>
+                  <span style={styles.detailValue}>{loe.company?.reg_no || 'N/A'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>TIN</span>
-                  <span style={styles.detailValue}>{loe.company?.tin_number || 'None provided'}</span>
+                  <span style={styles.detailLabel}>Email Address</span>
+                  <span style={styles.detailValue}>{loe.company?.email || 'N/A'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Email</span>
-                  <span style={styles.detailValue}>{loe.company?.email || 'None provided'}</span>
-                </div>
-                <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Phone</span>
-                  <span style={styles.detailValue}>{loe.company?.phone_number || 'None provided'}</span>
+                  <span style={styles.detailLabel}>Phone Number</span>
+                  <span style={styles.detailValue}>{loe.company?.phone || 'N/A'}</span>
                 </div>
               </div>
 
               {/* Engagement Info */}
               <div style={styles.card}>
-                <h3 style={styles.sectionHeader}>Engagement Overview</h3>
+                <h3 style={styles.sectionHeader}>Engagement Metadata</h3>
                 <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Engagement Type</span>
-                  <span style={styles.detailValue}>{loe.type || 'Standard'}</span>
+                  <span style={styles.detailValue}>{loe.type || 'Adhoc'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Billing Cycle</span>
-                  <span style={{ ...styles.detailValue, color: '#6f42c1' }}>{loe.billing_frequency || 'One-Time'}</span>
+                  <span style={styles.detailLabel}>Billing Frequency</span>
+                  <span style={styles.detailValue}>{loe.billing_frequency || 'One-Time'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Commencement Date</span>
+                  <span style={styles.detailLabel}>Payment Currency</span>
+                  <span style={{ ...styles.detailValue, color: '#0369a1', fontWeight: 'bold' }}>
+                    {loeCurrency} ({loeSymbol})
+                  </span>
+                </div>
+                <div style={styles.detailRow}>
+                  <span style={styles.detailLabel}>Start Date</span>
                   <span style={styles.detailValue}>
                     {loe.start_date ? new Date(loe.start_date).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Target End Date</span>
-                  <span style={styles.detailValue}>
-                    {loe.end_date ? new Date(loe.end_date).toLocaleDateString() : 'Ongoing'}
-                  </span>
-                </div>
-                <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Created By</span>
-                  <span style={styles.detailValue}>
-                    {loe.creator?.name ? `${loe.creator.name} (${loe.creator.email})` : `User #${loe.created_by}`}
-                  </span>
-                </div>
-                <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Approved By</span>
-                  <span style={styles.detailValue}>
-                    {loe.approver?.name ? `${loe.approver.name}` : loe.status === 'Approved' ? 'Management' : 'Pending final approval'}
-                  </span>
+                  <span style={styles.detailValue}>{loe.creator?.name || `Employee #${loe.created_by}`}</span>
                 </div>
               </div>
             </div>
 
-            {/* Services & Scopes Breakdown */}
+            {/* Deliverables & Scopes Breakdown */}
             <div style={styles.card}>
-              <h3 style={styles.sectionHeader}>Contracted Services, Pricing &amp; Scope Requirements</h3>
-              
+              <h3 style={styles.sectionHeader}>
+                Agreed Services, Deliverables &amp; Pricing ({loeCurrency})
+              </h3>
               {relevantItems.length === 0 ? (
-                <p style={{ color: '#718096', fontStyle: 'italic' }}>No services specified for your department.</p>
+                <p style={{ color: '#64748b' }}>No service items listed.</p>
               ) : (
-                <div style={styles.itemsList}>
-                  {relevantItems.map((item, idx) => (
-                    <div key={item.loe_item_id || idx} style={styles.itemCard}>
-                      <div style={styles.itemHeader}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {relevantItems.map((item) => (
+                    <div key={item.loe_item_id} style={styles.itemCard}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <span style={styles.itemNumber}>#{idx + 1}</span>
-                          <strong style={{ fontSize: '15px', color: '#2d3748' }}>
-                            {item.service?.name || 'Custom Service'}
+                          <strong style={{ fontSize: '15px', color: '#1e293b' }}>
+                            {item.service?.name || `Service #${item.service_id}`}
                           </strong>
-                          <span style={styles.deptBadge}>
-                            {item.service?.department?.name || `Dept #${item.service?.department_id}`}
+                          <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
+                            ({item.service?.department?.name || 'Department'})
                           </span>
-                          {item.service?.sub_category && (
-                            <span style={styles.categoryBadge}>{item.service.sub_category}</span>
-                          )}
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={styles.priceTag}>
-                            ${Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#0f172a' }}>
+                            {loeSymbol} {Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
-                          <span style={{ ...styles.itemStatusBadge, ...getItemBadgeStyle(item.status) }}>
-                            {item.status === 'Approved' ? '✅' : item.status === 'Rejected' ? '❌' : '⏳'} {item.status}
+                          <span style={{ ...styles.itemBadge, ...getItemBadgeStyle(item.status) }}>
+                            {item.status}
                           </span>
                         </div>
                       </div>
 
-                      <div style={styles.scopeBox}>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#4a5568' }}>
-                          Contracted Scope / Deliverables:
-                        </span>
-                        <p style={styles.scopeContent}>
-                          {item.custom_scope || 'Standard service scope.'}
-                        </p>
+                      <div style={{ marginTop: '8px', fontSize: '13px', color: '#334155' }}>
+                        <strong>Scope:</strong> {item.custom_scope || 'Standard Deliverable'}
                       </div>
 
                       {item.status === 'Rejected' && item.rejection_reason && (
-                        <div style={styles.reasonNotice}>
-                          <strong>Manager Rejection Reason:</strong> {item.rejection_reason}
+                        <div style={{ marginTop: '6px', fontSize: '12px', color: '#c53030' }}>
+                          <strong>Rejection Note:</strong> {item.rejection_reason}
                         </div>
                       )}
                     </div>
@@ -285,32 +280,23 @@ export default function LoeDetails() {
 
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
-  container: { maxWidth: '1100px', margin: '0 auto', padding: '30px 20px' },
+  container: { maxWidth: '1050px', margin: '0 auto', padding: '30px 20px' },
   headerBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  backBtn: { padding: '8px 16px', background: '#e2e8f0', color: '#2d3748', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
+  backBtn: { padding: '8px 14px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', color: '#334155' },
   actionButtons: { display: 'flex', gap: '10px' },
-  editBtn: { padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
-  downloadBtn: { padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
-  errorBanner: { padding: '12px 16px', background: '#fed7d7', color: '#c53030', borderRadius: '6px', marginBottom: '20px', border: '1px solid #feb2b2' },
-  loadingBox: { padding: '40px', textAlign: 'center', color: '#718096', fontSize: '16px' },
+  editBtn: { padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  downloadBtn: { padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  errorBanner: { background: '#fed7d7', color: '#c53030', padding: '12px', borderRadius: '6px', marginBottom: '16px' },
+  loadingBox: { background: '#fff', padding: '40px', textAlign: 'center', borderRadius: '8px', color: '#64748b' },
   content: { display: 'flex', flexDirection: 'column', gap: '20px' },
-  card: { background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  card: { background: '#fff', padding: '22px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  badge: { padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' },
+  rejectedBanner: { marginTop: '14px', padding: '10px 14px', background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2', borderRadius: '6px', fontSize: '13px' },
   gridTwoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
-  sectionHeader: { margin: '0 0 16px', fontSize: '16px', color: '#2b6cb0', borderBottom: '1px solid #edf2f7', paddingBottom: '8px' },
-  detailRow: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f7fafc', fontSize: '13.5px' },
-  detailLabel: { color: '#718096', fontWeight: '500' },
-  detailValue: { color: '#1a202c', fontWeight: '600' },
-  badge: { padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },
-  priceTag: { background: '#e6fffa', color: '#234e52', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #b2f5ea' },
-  rejectedBanner: { marginTop: '14px', padding: '10px 14px', background: '#fff5f5', color: '#c53030', borderRadius: '4px', fontSize: '13px', border: '1px solid #feb2b2' },
-  itemsList: { display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' },
-  itemCard: { border: '1px solid #e2e8f0', borderRadius: '6px', padding: '14px', background: '#fafbfc' },
-  itemHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  itemNumber: { marginRight: '8px', background: '#e2e8f0', color: '#4a5568', padding: '2px 6px', borderRadius: '3px', fontSize: '11px', fontWeight: 'bold' },
-  deptBadge: { marginLeft: '8px', background: '#edf2f7', color: '#4a5568', padding: '2px 6px', borderRadius: '3px', fontSize: '11px' },
-  categoryBadge: { marginLeft: '6px', background: '#e2e8f0', color: '#718096', padding: '2px 6px', borderRadius: '3px', fontSize: '11px' },
-  itemStatusBadge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
-  scopeBox: { marginTop: '10px', background: '#fff', padding: '10px 12px', borderRadius: '4px', border: '1px solid #edf2f7' },
-  scopeContent: { margin: '4px 0 0', fontSize: '13px', color: '#2d3748', whiteSpace: 'pre-wrap' },
-  reasonNotice: { marginTop: '8px', padding: '8px 12px', background: '#fff5f5', color: '#c53030', borderRadius: '4px', fontSize: '12px', border: '1px solid #fed7d7' }
+  sectionHeader: { margin: '0 0 14px', fontSize: '16px', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' },
+  detailRow: { display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '13px', borderBottom: '1px dashed #f1f5f9' },
+  detailLabel: { color: '#64748b', fontWeight: '600' },
+  detailValue: { color: '#1e293b', fontWeight: '500' },
+  itemCard: { padding: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' },
+  itemBadge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }
 };
