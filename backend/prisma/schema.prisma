@@ -96,10 +96,10 @@ model Loe {
   approved_by          Int?
   status               String                  @db.VarChar(50)
   type                 String                  @db.VarChar(50)
-  billing_frequency    String                  @default("One-Time") @db.VarChar(50) // NEW: Billing Frequency
+  billing_frequency    String                  @default("One-Time") @db.VarChar(50)
+  currency             String                  @default("LKR") @db.VarChar(10)
   start_date           DateTime                @db.Date
   end_date             DateTime?               @db.Date
-
   // Relations
   company              Company                 @relation(fields: [company_id], references: [company_id])
   creator              Employee                @relation("LoeCreator", fields: [created_by], references: [emp_id])

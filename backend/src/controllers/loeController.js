@@ -22,6 +22,8 @@ async function processApprovedLoe(loeId, managerEmpId) {
   });
   if (!loe) return;
 
+  const currency = loe.currency || 'LKR';
+
   let job = await prisma.job.findUnique({ where: { loe_id: loeId } });
 
   if (!job) {
@@ -85,12 +87,20 @@ async function processApprovedLoe(loeId, managerEmpId) {
 
     const leaders = await getManagersAndAdmins();
     for (const leader of leaders) {
-      sendInvoiceCreatedEmail(leader.email, leader.name, loe.company.name, newInvoice.invoice_id, totalAmount, dueDate);
+      sendInvoiceCreatedEmail(
+        leader.email,
+        leader.name,
+        loe.company.name,
+        newInvoice.invoice_id,
+        totalAmount,
+        dueDate,
+        currency
+      );
       await prisma.notification.create({
         data: {
           emp_id: leader.emp_id,
           title: 'Invoice Generated',
-          message: `INV-${String(newInvoice.invoice_id).padStart(5, '0')} for ${loe.company.name} ($${Number(totalAmount).toFixed(2)}) has been generated.`
+          message: `INV-${String(newInvoice.invoice_id).padStart(5, '0')} for ${loe.company.name} (${currency} ${Number(totalAmount).toFixed(2)}) has been generated.`
         }
       });
     }
@@ -146,16 +156,18 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
-  const { company_id, created_by, type, billing_frequency, start_date, end_date, loe_items } = req.body;
+  const { company_id, created_by, type, billing_frequency, currency, start_date, end_date, loe_items } = req.body;
   const totalAmount = (loe_items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const selectedCurrency = currency || 'LKR';
 
   const newLoe = await prisma.loe.create({
     data: {
       company_id: parseInt(company_id),
       created_by: parseInt(created_by),
       status: 'Approval Pending',
-      type: type || 'Standard',
+      type: type || 'Adhoc',
       billing_frequency: billing_frequency || 'One-Time',
+      currency: selectedCurrency,
       start_date: new Date(start_date),
       end_date: end_date ? new Date(end_date) : undefined,
       loe_items: { 
@@ -178,12 +190,12 @@ exports.create = asyncHandler(async (req, res) => {
 
   const leaders = await getManagersAndAdmins();
   for (const leader of leaders) {
-    sendLoeCreatedEmail(leader.email, leader.name, enriched.company.name, enriched.loe_id, totalAmount);
+    sendLoeCreatedEmail(leader.email, leader.name, enriched.company.name, enriched.loe_id, totalAmount, selectedCurrency);
     await prisma.notification.create({
       data: {
         emp_id: leader.emp_id,
         title: 'New LOE Pending Approval',
-        message: `${enriched.loe_code} for ${enriched.company.name} was created and requires review.`
+        message: `${enriched.loe_code} for ${enriched.company.name} (${selectedCurrency} ${Number(totalAmount).toFixed(2)}) was created and requires review.`
       }
     });
   }
@@ -193,35 +205,40 @@ exports.create = asyncHandler(async (req, res) => {
 
 // PUT /api/loes/:id
 exports.update = asyncHandler(async (req, res) => {
-  const { company_id, type, billing_frequency, start_date, end_date, loe_items } = req.body;
+  const { company_id, type, billing_frequency, currency, start_date, end_date, loe_items } = req.body;
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
 
-  const itemsToCreate = (loe_items || []).map(item => {
-    const isApproved = item.status === 'Approved';
-    return {
-      service_id: Number(item.service_id),
-      custom_scope: item.custom_scope || null,
-      amount: Number(item.amount || 0),
-      status: isApproved ? 'Approved' : 'Pending',
-      rejection_reason: isApproved ? null : null
-    };
-  });
+  const data = {};
+  if (company_id) data.company_id = parseInt(company_id);
+  if (type) data.type = type;
+  if (billing_frequency) data.billing_frequency = billing_frequency;
+  if (currency) data.currency = currency;
+  if (start_date) data.start_date = new Date(start_date);
+  if (end_date !== undefined) data.end_date = end_date ? new Date(end_date) : null;
 
-  const allApproved = itemsToCreate.length > 0 && itemsToCreate.every(i => i.status === 'Approved');
+  let allApproved = false;
+  if (Array.isArray(loe_items)) {
+    const itemsToCreate = loe_items.map(item => {
+      const isApproved = item.status === 'Approved';
+      return {
+        service_id: Number(item.service_id),
+        custom_scope: item.custom_scope || null,
+        amount: Number(item.amount || 0),
+        status: isApproved ? 'Approved' : 'Pending',
+        rejection_reason: null
+      };
+    });
+
+    allApproved = itemsToCreate.length > 0 && itemsToCreate.every(i => i.status === 'Approved');
+    data.status = allApproved ? 'Approved' : 'Approval Pending';
+    if (!allApproved) data.approved_by = null;
+    data.loe_items = { deleteMany: {}, create: itemsToCreate };
+  }
 
   const updatedLoe = await prisma.loe.update({
     where: { loe_id: loeId },
-    data: {
-      company_id: company_id ? parseInt(company_id) : undefined,
-      status: allApproved ? 'Approved' : 'Approval Pending',
-      type: type || 'Standard',
-      billing_frequency: billing_frequency || 'One-Time',
-      start_date: start_date ? new Date(start_date) : undefined,
-      end_date: end_date ? new Date(end_date) : undefined,
-      approved_by: allApproved ? undefined : null,
-      loe_items: { deleteMany: {}, create: itemsToCreate }
-    },
+    data,
     include: { 
       company: true, 
       loe_items: { include: { service: { include: { department: true } } } } 

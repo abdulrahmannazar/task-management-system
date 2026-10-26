@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
+const CURRENCY_SYMBOLS = {
+  LKR: 'Rs.',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AED: 'AED',
+  SAR: 'SAR',
+  INR: '₹',
+  AUD: 'A$',
+  CAD: 'C$',
+  SGD: 'S$'
+};
+
 export default function LoeManager() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -16,6 +29,7 @@ export default function LoeManager() {
     company_id: '',
     type: 'Adhoc',
     billing_frequency: 'One-Time',
+    currency: 'LKR',
     start_date: '',
     loe_services: [] 
   });
@@ -298,6 +312,7 @@ export default function LoeManager() {
       company_id: loe.company_id,
       type: loe.type === 'Retainer' ? 'Retainer' : 'Adhoc',
       billing_frequency: loe.billing_frequency || (loe.type === 'Retainer' ? 'Monthly' : 'One-Time'),
+      currency: loe.currency || 'LKR',
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
       loe_services: grouped
     });
@@ -360,6 +375,7 @@ export default function LoeManager() {
           created_by: user.emp_id || 2, 
           type: formData.type,
           billing_frequency: formData.billing_frequency,
+          currency: formData.currency,
           start_date: formData.start_date,
           loe_items: flattenedItems
         })
@@ -372,7 +388,7 @@ export default function LoeManager() {
       
       setEditingId(null);
       setEditingPreviousStatus(null);
-      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', start_date: '', loe_services: [] });
+      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', currency: 'LKR', start_date: '', loe_services: [] });
     } catch (err) {
       setFormError(err.message);
     }
@@ -421,6 +437,8 @@ export default function LoeManager() {
     return { background: '#6c757d', color: '#fff' };
   };
 
+  const activeSymbol = CURRENCY_SYMBOLS[formData.currency] || 'Rs.';
+
   const displayedLoes = loes.filter(loe => {
     if (isAdmin) return true;
     return (loe.loe_items || []).some(item => item.service?.department_id === userDeptId);
@@ -460,26 +478,26 @@ export default function LoeManager() {
                 ))}
               </select>
 
-              <div style={{ display: 'flex', gap: '15px' }}>
-                {/* 1. Engagement Type Dropdown: Adhoc vs Retainer */}
+              <div style={{ display: 'flex', gap: '12px' }}>
                 <select
                   name="type"
                   value={formData.type}
                   onChange={handleChange}
                   required
                   style={{ ...styles.input, flex: 1 }}
+                  title="Engagement Type"
                 >
                   <option value="Adhoc">Adhoc</option>
                   <option value="Retainer">Retainer</option>
                 </select>
 
-                {/* 2. Billing Frequency: One-Time for Adhoc; Recurring options for Retainer */}
                 <select
                   name="billing_frequency"
                   value={formData.billing_frequency}
                   onChange={handleChange}
                   required
-                  style={{ ...styles.input, flex: 1 }}
+                  style={{ ...styles.input, flex: 1.2 }}
+                  title="Billing Frequency"
                 >
                   {formData.type === 'Adhoc' ? (
                     <option value="One-Time">One-Time Billing (Standard)</option>
@@ -490,6 +508,26 @@ export default function LoeManager() {
                       <option value="Annually">Annually Recurring</option>
                     </>
                   )}
+                </select>
+
+                <select
+                  name="currency"
+                  value={formData.currency}
+                  onChange={handleChange}
+                  required
+                  style={{ ...styles.input, flex: 1, fontWeight: 'bold' }}
+                  title="Payment Currency for Client"
+                >
+                  <option value="LKR">LKR (Rs.)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="AED">AED</option>
+                  <option value="SAR">SAR</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="AUD">AUD (A$)</option>
+                  <option value="CAD">CAD (C$)</option>
+                  <option value="SGD">SGD (S$)</option>
                 </select>
               </div>
 
@@ -503,7 +541,12 @@ export default function LoeManager() {
               />
 
               <div style={styles.itemsWrapper}>
-                <h3 style={{ fontSize: '15px', margin: '0 0 10px 0' }}>Services, Pricing &amp; Scope Requirements</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <h3 style={{ fontSize: '15px', margin: 0 }}>Services, Pricing &amp; Scope Requirements</h3>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#0284c7' }}>
+                    Client Payment Currency: {formData.currency} ({activeSymbol})
+                  </span>
+                </div>
                 
                 {formData.loe_services.map((srvBlock, srvIdx) => {
                   const departmentServices = services.filter(
@@ -570,13 +613,13 @@ export default function LoeManager() {
                           </option>
                           {departmentServices.map(srv => (
                             <option key={srv.service_id} value={srv.service_id}>
-                              {srv.name} (Base: \${Number(srv.price || 0).toFixed(2)})
+                              {srv.name} (Base: {activeSymbol} {Number(srv.price || 0).toFixed(2)})
                             </option>
                           ))}
                         </select>
 
                         <div style={styles.priceInputWrapper}>
-                          <span style={styles.currencyPrefix}>\$</span>
+                          <span style={styles.currencyPrefix}>{activeSymbol}</span>
                           <input
                             type="number"
                             step="0.01"
@@ -586,7 +629,7 @@ export default function LoeManager() {
                             onChange={(e) => handleAmountChange(srvIdx, e.target.value)}
                             required
                             style={styles.servicePriceInput}
-                            title="Custom Price for this Engagement"
+                            title={`Custom Price in ${formData.currency}`}
                           />
                         </div>
 
@@ -691,7 +734,7 @@ export default function LoeManager() {
                     onClick={() => { 
                       setEditingId(null); 
                       setEditingPreviousStatus(null);
-                      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', start_date: '', loe_services: [] }); 
+                      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', currency: 'LKR', start_date: '', loe_services: [] }); 
                     }} 
                     style={styles.cancelButton}
                   >
@@ -703,7 +746,7 @@ export default function LoeManager() {
           </div>
         )}
 
-        {/* Existing LOEs List with Clickable Cards */}
+        {/* Existing LOEs List */}
         <div style={styles.listSection}>
           <h2>Available Letters of Engagement</h2>
           <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
@@ -720,6 +763,8 @@ export default function LoeManager() {
             <div style={styles.grid}>
               {displayedLoes.map((loe) => {
                 const badgeStyle = getStatusBadgeStyle(loe.status);
+                const loeCurrency = loe.currency || 'LKR';
+                const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || loeCurrency;
 
                 const relevantItems = isAdmin 
                   ? (loe.loe_items || [])
@@ -742,12 +787,17 @@ export default function LoeManager() {
                       <strong>Company:</strong> {getCompanyName(loe.company_id)}
                     </p>
 
-                    <p style={{ margin: '2px 0 2px 0', fontSize: '13px', color: '#6f42c1', fontWeight: 'bold' }}>
-                      Billing: {loe.billing_frequency || 'One-Time'}
-                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', margin: '4px 0' }}>
+                      <span style={{ color: '#6f42c1', fontWeight: 'bold' }}>
+                        Billing: {loe.billing_frequency || 'One-Time'}
+                      </span>
+                      <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>
+                        {loeCurrency}
+                      </span>
+                    </div>
 
                     <p style={{ margin: '2px 0 8px', fontSize: '13px', color: '#2b6cb0', fontWeight: 'bold' }}>
-                      Total Engagement: \${totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      Total Engagement: {loeSymbol} {totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
 
                     <div style={styles.cardItemsList}>
@@ -761,7 +811,7 @@ export default function LoeManager() {
                               {item.service?.name}
                             </span>
                             <span style={{ fontWeight: 'bold', color: '#2d3748', fontSize: '11px' }}>
-                              \${Number(item.amount || 0).toFixed(2)}
+                              {loeSymbol} {Number(item.amount || 0).toFixed(2)}
                             </span>
                             <span style={{
                               fontSize: '11px',
@@ -823,8 +873,8 @@ const styles = {
   serviceCard: { background: '#fff', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   topSelectRow: { display: 'flex', gap: '8px', alignItems: 'center' },
   dropdownInput: { flex: '1', padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
-  priceInputWrapper: { display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', padding: '0 6px', width: '105px' },
-  currencyPrefix: { fontSize: '13px', color: '#6c757d', fontWeight: 'bold' },
+  priceInputWrapper: { display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', padding: '0 8px', minWidth: '115px' },
+  currencyPrefix: { fontSize: '13px', color: '#475569', fontWeight: 'bold', marginRight: '4px' },
   servicePriceInput: { border: 'none', outline: 'none', padding: '8px 4px', width: '100%', fontSize: '13px', fontWeight: 'bold' },
   removeServiceBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   scopeSelectionSection: { marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' },
