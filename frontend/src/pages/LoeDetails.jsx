@@ -22,7 +22,11 @@ export default function LoeDetails() {
   const [loe, setLoe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [processingId, setProcessingId] = useState(null);
+  const [rejectingItemId, setRejectingItemId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -51,6 +55,103 @@ export default function LoeDetails() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveItem = async (itemId) => {
+    try {
+      setProcessingId(itemId);
+      setError('');
+      setSuccessMsg('');
+
+      const response = await fetch(
+        `https://task-management-system-6ifq.onrender.com/api/loes/${id}/items/${itemId}/approve`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ emp_id: user.emp_id })
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to approve deliverable');
+
+      setLoe(data);
+      setSuccessMsg('Deliverable approved successfully.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectItem = async (itemId) => {
+    if (!rejectionReason.trim()) {
+      setError('Please provide a rejection reason before submitting.');
+      return;
+    }
+
+    try {
+      setProcessingId(itemId);
+      setError('');
+      setSuccessMsg('');
+
+      const response = await fetch(
+        `https://task-management-system-6ifq.onrender.com/api/loes/${id}/items/${itemId}/reject`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ reason: rejectionReason })
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to reject deliverable');
+
+      setLoe(data);
+      setRejectingItemId(null);
+      setRejectionReason('');
+      setSuccessMsg('Deliverable marked as Rejected.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleApproveAll = async () => {
+    try {
+      setProcessingId('ALL');
+      setError('');
+      setSuccessMsg('');
+
+      const response = await fetch(
+        `https://task-management-system-6ifq.onrender.com/api/loes/${id}/approve-all`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ emp_id: user.emp_id })
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to approve all deliverables');
+
+      setLoe(data);
+      setSuccessMsg('All deliverables on this LOE have been approved!');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -101,6 +202,7 @@ export default function LoeDetails() {
     ? (loe?.loe_items || [])
     : (loe?.loe_items || []).filter(item => item.service?.department_id === userDeptId);
 
+  const hasPendingItems = relevantItems.some(item => item.status === 'Pending');
   const totalFee = (loe?.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const loeCurrency = loe?.currency || 'LKR';
   const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || loeCurrency;
@@ -112,11 +214,26 @@ export default function LoeDetails() {
         
         {/* Navigation / Header Bar */}
         <div style={styles.headerBar}>
-          <button onClick={() => navigate('/loes')} style={styles.backBtn}>
-            ← Back to LOE Manager
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => navigate(-1)} style={styles.backBtn}>
+              ← Back
+            </button>
+            <button onClick={() => navigate('/loes')} style={styles.backBtn}>
+              All LOEs
+            </button>
+          </div>
           
           <div style={styles.actionButtons}>
+            {canEdit && hasPendingItems && (
+              <button
+                onClick={handleApproveAll}
+                disabled={processingId === 'ALL'}
+                style={styles.approveAllTopBtn}
+              >
+                {processingId === 'ALL' ? 'Approving...' : '✓ Approve All Deliverables'}
+              </button>
+            )}
+
             {canEdit && (
               <button 
                 onClick={() => navigate('/loes', { state: { editLoeId: Number(id) } })}
@@ -137,6 +254,7 @@ export default function LoeDetails() {
         </div>
 
         {error && <div style={styles.errorBanner}>{error}</div>}
+        {successMsg && <div style={styles.successBanner}>{successMsg}</div>}
 
         {loading ? (
           <div style={styles.loadingBox}>Loading LOE details...</div>
@@ -199,11 +317,11 @@ export default function LoeDetails() {
               <div style={styles.card}>
                 <h3 style={styles.sectionHeader}>Engagement Metadata</h3>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Engagement Type</span>
+                  <span style={styles.detailLabel}>Billing Type</span>
                   <span style={styles.detailValue}>{loe.type || 'Adhoc'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Billing Frequency</span>
+                  <span style={styles.detailLabel}>Billing Cycle</span>
                   <span style={styles.detailValue}>{loe.billing_frequency || 'One-Time'}</span>
                 </div>
                 <div style={styles.detailRow}>
@@ -225,18 +343,26 @@ export default function LoeDetails() {
               </div>
             </div>
 
-            {/* Deliverables & Scopes Breakdown */}
+            {/* Deliverables, Scopes & Inside Approval Section */}
             <div style={styles.card}>
-              <h3 style={styles.sectionHeader}>
-                Agreed Services, Deliverables &amp; Pricing ({loeCurrency})
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>
+                  Service Deliverables &amp; Approval Workspace ({loeCurrency})
+                </h3>
+                {canEdit && (
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>
+                    Review and approve/reject individual deliverables below
+                  </span>
+                )}
+              </div>
+
               {relevantItems.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No service items listed.</p>
+                <p style={{ color: '#64748b' }}>No service items listed for your department.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {relevantItems.map((item) => (
                     <div key={item.loe_item_id} style={styles.itemCard}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
                           <strong style={{ fontSize: '15px', color: '#1e293b' }}>
                             {item.service?.name || `Service #${item.service_id}`}
@@ -261,8 +387,71 @@ export default function LoeDetails() {
                       </div>
 
                       {item.status === 'Rejected' && item.rejection_reason && (
-                        <div style={{ marginTop: '6px', fontSize: '12px', color: '#c53030' }}>
+                        <div style={{ marginTop: '6px', fontSize: '12px', color: '#c53030', background: '#fff5f5', padding: '6px 10px', borderRadius: '4px' }}>
                           <strong>Rejection Note:</strong> {item.rejection_reason}
+                        </div>
+                      )}
+
+                      {/* Approval Controls Inside LOE Details */}
+                      {canEdit && (
+                        <div style={styles.approvalActionRow}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {item.status !== 'Approved' && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveItem(item.loe_item_id)}
+                                disabled={processingId === item.loe_item_id}
+                                style={styles.approveItemBtn}
+                              >
+                                {processingId === item.loe_item_id ? 'Saving...' : '✓ Approve Deliverable'}
+                              </button>
+                            )}
+
+                            {item.status !== 'Rejected' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingItemId(
+                                    rejectingItemId === item.loe_item_id ? null : item.loe_item_id
+                                  );
+                                  setRejectionReason(item.rejection_reason || '');
+                                }}
+                                style={styles.rejectItemBtn}
+                              >
+                                ✕ Reject Deliverable
+                              </button>
+                            )}
+                          </div>
+
+                          {rejectingItemId === item.loe_item_id && (
+                            <div style={styles.rejectFormRow}>
+                              <input
+                                type="text"
+                                placeholder="Specify reason for rejecting this scope..."
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                style={styles.rejectInput}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRejectItem(item.loe_item_id)}
+                                disabled={processingId === item.loe_item_id}
+                                style={styles.confirmRejectBtn}
+                              >
+                                Submit Rejection
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingItemId(null);
+                                  setRejectionReason('');
+                                }}
+                                style={styles.cancelRejectBtn}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -281,12 +470,14 @@ export default function LoeDetails() {
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
   container: { maxWidth: '1050px', margin: '0 auto', padding: '30px 20px' },
-  headerBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+  headerBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' },
   backBtn: { padding: '8px 14px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', color: '#334155' },
-  actionButtons: { display: 'flex', gap: '10px' },
+  actionButtons: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
+  approveAllTopBtn: { padding: '8px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   editBtn: { padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   downloadBtn: { padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
-  errorBanner: { background: '#fed7d7', color: '#c53030', padding: '12px', borderRadius: '6px', marginBottom: '16px' },
+  errorBanner: { background: '#fed7d7', color: '#c53030', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' },
+  successBanner: { background: '#d4edda', color: '#155724', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' },
   loadingBox: { background: '#fff', padding: '40px', textAlign: 'center', borderRadius: '8px', color: '#64748b' },
   content: { display: 'flex', flexDirection: 'column', gap: '20px' },
   card: { background: '#fff', padding: '22px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
@@ -298,5 +489,12 @@ const styles = {
   detailLabel: { color: '#64748b', fontWeight: '600' },
   detailValue: { color: '#1e293b', fontWeight: '500' },
   itemCard: { padding: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' },
-  itemBadge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }
+  itemBadge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
+  approvalActionRow: { marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' },
+  approveItemBtn: { padding: '6px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  rejectItemBtn: { padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  rejectFormRow: { display: 'flex', gap: '8px', marginTop: '10px' },
+  rejectInput: { flex: 1, padding: '7px 10px', borderRadius: '5px', border: '1px solid #cbd5e1', fontSize: '13px' },
+  confirmRejectBtn: { padding: '7px 14px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  cancelRejectBtn: { padding: '7px 12px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }
 };

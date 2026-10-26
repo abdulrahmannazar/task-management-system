@@ -1,263 +1,523 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
+const CURRENCY_SYMBOLS = {
+  LKR: 'Rs.',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AED: 'AED',
+  SAR: 'SAR',
+  INR: '₹',
+  AUD: 'A$',
+  CAD: 'C$',
+  SGD: 'S$'
+};
+
 export default function ManagerDashboard() {
-  const [approvalLoes, setApprovalLoes] = useState([]);
+  const navigate = useNavigate();
+
+  const [pendingLoes, setPendingLoes] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [rejectingItemId, setRejectingItemId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  // Filter States
+  const [filterCompany, setFilterCompany] = useState('');
+  const [filterBillingType, setFilterBillingType] = useState('ALL');
+  const [filterCurrency, setFilterCurrency] = useState('ALL');
+  const [filterBillingCycle, setFilterBillingCycle] = useState('ALL');
+  const [filterDepartment, setFilterDepartment] = useState('ALL');
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
-  
-  const userDeptId = user.department_id || 1;
+
   const isAdmin = user.role === 'ADMIN';
+  const userDeptId = user.department_id || 1;
 
   useEffect(() => {
-    fetchLoes();
+    fetchPendingLoes();
+    fetchCompanies();
+    if (isAdmin) {
+      fetchDepartments();
+    }
   }, []);
 
-  const fetchLoes = async () => {
+  const fetchPendingLoes = async () => {
     try {
-      if (!token) {
-        setError('Authentication token missing.');
-        return;
-      }
+      setLoading(true);
+      setError('');
+      if (!token) throw new Error('Authentication token missing.');
 
-      // Safe URL construction passing role and department
-      const url = `https://task-management-system-6ifq.onrender.com/api/loes/pending?department_id=${userDeptId}&role=${user.role || 'MANAGER'}`;
-      
+      const url = isAdmin
+        ? 'https://task-management-system-6ifq.onrender.com/api/loes/pending?role=ADMIN'
+        : `https://task-management-system-6ifq.onrender.com/api/loes/pending?department_id=${userDeptId}&role=${user.role || 'MANAGER'}`;
+
       const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
-      
       const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch LOEs from the server.');
-      }
-      
-      setApprovalLoes(Array.isArray(data) ? data : []);
+      if (!response.ok) throw new Error(data.error || 'Failed to load pending LOEs');
+
+      setPendingLoes(Array.isArray(data) ? data : data.loes || []);
     } catch (err) {
-      console.error('Fetch Error:', err);
-      setError('Failed to fetch pending LOEs. Please try refreshing.');
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleApproveItem = async (loeId, itemId) => {
+  const fetchDepartments = async () => {
     try {
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/approve`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ emp_id: user.emp_id || 2 })
-      });
-
-      const updatedLoe = await response.json();
-
-      if (!response.ok) {
-        throw new Error(updatedLoe.error || 'Failed to approve service');
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) {
+        setDepartments(data);
       }
+    } catch (err) {
+      console.error('Failed to load departments:', err);
+    }
+  };
 
-      // Check if this manager's department has any remaining pending items
-      const hasPendingInDept = (updatedLoe.loe_items || []).some(
-        item => (isAdmin || item.service?.department_id === userDeptId) && item.status === 'Pending'
+  const fetchCompanies = async () => {
+    try {
+      if (!token) return;
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setCompanies(Array.isArray(data) ? data : data.companies || []);
+      }
+    } catch (err) {
+      console.error('Failed to load companies:', err);
+    }
+  };
+
+  const handleApproveItem = async (e, loeId, itemId) => {
+    e.stopPropagation();
+    try {
+      setError('');
+      const response = await fetch(
+        `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/approve`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ emp_id: user.emp_id })
+        }
       );
-
-      if (!hasPendingInDept) {
-        setApprovalLoes(prev => prev.filter(l => l.loe_id !== loeId));
-      } else {
-        setApprovalLoes(prev => prev.map(l => l.loe_id === loeId ? updatedLoe : l));
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleRejectItem = async (loeId, itemId) => {
-    const reason = window.prompt("Enter reason for rejecting this service (optional):");
-    if (reason === null) return; 
-
-    try {
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/reject`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          emp_id: user.emp_id || 2,
-          reason: reason.trim() || 'Revision requested'
-        })
-      });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to reject service');
-      }
-
-      // Rejection immediately transitions LOE to 'Rejected', removing from pending queue
-      setApprovalLoes(prev => prev.filter(l => l.loe_id !== loeId));
+      if (!response.ok) throw new Error(data.error || 'Failed to approve item');
+      await fetchPendingLoes();
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const handleApproveAll = async (loeId) => {
-    if (!window.confirm("Are you sure you want to force-approve ALL pending services in this LOE?")) return;
-
+  const handleRejectItem = async (e, loeId, itemId) => {
+    e.stopPropagation();
+    if (!rejectionReason.trim()) {
+      setError('Please enter a reason for rejection.');
+      return;
+    }
     try {
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/approve-all`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ emp_id: user.emp_id || 2 })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to approve all services');
-      }
-
-      setApprovalLoes(prev => prev.filter(l => l.loe_id !== loeId));
+      setError('');
+      const response = await fetch(
+        `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/reject`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ reason: rejectionReason })
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to reject item');
+      setRejectingItemId(null);
+      setRejectionReason('');
+      await fetchPendingLoes();
     } catch (err) {
       setError(err.message);
     }
   };
 
-  if (!user || (user.role !== 'MANAGER' && user.role !== 'ADMIN')) {
-    return (
-      <div style={styles.pageContainer}>
-        <Navbar />
-        <div style={{ padding: '40px', textAlign: 'center', color: '#dc3545', fontWeight: 'bold' }}>
-          Access Denied. Managers and Admins only.
-        </div>
-      </div>
-    );
-  }
-
-  const getItemStatusBadge = (status) => {
-    if (status === 'Approved') return { bg: '#28a745', text: '#fff' };
-    if (status === 'Rejected') return { bg: '#dc3545', text: '#fff' };
-    return { bg: '#ffc107', text: '#000' };
+  const handleApproveAll = async (e, loeId) => {
+    e.stopPropagation();
+    try {
+      setError('');
+      const response = await fetch(
+        `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/approve-all`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ emp_id: user.emp_id })
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to approve all items');
+      await fetchPendingLoes();
+    } catch (err) {
+      setError(err.message);
+    }
   };
+
+  const resetFilters = () => {
+    setFilterCompany('');
+    setFilterBillingType('ALL');
+    setFilterCurrency('ALL');
+    setFilterBillingCycle('ALL');
+    setFilterDepartment('ALL');
+  };
+
+  // Apply Filters
+  const filteredLoes = pendingLoes.filter((loe) => {
+    const companyName = (loe.company?.name || '').toLowerCase();
+    const loeType = loe.type || 'Adhoc';
+    const loeCurrency = loe.currency || 'LKR';
+    const loeCycle = loe.billing_frequency || 'One-Time';
+
+    // 1. Company Name Filter
+    if (filterCompany && !companyName.includes(filterCompany.toLowerCase())) {
+      return false;
+    }
+
+    // 2. Billing Type Filter (Adhoc / Retainer)
+    if (filterBillingType !== 'ALL' && loeType !== filterBillingType) {
+      return false;
+    }
+
+    // 3. Currency Filter
+    if (filterCurrency !== 'ALL' && loeCurrency !== filterCurrency) {
+      return false;
+    }
+
+    // 4. Billing Cycle Filter (One-Time / Monthly / Quarterly / Annually)
+    if (filterBillingCycle !== 'ALL' && loeCycle !== filterBillingCycle) {
+      return false;
+    }
+
+    // 5. Department Filter (Admin Only)
+    if (isAdmin && filterDepartment !== 'ALL') {
+      const hasDeptItem = (loe.loe_items || []).some(
+        (item) => Number(item.service?.department_id) === Number(filterDepartment)
+      );
+      if (!hasDeptItem) return false;
+    }
+
+    return true;
+  });
+
+  const hasActiveFilters =
+    filterCompany !== '' ||
+    filterBillingType !== 'ALL' ||
+    filterCurrency !== 'ALL' ||
+    filterBillingCycle !== 'ALL' ||
+    (isAdmin && filterDepartment !== 'ALL');
 
   return (
     <div style={styles.pageContainer}>
       <Navbar />
       <div style={styles.container}>
-        <h2>{isAdmin ? 'Company-Wide Service Approvals (Admin View)' : `Department Approvals (Dept ID: ${userDeptId})`}</h2>
-        {error && <p style={styles.errorBox}>{error}</p>}
-        
-        {approvalLoes.length === 0 ? (
-          <p style={styles.emptyText}>No services require your department's approval right now.</p>
+        <div style={styles.headerRow}>
+          <div>
+            <h1 style={styles.pageTitle}>LOE Approvals Queue</h1>
+            <p style={styles.subTitle}>
+              Click any LOE card to view its full details and approval workspace.
+            </p>
+          </div>
+          <span style={styles.countBadge}>
+            {filteredLoes.length} Pending {filteredLoes.length === 1 ? 'LOE' : 'LOEs'}
+          </span>
+        </div>
+
+        {/* Filter Bar */}
+        <div style={styles.filterBar}>
+          {/* 1. Company Name Filter */}
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Company Name</label>
+            <input
+              type="text"
+              list="company-options"
+              placeholder="Search or select company..."
+              value={filterCompany}
+              onChange={(e) => setFilterCompany(e.target.value)}
+              style={styles.filterInput}
+            />
+            <datalist id="company-options">
+              {companies.map((c) => (
+                <option key={c.company_id} value={c.name || c.company_name} />
+              ))}
+            </datalist>
+          </div>
+
+          {/* 2. Billing Type Filter */}
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Billing Type</label>
+            <select
+              value={filterBillingType}
+              onChange={(e) => setFilterBillingType(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Types</option>
+              <option value="Adhoc">Adhoc</option>
+              <option value="Retainer">Retainer</option>
+            </select>
+          </div>
+
+          {/* 3. Currency Type Filter */}
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Currency Type</label>
+            <select
+              value={filterCurrency}
+              onChange={(e) => setFilterCurrency(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Currencies</option>
+              <option value="LKR">LKR (Rs.)</option>
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="AED">AED</option>
+              <option value="SAR">SAR</option>
+              <option value="INR">INR (₹)</option>
+              <option value="AUD">AUD (A$)</option>
+              <option value="CAD">CAD (C$)</option>
+              <option value="SGD">SGD (S$)</option>
+            </select>
+          </div>
+
+          {/* 4. Billing Cycle Filter */}
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Billing Cycle</label>
+            <select
+              value={filterBillingCycle}
+              onChange={(e) => setFilterBillingCycle(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Cycles</option>
+              <option value="One-Time">One-Time</option>
+              <option value="Monthly">Monthly</option>
+              <option value="Quarterly">Quarterly</option>
+              <option value="Annually">Annually</option>
+            </select>
+          </div>
+
+          {/* 5. Department Filter (Strictly Admin Users Only) */}
+          {isAdmin && (
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Department (Admin)</label>
+              <select
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Departments</option>
+                {departments.map((dept) => (
+                  <option key={dept.department_id} value={dept.department_id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {hasActiveFilters && (
+            <button type="button" onClick={resetFilters} style={styles.clearFilterBtn}>
+              Reset Filters
+            </button>
+          )}
+        </div>
+
+        {error && <div style={styles.errorBanner}>{error}</div>}
+
+        {loading ? (
+          <div style={styles.emptyBox}>Loading pending approvals...</div>
+        ) : filteredLoes.length === 0 ? (
+          <div style={styles.emptyBox}>
+            No pending Letters of Engagement match your current filters.
+          </div>
         ) : (
           <div style={styles.grid}>
-            {approvalLoes.map((loe) => (
-              <div key={loe.loe_id} style={styles.card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0 }}>LOE ID: {loe.loe_id}</h3>
-                  <span style={styles.badge}>{loe.status}</span>
-                </div>
-                
-                <p style={{ marginTop: '8px', marginBottom: '2px' }}>
-                  <strong>Company:</strong> {loe.company?.name || `ID #${loe.company_id}`}
-                </p>
-                <p style={{ margin: '2px 0 2px 0' }}>
-                  <strong>Engagement Type:</strong> {loe.type}
-                </p>
-                <p style={{ margin: '2px 0 10px 0', fontSize: '13px', color: '#6f42c1', fontWeight: 'bold' }}>
-                  <strong>Billing Cycle:</strong> {loe.billing_frequency || 'One-Time'}
-                </p>
+            {filteredLoes.map((loe) => {
+              const loeCurrency = loe.currency || 'LKR';
+              const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || loeCurrency;
 
-                <div style={styles.servicesBox}>
-                  <strong>Services for Review:</strong>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
-                    {(loe.loe_items || []).map((item) => {
-                      const isMyDept = isAdmin || item.service?.department_id === userDeptId;
-                      const badge = getItemStatusBadge(item.status);
+              const relevantItems = isAdmin
+                ? loe.loe_items || []
+                : (loe.loe_items || []).filter(
+                    (item) =>
+                      item.service?.department_id === userDeptId &&
+                      (filterDepartment === 'ALL' ||
+                        Number(item.service?.department_id) === Number(filterDepartment))
+                  );
 
-                      return (
-                        <div key={item.loe_item_id} style={styles.serviceItemCard}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div>
-                              <strong style={{ fontSize: '14px' }}>{item.service?.name}</strong>
-                              <span style={styles.deptTag}>
-                                {item.service?.department?.name || `Dept #${item.service?.department_id}`}
-                              </span>
-                            </div>
-                            <span style={{ 
-                              background: badge.bg, 
-                              color: badge.text, 
-                              padding: '2px 8px', 
-                              borderRadius: '4px', 
-                              fontSize: '11px', 
-                              fontWeight: 'bold' 
-                            }}>
-                              {item.status}
+              const totalValue = (loe.loe_items || []).reduce(
+                (acc, curr) => acc + Number(curr.amount || 0),
+                0
+              );
+
+              return (
+                <div
+                  key={loe.loe_id}
+                  onClick={() => navigate(`/loes/${loe.loe_id}`)}
+                  style={styles.card}
+                >
+                  {/* Card Top Header */}
+                  <div style={styles.cardHeader}>
+                    <div>
+                      <h3 style={styles.cardTitle}>
+                        {loe.loe_code || `LOE #${loe.loe_id}`}
+                      </h3>
+                      <span style={styles.companySub}>
+                        <strong>Company:</strong> {loe.company?.name || 'N/A'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={styles.currencyTag}>{loeCurrency}</span>
+                      <span style={styles.statusBadge}>{loe.status}</span>
+                    </div>
+                  </div>
+
+                  {/* Metadata Summary Strip */}
+                  <div style={styles.metaStrip}>
+                    <span>
+                      <strong>Billing Type:</strong> {loe.type || 'Adhoc'}
+                    </span>
+                    <span>
+                      <strong>Billing Cycle:</strong> {loe.billing_frequency || 'One-Time'}
+                    </span>
+                    <span>
+                      <strong>Start Date:</strong>{' '}
+                      {loe.start_date ? new Date(loe.start_date).toLocaleDateString() : 'N/A'}
+                    </span>
+                    <span style={{ color: '#0369a1', fontWeight: 'bold' }}>
+                      Total: {loeSymbol}{' '}
+                      {totalValue.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </span>
+                  </div>
+
+                  {/* Deliverables Preview List */}
+                  <div style={styles.itemsList}>
+                    {relevantItems.map((item) => (
+                      <div
+                        key={item.loe_item_id}
+                        style={styles.itemRow}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>
+                            {item.service?.name}{' '}
+                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>
+                              ({item.service?.department?.name || 'Dept'})
                             </span>
                           </div>
-
-                          <div style={{ marginTop: '4px', fontSize: '13px', color: '#1a365d', fontWeight: 'bold' }}>
-                            Fee: ${Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                            {item.custom_scope || 'Standard Deliverable'}
                           </div>
-
-                          {item.custom_scope && (
-                            <p style={styles.scopeText}>
-                              <strong>Scope:</strong> {item.custom_scope}
-                            </p>
-                          )}
-
-                          {item.rejection_reason && (
-                            <p style={styles.rejectionReason}>
-                              <strong>Reason:</strong> {item.rejection_reason}
-                            </p>
-                          )}
-
-                          {/* Action buttons: Only active for pending items within manager's department */}
-                          {isMyDept && item.status === 'Pending' && (
-                            <div style={styles.itemActionGroup}>
-                              <button 
-                                onClick={() => handleApproveItem(loe.loe_id, item.loe_item_id)} 
-                                style={styles.itemApproveBtn}
-                              >
-                                Approve Service
-                              </button>
-                              <button 
-                                onClick={() => handleRejectItem(loe.loe_id, item.loe_item_id)} 
-                                style={styles.itemRejectBtn}
-                              >
-                                Reject Service
-                              </button>
-                            </div>
-                          )}
-
-                          {!isMyDept && item.status === 'Pending' && (
-                            <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#6c757d', fontStyle: 'italic' }}>
-                              Awaiting {item.service?.department?.name || 'Department'} Manager review
-                            </p>
-                          )}
                         </div>
-                      );
-                    })}
+
+                        <div style={{ fontWeight: 'bold', fontSize: '13px', marginRight: '14px' }}>
+                          {loeSymbol}{' '}
+                          {Number(item.amount || 0).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </div>
+
+                        {item.status === 'Pending' ? (
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => handleApproveItem(e, loe.loe_id, item.loe_item_id)}
+                              style={styles.approveBtn}
+                            >
+                              ✓ Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRejectingItemId(
+                                  rejectingItemId === item.loe_item_id ? null : item.loe_item_id
+                                );
+                                setRejectionReason('');
+                              }}
+                              style={styles.rejectBtn}
+                            >
+                              ✕ Reject
+                            </button>
+                          </div>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              color: item.status === 'Approved' ? '#15803d' : '#b91c1c'
+                            }}
+                          >
+                            {item.status === 'Approved' ? '✅ Approved' : '❌ Rejected'}
+                          </span>
+                        )}
+
+                        {rejectingItemId === item.loe_item_id && (
+                          <div
+                            style={styles.rejectBox}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="text"
+                              placeholder="Enter rejection reason..."
+                              value={rejectionReason}
+                              onChange={(e) => setRejectionReason(e.target.value)}
+                              style={styles.rejectInput}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => handleRejectItem(e, loe.loe_id, item.loe_item_id)}
+                              style={styles.confirmRejectBtn}
+                            >
+                              Confirm Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Card Footer */}
+                  <div style={styles.cardFooter}>
+                    <span style={styles.viewDetailsLink}>
+                      Click to open full LOE details &amp; approval page →
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleApproveAll(e, loe.loe_id)}
+                      style={styles.approveAllBtn}
+                    >
+                      Approve All Services
+                    </button>
                   </div>
                 </div>
-
-                {isAdmin && (
-                  <button 
-                    onClick={() => handleApproveAll(loe.loe_id)} 
-                    style={styles.adminApproveAllBtn}
-                  >
-                    ⚡ Approve All Services (Admin Super-Approval)
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -267,19 +527,85 @@ export default function ManagerDashboard() {
 
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
-  container: { padding: '40px' },
-  errorBox: { padding: '10px 14px', background: '#fed7d7', color: '#c53030', borderRadius: '4px', border: '1px solid #feb2b2', fontWeight: 'bold' },
-  emptyText: { color: '#4a5568', fontSize: '15px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px', marginTop: '20px' },
-  card: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' },
-  badge: { background: '#ffc107', color: '#000', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },
-  servicesBox: { background: '#f8f9fa', padding: '12px', borderRadius: '6px', margin: '10px 0', border: '1px solid #e9ecef', flex: 1 },
-  serviceItemCard: { background: '#fff', padding: '10px 12px', borderRadius: '4px', border: '1px solid #dee2e6' },
-  deptTag: { marginLeft: '8px', background: '#e9ecef', color: '#495057', fontSize: '11px', padding: '2px 6px', borderRadius: '3px' },
-  scopeText: { margin: '6px 0 4px', fontSize: '12.5px', color: '#495057' },
-  rejectionReason: { margin: '4px 0', fontSize: '12px', color: '#dc3545', background: '#fff5f5', padding: '4px 6px', borderRadius: '3px', border: '1px solid #fed7d7' },
-  itemActionGroup: { display: 'flex', gap: '8px', marginTop: '8px' },
-  itemApproveBtn: { flex: 1, padding: '6px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  itemRejectBtn: { flex: 1, padding: '6px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  adminApproveAllBtn: { width: '100%', marginTop: '10px', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
+  container: { maxWidth: '1200px', margin: '0 auto', padding: '35px 40px' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+  pageTitle: { margin: 0, fontSize: '26px', color: '#1e293b' },
+  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#64748b' },
+  countBadge: { background: '#1e293b', color: '#fff', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' },
+  filterBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '14px',
+    alignItems: 'flex-end',
+    background: '#ffffff',
+    padding: '18px 20px',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    marginBottom: '24px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
+  },
+  filterField: { display: 'flex', flexDirection: 'column', gap: '5px', flex: '1', minWidth: '165px' },
+  filterLabel: { fontSize: '12px', fontWeight: 'bold', color: '#475569' },
+  filterInput: { padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' },
+  filterSelect: { padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' },
+  clearFilterBtn: {
+    padding: '8px 14px',
+    background: '#f1f5f9',
+    color: '#dc2626',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    cursor: 'pointer',
+    height: '35px'
+  },
+  errorBanner: { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '6px', marginBottom: '18px', fontSize: '13px' },
+  emptyBox: { background: '#fff', padding: '45px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
+  grid: { display: 'flex', flexDirection: 'column', gap: '18px' },
+  card: {
+    background: '#ffffff',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    padding: '20px',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s ease, box-shadow 0.15s ease'
+  },
+  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' },
+  cardTitle: { margin: 0, fontSize: '18px', color: '#2563eb' },
+  companySub: { fontSize: '14px', color: '#334155', display: 'block', marginTop: '4px' },
+  currencyTag: { background: '#e0f2fe', color: '#0369a1', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
+  statusBadge: { background: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  metaStrip: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '20px',
+    background: '#f8fafc',
+    padding: '10px 14px',
+    borderRadius: '6px',
+    fontSize: '13px',
+    color: '#475569',
+    marginBottom: '14px',
+    border: '1px solid #f1f5f9'
+  },
+  itemsList: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' },
+  itemRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '10px 12px',
+    background: '#f8fafc',
+    borderRadius: '6px',
+    border: '1px solid #e2e8f0',
+    cursor: 'default'
+  },
+  approveBtn: { padding: '6px 12px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  rejectBtn: { padding: '6px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  rejectBox: { width: '100%', display: 'flex', gap: '8px', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #cbd5e1' },
+  rejectInput: { flex: 1, padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' },
+  confirmRejectBtn: { padding: '6px 12px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  cardFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #e2e8f0' },
+  viewDetailsLink: { fontSize: '13px', fontWeight: 'bold', color: '#2563eb' },
+  approveAllBtn: { padding: '8px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }
 };
