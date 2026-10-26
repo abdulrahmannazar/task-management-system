@@ -15,6 +15,17 @@ const CURRENCY_SYMBOLS = {
   SGD: 'S$'
 };
 
+const parseScopePoints = (scopeText) => {
+  if (!scopeText) return ['Standard Deliverable'];
+  const points = String(scopeText)
+    .split(/\r?\n|•|●|▪/)
+    .map((line) => line.replace(/^[-*•●▪\s]+/, '').trim())
+    .filter(Boolean)
+    .map((line) => line.charAt(0).toUpperCase() + line.slice(1));
+
+  return points.length > 0 ? points : ['Standard Deliverable'];
+};
+
 export default function ManagerDashboard() {
   const navigate = useNavigate();
 
@@ -182,34 +193,24 @@ export default function ManagerDashboard() {
     setFilterDepartment('ALL');
   };
 
-  // Apply Filters
   const filteredLoes = pendingLoes.filter((loe) => {
     const companyName = (loe.company?.name || '').toLowerCase();
     const loeType = loe.type || 'Adhoc';
     const loeCurrency = loe.currency || 'LKR';
     const loeCycle = loe.billing_frequency || 'One-Time';
 
-    // 1. Company Name Filter
     if (filterCompany && !companyName.includes(filterCompany.toLowerCase())) {
       return false;
     }
-
-    // 2. Billing Type Filter (Adhoc / Retainer)
     if (filterBillingType !== 'ALL' && loeType !== filterBillingType) {
       return false;
     }
-
-    // 3. Currency Filter
     if (filterCurrency !== 'ALL' && loeCurrency !== filterCurrency) {
       return false;
     }
-
-    // 4. Billing Cycle Filter (One-Time / Monthly / Quarterly / Annually)
     if (filterBillingCycle !== 'ALL' && loeCycle !== filterBillingCycle) {
       return false;
     }
-
-    // 5. Department Filter (Admin Only)
     if (isAdmin && filterDepartment !== 'ALL') {
       const hasDeptItem = (loe.loe_items || []).some(
         (item) => Number(item.service?.department_id) === Number(filterDepartment)
@@ -245,7 +246,6 @@ export default function ManagerDashboard() {
 
         {/* Filter Bar */}
         <div style={styles.filterBar}>
-          {/* 1. Company Name Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Company Name</label>
             <input
@@ -263,7 +263,6 @@ export default function ManagerDashboard() {
             </datalist>
           </div>
 
-          {/* 2. Billing Type Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Billing Type</label>
             <select
@@ -277,7 +276,6 @@ export default function ManagerDashboard() {
             </select>
           </div>
 
-          {/* 3. Currency Type Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Currency Type</label>
             <select
@@ -299,7 +297,6 @@ export default function ManagerDashboard() {
             </select>
           </div>
 
-          {/* 4. Billing Cycle Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Billing Cycle</label>
             <select
@@ -315,7 +312,6 @@ export default function ManagerDashboard() {
             </select>
           </div>
 
-          {/* 5. Department Filter (Strictly Admin Users Only) */}
           {isAdmin && (
             <div style={styles.filterField}>
               <label style={styles.filterLabel}>Department (Admin)</label>
@@ -375,7 +371,6 @@ export default function ManagerDashboard() {
                   onClick={() => navigate(`/loes/${loe.loe_id}`)}
                   style={styles.card}
                 >
-                  {/* Card Top Header */}
                   <div style={styles.cardHeader}>
                     <div>
                       <h3 style={styles.cardTitle}>
@@ -392,7 +387,6 @@ export default function ManagerDashboard() {
                     </div>
                   </div>
 
-                  {/* Metadata Summary Strip */}
                   <div style={styles.metaStrip}>
                     <span>
                       <strong>Billing Type:</strong> {loe.type || 'Adhoc'}
@@ -413,95 +407,104 @@ export default function ManagerDashboard() {
                     </span>
                   </div>
 
-                  {/* Deliverables Preview List */}
                   <div style={styles.itemsList}>
-                    {relevantItems.map((item) => (
-                      <div
-                        key={item.loe_item_id}
-                        style={styles.itemRow}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>
-                            {item.service?.name}{' '}
-                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>
-                              ({item.service?.department?.name || 'Dept'})
-                            </span>
+                    {relevantItems.map((item) => {
+                      const scopePoints = parseScopePoints(item.custom_scope);
+
+                      return (
+                        <div
+                          key={item.loe_item_id}
+                          style={styles.itemRow}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div style={{ flex: 1, paddingRight: '14px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#1e293b' }}>
+                              {item.service?.name}{' '}
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>
+                                ({item.service?.department?.name || 'Dept'})
+                              </span>
+                            </div>
+
+                            <ul style={styles.scopeBulletList}>
+                              {scopePoints.map((pt, idx) => (
+                                <li key={idx} style={styles.scopeBulletItem}>
+                                  {pt}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
-                          <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
-                            {item.custom_scope || 'Standard Deliverable'}
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#0f172a' }}>
+                              {loeSymbol}{' '}
+                              {Number(item.amount || 0).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              })}
+                            </div>
+
+                            {item.status === 'Pending' ? (
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleApproveItem(e, loe.loe_id, item.loe_item_id)}
+                                  style={styles.approveBtn}
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRejectingItemId(
+                                      rejectingItemId === item.loe_item_id ? null : item.loe_item_id
+                                    );
+                                    setRejectionReason('');
+                                  }}
+                                  style={styles.rejectBtn}
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  color: item.status === 'Approved' ? '#15803d' : '#b91c1c'
+                                }}
+                              >
+                                {item.status === 'Approved' ? '✅ Approved' : '❌ Rejected'}
+                              </span>
+                            )}
                           </div>
+
+                          {rejectingItemId === item.loe_item_id && (
+                            <div
+                              style={styles.rejectBox}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="text"
+                                placeholder="Enter rejection reason..."
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                style={styles.rejectInput}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => handleRejectItem(e, loe.loe_id, item.loe_item_id)}
+                                style={styles.confirmRejectBtn}
+                              >
+                                Confirm Reject
+                              </button>
+                            </div>
+                          )}
                         </div>
-
-                        <div style={{ fontWeight: 'bold', fontSize: '13px', marginRight: '14px' }}>
-                          {loeSymbol}{' '}
-                          {Number(item.amount || 0).toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          })}
-                        </div>
-
-                        {item.status === 'Pending' ? (
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                            <button
-                              type="button"
-                              onClick={(e) => handleApproveItem(e, loe.loe_id, item.loe_item_id)}
-                              style={styles.approveBtn}
-                            >
-                              ✓ Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRejectingItemId(
-                                  rejectingItemId === item.loe_item_id ? null : item.loe_item_id
-                                );
-                                setRejectionReason('');
-                              }}
-                              style={styles.rejectBtn}
-                            >
-                              ✕ Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: '12px',
-                              fontWeight: 'bold',
-                              color: item.status === 'Approved' ? '#15803d' : '#b91c1c'
-                            }}
-                          >
-                            {item.status === 'Approved' ? '✅ Approved' : '❌ Rejected'}
-                          </span>
-                        )}
-
-                        {rejectingItemId === item.loe_item_id && (
-                          <div
-                            style={styles.rejectBox}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="text"
-                              placeholder="Enter rejection reason..."
-                              value={rejectionReason}
-                              onChange={(e) => setRejectionReason(e.target.value)}
-                              style={styles.rejectInput}
-                            />
-                            <button
-                              type="button"
-                              onClick={(e) => handleRejectItem(e, loe.loe_id, item.loe_item_id)}
-                              style={styles.confirmRejectBtn}
-                            >
-                              Confirm Reject
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
-                  {/* Card Footer */}
                   <div style={styles.cardFooter}>
                     <span style={styles.viewDetailsLink}>
                       Click to open full LOE details &amp; approval page →
@@ -593,12 +596,22 @@ const styles = {
     display: 'flex',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '10px 12px',
+    alignItems: 'flex-start',
+    padding: '12px 14px',
     background: '#f8fafc',
     borderRadius: '6px',
     border: '1px solid #e2e8f0',
     cursor: 'default'
+  },
+  scopeBulletList: {
+    margin: '6px 0 0 0',
+    paddingLeft: '18px',
+    fontSize: '12.5px',
+    color: '#334155',
+    lineHeight: '1.55'
+  },
+  scopeBulletItem: {
+    marginBottom: '3px'
   },
   approveBtn: { padding: '6px 12px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   rejectBtn: { padding: '6px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },

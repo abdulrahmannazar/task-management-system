@@ -15,6 +15,18 @@ const CURRENCY_SYMBOLS = {
   SGD: 'S$'
 };
 
+// Helper to parse any custom or template scope into clean, capitalized bullet points
+const parseScopePoints = (scopeText) => {
+  if (!scopeText) return ['Standard Deliverable'];
+  const points = String(scopeText)
+    .split(/\r?\n|•|●|▪/)
+    .map((line) => line.replace(/^[-*•●▪\s]+/, '').trim())
+    .filter(Boolean)
+    .map((line) => line.charAt(0).toUpperCase() + line.slice(1));
+
+  return points.length > 0 ? points : ['Standard Deliverable'];
+};
+
 export default function LoeDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -359,103 +371,115 @@ export default function LoeDetails() {
               {relevantItems.length === 0 ? (
                 <p style={{ color: '#64748b' }}>No service items listed for your department.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {relevantItems.map((item) => (
-                    <div key={item.loe_item_id} style={styles.itemCard}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                        <div>
-                          <strong style={{ fontSize: '15px', color: '#1e293b' }}>
-                            {item.service?.name || `Service #${item.service_id}`}
-                          </strong>
-                          <span style={{ marginLeft: '10px', fontSize: '12px', color: '#64748b' }}>
-                            ({item.service?.department?.name || 'Department'})
-                          </span>
-                        </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {relevantItems.map((item) => {
+                    const scopePoints = parseScopePoints(item.custom_scope);
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#0f172a' }}>
-                            {loeSymbol} {Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                          <span style={{ ...styles.itemBadge, ...getItemBadgeStyle(item.status) }}>
-                            {item.status}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: '8px', fontSize: '13px', color: '#334155' }}>
-                        <strong>Scope:</strong> {item.custom_scope || 'Standard Deliverable'}
-                      </div>
-
-                      {item.status === 'Rejected' && item.rejection_reason && (
-                        <div style={{ marginTop: '6px', fontSize: '12px', color: '#c53030', background: '#fff5f5', padding: '6px 10px', borderRadius: '4px' }}>
-                          <strong>Rejection Note:</strong> {item.rejection_reason}
-                        </div>
-                      )}
-
-                      {/* Approval Controls Inside LOE Details */}
-                      {canEdit && (
-                        <div style={styles.approvalActionRow}>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            {item.status !== 'Approved' && (
-                              <button
-                                type="button"
-                                onClick={() => handleApproveItem(item.loe_item_id)}
-                                disabled={processingId === item.loe_item_id}
-                                style={styles.approveItemBtn}
-                              >
-                                {processingId === item.loe_item_id ? 'Saving...' : '✓ Approve Deliverable'}
-                              </button>
-                            )}
-
-                            {item.status !== 'Rejected' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRejectingItemId(
-                                    rejectingItemId === item.loe_item_id ? null : item.loe_item_id
-                                  );
-                                  setRejectionReason(item.rejection_reason || '');
-                                }}
-                                style={styles.rejectItemBtn}
-                              >
-                                ✕ Reject Deliverable
-                              </button>
-                            )}
+                    return (
+                      <div key={item.loe_item_id} style={styles.itemCard}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                          <div>
+                            <strong style={{ fontSize: '15px', color: '#1e293b' }}>
+                              {item.service?.name || `Service #${item.service_id}`}
+                            </strong>
+                            <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b' }}>
+                              ({item.service?.department?.name || 'Department'})
+                            </span>
                           </div>
 
-                          {rejectingItemId === item.loe_item_id && (
-                            <div style={styles.rejectFormRow}>
-                              <input
-                                type="text"
-                                placeholder="Specify reason for rejecting this scope..."
-                                value={rejectionReason}
-                                onChange={(e) => setRejectionReason(e.target.value)}
-                                style={styles.rejectInput}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRejectItem(item.loe_item_id)}
-                                disabled={processingId === item.loe_item_id}
-                                style={styles.confirmRejectBtn}
-                              >
-                                Submit Rejection
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRejectingItemId(null);
-                                  setRejectionReason('');
-                                }}
-                                style={styles.cancelRejectBtn}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#0f172a' }}>
+                              {loeSymbol} {Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span style={{ ...styles.itemBadge, ...getItemBadgeStyle(item.status) }}>
+                              {item.status}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {/* Formatted Bulleted Scope Block */}
+                        <div style={styles.scopeBox}>
+                          <div style={styles.scopeTitle}>Scope of Work:</div>
+                          <ul style={styles.scopeBulletList}>
+                            {scopePoints.map((pt, idx) => (
+                              <li key={idx} style={styles.scopeBulletItem}>
+                                {pt}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {item.status === 'Rejected' && item.rejection_reason && (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#c53030', background: '#fff5f5', padding: '6px 10px', borderRadius: '4px' }}>
+                            <strong>Rejection Note:</strong> {item.rejection_reason}
+                          </div>
+                        )}
+
+                        {/* Approval Controls Inside LOE Details */}
+                        {canEdit && (
+                          <div style={styles.approvalActionRow}>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {item.status !== 'Approved' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveItem(item.loe_item_id)}
+                                  disabled={processingId === item.loe_item_id}
+                                  style={styles.approveItemBtn}
+                                >
+                                  {processingId === item.loe_item_id ? 'Saving...' : '✓ Approve Deliverable'}
+                                </button>
+                              )}
+
+                              {item.status !== 'Rejected' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRejectingItemId(
+                                      rejectingItemId === item.loe_item_id ? null : item.loe_item_id
+                                    );
+                                    setRejectionReason(item.rejection_reason || '');
+                                  }}
+                                  style={styles.rejectItemBtn}
+                                >
+                                  ✕ Reject Deliverable
+                                </button>
+                              )}
+                            </div>
+
+                            {rejectingItemId === item.loe_item_id && (
+                              <div style={styles.rejectFormRow}>
+                                <input
+                                  type="text"
+                                  placeholder="Specify reason for rejecting this scope..."
+                                  value={rejectionReason}
+                                  onChange={(e) => setRejectionReason(e.target.value)}
+                                  style={styles.rejectInput}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectItem(item.loe_item_id)}
+                                  disabled={processingId === item.loe_item_id}
+                                  style={styles.confirmRejectBtn}
+                                >
+                                  Submit Rejection
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRejectingItemId(null);
+                                    setRejectionReason('');
+                                  }}
+                                  style={styles.cancelRejectBtn}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -488,8 +512,33 @@ const styles = {
   detailRow: { display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '13px', borderBottom: '1px dashed #f1f5f9' },
   detailLabel: { color: '#64748b', fontWeight: '600' },
   detailValue: { color: '#1e293b', fontWeight: '500' },
-  itemCard: { padding: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' },
+  itemCard: { padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' },
   itemBadge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
+  scopeBox: {
+    marginTop: '10px',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '6px',
+    padding: '10px 14px'
+  },
+  scopeTitle: {
+    fontSize: '12px',
+    fontWeight: 'bold',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+    marginBottom: '6px'
+  },
+  scopeBulletList: {
+    margin: 0,
+    paddingLeft: '20px',
+    color: '#334155',
+    fontSize: '13.5px',
+    lineHeight: '1.6'
+  },
+  scopeBulletItem: {
+    marginBottom: '4px'
+  },
   approvalActionRow: { marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' },
   approveItemBtn: { padding: '6px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   rejectItemBtn: { padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },

@@ -1,5 +1,5 @@
 /**
- * Generates HTML for the Letter of Engagement (LOE) PDF including selected currency
+ * Generates HTML for the Letter of Engagement (LOE) PDF including formatted scopes & selected currency
  */
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -13,6 +13,22 @@ const CURRENCY_SYMBOLS = {
   CAD: 'C$',
   SGD: 'S$'
 };
+
+// Splits custom scopes and multi-bullet strings into clean individual bullet points
+function extractBulletPoints(scopesArray) {
+  const result = [];
+  (scopesArray || []).forEach((rawScope) => {
+    if (!rawScope) return;
+    const parts = String(rawScope)
+      .split(/\r?\n|•|●|▪/)
+      .map((s) => s.replace(/^[-*•●▪\s]+/, '').trim())
+      .filter(Boolean)
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
+
+    result.push(...parts);
+  });
+  return result.length > 0 ? result : ['Standard Service Scope'];
+}
 
 module.exports = function generateLoeTemplate({ loe, company }) {
   const currencyCode = loe?.currency || 'LKR';
@@ -78,8 +94,9 @@ module.exports = function generateLoeTemplate({ loe, company }) {
     .info-label { font-weight: bold; color: #475569; display: inline-block; width: 125px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th { background: #1e293b; color: #fff; text-align: left; padding: 10px; font-size: 12px; }
-    td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; font-size: 12px; }
-    .scope-list { margin: 4px 0 0 16px; padding: 0; color: #475569; }
+    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; font-size: 12px; }
+    .scope-list { margin: 0; padding-left: 18px; color: #334155; line-height: 1.6; }
+    .scope-list li { margin-bottom: 5px; }
     .total-box { margin-top: 20px; text-align: right; background: #f1f5f9; padding: 14px 18px; border-radius: 6px; font-size: 15px; font-weight: bold; color: #0f172a; }
     .signature-grid { display: flex; justify-content: space-between; gap: 40px; margin-top: 50px; }
     .sig-block { flex: 1; border-top: 1px solid #94a3b8; padding-top: 8px; font-size: 12px; color: #475569; }
@@ -119,28 +136,31 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   <table>
     <thead>
       <tr>
-        <th style="width: 28%;">Service &amp; Department</th>
-        <th style="width: 47%;">Agreed Scope Deliverables</th>
-        <th style="width: 25%; text-align: right;">Agreed Fee (${currencyCode})</th>
+        <th style="width: 26%;">Service &amp; Department</th>
+        <th style="width: 52%;">Agreed Scope of Work &amp; Deliverables</th>
+        <th style="width: 22%; text-align: right;">Agreed Fee (${currencyCode})</th>
       </tr>
     </thead>
     <tbody>
-      ${serviceList.map((srv) => `
-        <tr>
-          <td>
-            <strong>${srv.name}</strong><br/>
-            <span style="color: #64748b; font-size: 11px;">Dept: ${srv.department}</span>
-          </td>
-          <td>
-            <ul class="scope-list">
-              ${srv.scopes.map(sc => `<li>${sc}</li>`).join('')}
-            </ul>
-          </td>
-          <td style="text-align: right; font-weight: bold;">
-            ${formatCurrency(srv.amount)}
-          </td>
-        </tr>
-      `).join('')}
+      ${serviceList.map((srv) => {
+        const cleanBullets = extractBulletPoints(srv.scopes);
+        return `
+          <tr>
+            <td>
+              <strong style="font-size: 13px; color: #0f172a;">${srv.name}</strong><br/>
+              <span style="color: #64748b; font-size: 11px;">Dept: ${srv.department}</span>
+            </td>
+            <td>
+              <ul class="scope-list">
+                ${cleanBullets.map(pt => `<li>${pt}</li>`).join('')}
+              </ul>
+            </td>
+            <td style="text-align: right; font-weight: bold; font-size: 13px;">
+              ${formatCurrency(srv.amount)}
+            </td>
+          </tr>
+        `;
+      }).join('')}
     </tbody>
   </table>
 

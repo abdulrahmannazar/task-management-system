@@ -5,6 +5,9 @@ export default function TaskAllocation() {
   const [tasks, setTasks] = useState([]);
   const [loes, setLoes] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [services, setServices] = useState([]);
   
   const [groupedServices, setGroupedServices] = useState([]);
   const [selectedServiceGroup, setSelectedServiceGroup] = useState(null);
@@ -14,6 +17,13 @@ export default function TaskAllocation() {
   const [validationWarning, setValidationWarning] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Filter States
+  const [filterCompany, setFilterCompany] = useState('');
+  const [filterService, setFilterService] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterAssignee, setFilterAssignee] = useState('ALL');
+  const [filterDepartment, setFilterDepartment] = useState('ALL');
+
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : null;
@@ -22,6 +32,7 @@ export default function TaskAllocation() {
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'MANAGER';
   const isEmployee = !isAdmin && !isManager; 
+  const canManage = isAdmin || isManager;
 
   const [serviceDeadline, setServiceDeadline] = useState('');
   const [formScopes, setFormScopes] = useState([]);
@@ -39,6 +50,9 @@ export default function TaskAllocation() {
     fetchTasks();
     if (!isEmployee) fetchLoes();
     fetchEmployees();
+    fetchCompanies();
+    fetchServices();
+    if (isAdmin) fetchDepartments();
   }, []);
 
   useEffect(() => {
@@ -92,6 +106,30 @@ export default function TaskAllocation() {
     } catch (err) {}
   };
 
+  const fetchCompanies = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await response.json();
+      if (response.ok) setCompanies(Array.isArray(data) ? data : data.companies || []);
+    } catch (err) {}
+  };
+
+  const fetchServices = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/services', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await response.json();
+      if (response.ok) setServices(Array.isArray(data) ? data : []);
+    } catch (err) {}
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) setDepartments(data);
+    } catch (err) {}
+  };
+
   const handleRowClick = (group) => {
     setSelectedServiceGroup(group);
     
@@ -111,75 +149,79 @@ export default function TaskAllocation() {
   };
 
   useEffect(() => {
-    if (!selectedServiceGroup || !serviceDeadline) return;
+    if (!serviceDeadline) return;
+    const baseDate = new Date(serviceDeadline);
+    if (isNaN(baseDate.getTime())) return;
 
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    
-    let currentStart = new Date(today);
-    let totalExceeds = false;
-    const finalDeadline = new Date(serviceDeadline);
-    finalDeadline.setHours(0,0,0,0);
-
-    const validated = formScopes.map(sc => {
-      if (sc.duration_days && Number(sc.duration_days) > 0) {
-        let endDate = new Date(currentStart);
-        endDate.setDate(endDate.getDate() + Number(sc.duration_days));
-        currentStart = new Date(endDate); 
-
-        if (endDate > finalDeadline) totalExceeds = true;
-        return { ...sc, calculated_deadline: endDate.toISOString() };
+    setFormScopes(prev => prev.map(item => {
+      const days = parseInt(item.duration_days);
+      if (!isNaN(days) && days > 0) {
+        const newDeadline = new Date(baseDate);
+        newDeadline.setDate(newDeadline.getDate() + days);
+        return { ...item, calculated_deadline: newDeadline.toISOString().split('T')[0] };
       }
-      return { ...sc, calculated_deadline: null };
-    });
+      return item;
+    }));
+  }, [serviceDeadline]);
 
-    if (JSON.stringify(validated) !== JSON.stringify(formScopes)) {
-      setFormScopes(validated);
-    }
-    
-    if (totalExceeds) {
-      setValidationWarning('⚠️️ Cumulative scope days exceed the main Service Deadline! Please adjust the durations or the final deadline.');
+  const handleDurationChange = (index, daysVal) => {
+    const updated = [...formScopes];
+    updated[index].duration_days = daysVal;
+
+    const days = parseInt(daysVal);
+    if (serviceDeadline && !isNaN(days) && days > 0) {
+      const baseDate = new Date(serviceDeadline);
+      if (!isNaN(baseDate.getTime())) {
+        const newDeadline = new Date(baseDate);
+        newDeadline.setDate(newDeadline.getDate() + days);
+        updated[index].calculated_deadline = newDeadline.toISOString().split('T')[0];
+      }
     } else {
-      setValidationWarning('');
+      updated[index].calculated_deadline = null;
     }
-  }, [formScopes.map(s => s.duration_days).join(','), serviceDeadline]);
 
-  const toggleAssignee = (index, empId) => {
-    if (isEmployee) return; 
-    setFormScopes(prev => {
-      const updated = [...prev];
-      const currentIds = updated[index].assignee_ids;
-      if (currentIds.includes(empId)) {
-        updated[index].assignee_ids = currentIds.filter(id => id !== empId);
-      } else {
-        updated[index].assignee_ids = [...currentIds, empId];
-      }
-      return updated;
-    });
+    setFormScopes(updated);
   };
 
-  const handleSaveAllocation = async (e) => {
-    e.preventDefault();
-    if (validationWarning && !isEmployee) return alert('Please fix validation warnings before saving.');
+  const handleScopeAssigneeToggle = (scopeIdx, empId) => {
+    const updated = [...formScopes];
+    const current = updated[scopeIdx].assignee_ids;
+    if (current.includes(empId)) {
+      updated[scopeIdx].assignee_ids = current.filter(id => id !== empId);
+    } else {
+      updated[scopeIdx].assignee_ids = [...current, empId];
+    }
+    setFormScopes(updated);
+  };
+
+  const handleSaveAllocation = async () => {
     setSaving(true);
     setError('');
+    setValidationWarning('');
 
     try {
-      await Promise.all(formScopes.map(sc => 
-        fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${sc.task_id}`, {
+      for (const scopeItem of formScopes) {
+        if (!scopeItem.calculated_deadline && serviceDeadline) {
+          scopeItem.calculated_deadline = serviceDeadline;
+        }
+
+        const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${scopeItem.task_id}/allocate`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({
-            assignee_ids: sc.assignee_ids,
-            duration_days: sc.duration_days ? Number(sc.duration_days) : null,
-            deadline: sc.calculated_deadline,
+            assignee_ids: scopeItem.assignee_ids,
             service_deadline: serviceDeadline || null,
-            status: sc.status
+            deadline: scopeItem.calculated_deadline || null,
+            duration_days: scopeItem.duration_days ? parseInt(scopeItem.duration_days) : null,
+            status: scopeItem.status
           })
-        }).then(res => {
-          if (!res.ok) throw new Error('Failed to update scope');
-        })
-      ));
+        });
+
+        if (!response.ok) {
+          const d = await response.json();
+          throw new Error(d.error || 'Failed to save task allocation');
+        }
+      }
 
       await fetchTasks();
       setSelectedServiceGroup(null);
@@ -190,41 +232,46 @@ export default function TaskAllocation() {
     }
   };
 
-  const handleCreateTask = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          loe_id: Number(newTaskForm.loe_id),
-          service_id: Number(newTaskForm.service_id),
-          scope: newTaskForm.scope,
-          assignee_ids: newTaskForm.assignee_ids,
-          status: newTaskForm.status
-        })
-      });
-      if (!response.ok) throw new Error('Failed to create task');
-      await fetchTasks();
-      setIsCreateOpen(false);
-      setNewTaskForm({ loe_id: '', department_id: isAdmin ? '' : userDeptId, service_id: '', scope: '', assignee_ids: [], status: 'Pending' });
-    } catch (err) { setError(err.message); } finally { setSaving(false); }
+  const resetFilters = () => {
+    setFilterCompany('');
+    setFilterService('ALL');
+    setFilterStatus('ALL');
+    setFilterAssignee('ALL');
+    setFilterDepartment('ALL');
   };
 
-  const selectedLoeObj = loes.find(l => l.loe_id === Number(newTaskForm.loe_id));
-  const availableServicesInLoe = selectedLoeObj ? selectedLoeObj.loe_items.map(i => i.service).filter(Boolean) : [];
-  const availableDepartmentsInLoe = [];
-  const deptIds = new Set();
-  availableServicesInLoe.forEach(srv => {
-    if (srv.department && !deptIds.has(srv.department.department_id)) {
-      deptIds.add(srv.department.department_id);
-      availableDepartmentsInLoe.push(srv.department);
-    }
+  // Filter Logic
+  const filteredGroups = groupedServices.filter(group => {
+    const companyName = (group.job?.loe?.company?.name || '').toLowerCase();
+    const serviceId = Number(group.service_id);
+    const deptId = Number(group.service?.department_id);
+
+    if (filterCompany && !companyName.includes(filterCompany.toLowerCase())) return false;
+    if (filterService !== 'ALL' && serviceId !== Number(filterService)) return false;
+    if (isAdmin && filterDepartment !== 'ALL' && deptId !== Number(filterDepartment)) return false;
+
+    const matchesSubItems = group.scopes.some(t => {
+      const stat = t.status === 'Ongoing' ? 'In-Progress' : t.status;
+      if (filterStatus !== 'ALL') {
+        const targetStat = filterStatus === 'Ongoing' ? 'In-Progress' : filterStatus;
+        if (stat !== targetStat && t.status !== filterStatus) return false;
+      }
+      if (filterAssignee !== 'ALL') {
+        const hasAssignee = (t.assignees || []).some(a => Number(a.emp_id) === Number(filterAssignee));
+        if (!hasAssignee) return false;
+      }
+      return true;
+    });
+
+    return matchesSubItems;
   });
 
-  const createModalServices = availableServicesInLoe.filter(srv => !newTaskForm.department_id || srv.department_id === Number(newTaskForm.department_id));
-  const editModalEmployees = employees.filter(emp => isAdmin || emp.department_id === selectedServiceGroup?.service?.department_id);
+  const hasActiveFilters = 
+    filterCompany !== '' || 
+    filterService !== 'ALL' || 
+    filterStatus !== 'ALL' || 
+    filterAssignee !== 'ALL' || 
+    (isAdmin && filterDepartment !== 'ALL');
 
   return (
     <div style={styles.pageContainer}>
@@ -233,285 +280,311 @@ export default function TaskAllocation() {
         
         <div style={styles.headerRow}>
           <div>
-            <h2 style={{ margin: 0 }}>{isEmployee ? 'My Tasks & Scopes' : 'Task Allocation & Scope Deadlines'}</h2>
-            <p style={{ margin: '4px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-              {isEmployee 
-                ? 'Click any row to view details and update your progress status.' 
-                : 'Click any Service row to assign team members and sequence scope deadlines.'}
+            <h1 style={styles.pageTitle}>Task Allocation &amp; Management</h1>
+            <p style={styles.subTitle}>
+              Click any service row to configure deadlines, durations, and employee assignees.
             </p>
           </div>
-          
-          {!isEmployee && (
-            <button onClick={() => setIsCreateOpen(true)} style={styles.createTaskBtn}>+ Create Custom Scope</button>
+          {canManage && (
+            <button onClick={() => setIsCreateOpen(true)} style={styles.createTaskBtn}>
+              + Create Custom Task
+            </button>
           )}
         </div>
 
-        {error && <div style={styles.errorBox}>{error}</div>}
+        {/* Filter Bar with Service Name Dropdown */}
+        <div style={styles.filterBar}>
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Company Name</label>
+            <input
+              type="text"
+              list="company-options"
+              placeholder="Search company..."
+              value={filterCompany}
+              onChange={(e) => setFilterCompany(e.target.value)}
+              style={styles.filterInput}
+            />
+            <datalist id="company-options">
+              {companies.map(c => (
+                <option key={c.company_id} value={c.name || c.company_name} />
+              ))}
+            </datalist>
+          </div>
 
-        <div style={styles.tableCard}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thRow}>
-                <th style={styles.th}>Task ID(s)</th>
-                <th style={styles.th}>LOE Ref</th>
-                <th style={styles.th}>Department</th>
-                <th style={styles.th}>Service Category</th>
-                <th style={styles.th}># of Scopes</th>
-                <th style={styles.th}>Assigned Staff</th>
-                <th style={styles.th}>Service Deadline</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groupedServices.length === 0 ? (
-                <tr><td colSpan="7" style={styles.emptyCell}>No assigned tasks available.</td></tr>
-              ) : (
-                groupedServices.map((group) => {
-                  const uniqueStaff = new Set();
-                  let overallDeadline = null;
-                  
-                  group.scopes.forEach(sc => {
-                    if (sc.service_deadline) overallDeadline = sc.service_deadline;
-                    sc.assignees?.forEach(a => uniqueStaff.add(a.name.split(' ')[0]));
-                  });
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Service Name</label>
+            <select
+              value={filterService}
+              onChange={(e) => setFilterService(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Services</option>
+              {services.map(srv => (
+                <option key={srv.service_id} value={srv.service_id}>
+                  {srv.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                  return (
-                    <tr key={group.key} onClick={() => handleRowClick(group)} style={styles.tr}>
-                      <td style={styles.td}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {group.scopes.slice(0, 2).map((s, idx) => (
-                            <span key={idx} style={styles.taskCodeBadge}>
-                              {s.task_code || `task/${s.task_id}`}
-                            </span>
-                          ))}
-                          {group.scopes.length > 2 && (
-                            <span style={{ fontSize: '11px', color: '#6c757d' }}>
-                              +{group.scopes.length - 2} more
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td style={styles.td}><strong>#{group.job?.loe?.loe_id || 'N/A'}</strong></td>
-                      <td style={styles.td}><span style={styles.deptBadge}>{group.service?.department?.name}</span></td>
-                      <td style={styles.td}><strong>{group.service?.name}</strong></td>
-                      <td style={styles.td}>{group.scopes.length} Scopes</td>
-                      <td style={styles.td}>
-                        {uniqueStaff.size > 0 ? (
-                          <span style={{ fontSize: '13px' }}>👤 {Array.from(uniqueStaff).join(', ')}</span>
-                        ) : (
-                          <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize:'12px' }}>⚠️ Unassigned</span>
-                        )}
-                      </td>
-                      <td style={styles.td}>
-                        {overallDeadline ? new Date(overallDeadline).toLocaleDateString() : <span style={{ color: '#6c757d' }}>Pending</span>}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Task Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="In-Progress">Ongoing / In-Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Assignee</label>
+            <select
+              value={filterAssignee}
+              onChange={(e) => setFilterAssignee(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Assignees</option>
+              {employees.map(emp => (
+                <option key={emp.emp_id} value={emp.emp_id}>{emp.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {isAdmin && (
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Department (Admin)</label>
+              <select
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Departments</option>
+                {departments.map(dept => (
+                  <option key={dept.department_id} value={dept.department_id}>{dept.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {hasActiveFilters && (
+            <button type="button" onClick={resetFilters} style={styles.clearFilterBtn}>
+              Reset Filters
+            </button>
+          )}
         </div>
 
-        {/* Modal: View & Update Grouped Service Scopes */}
+        {error && <div style={styles.errorBanner}>{error}</div>}
+
+        {/* Tasks Table */}
+        <div style={styles.card}>
+          {filteredGroups.length === 0 ? (
+            <p style={{ textAlign: 'center', color: '#6c757d', padding: '30px' }}>
+              No tasks match your filter criteria.
+            </p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Company</th>
+                    <th style={styles.th}>Service &amp; Department</th>
+                    <th style={styles.th}>Scopes / Deliverables</th>
+                    <th style={styles.th}>Service Deadline</th>
+                    <th style={styles.th}>Assignees</th>
+                    <th style={styles.th}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredGroups.map(group => {
+                    const companyName = group.job?.loe?.company?.name || 'N/A';
+                    const serviceName = group.service?.name || 'Service';
+                    const deptName = group.service?.department?.name || 'General';
+                    const deadline = group.scopes.find(s => s.service_deadline)?.service_deadline;
+
+                    const allAssignees = [];
+                    group.scopes.forEach(s => {
+                      (s.assignees || []).forEach(a => {
+                        if (!allAssignees.some(item => item.emp_id === a.emp_id)) {
+                          allAssignees.push(a);
+                        }
+                      });
+                    });
+
+                    return (
+                      <tr 
+                        key={group.key} 
+                        onClick={() => handleRowClick(group)}
+                        style={styles.tr}
+                      >
+                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#2563eb' }}>
+                          {companyName}
+                        </td>
+                        <td style={styles.td}>
+                          <strong>{serviceName}</strong>
+                          <div style={{ fontSize: '11.5px', color: '#64748b' }}>{deptName}</div>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={styles.scopeCountBadge}>
+                            {group.scopes.length} {group.scopes.length === 1 ? 'Scope' : 'Scopes'}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          {deadline ? new Date(deadline).toLocaleDateString() : <span style={{ color: '#94a3b8' }}>Not set</span>}
+                        </td>
+                        <td style={styles.td}>
+                          {allAssignees.length > 0 ? (
+                            allAssignees.map(a => a.name).join(', ')
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Unassigned</span>
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          {group.scopes.every(s => s.status === 'Completed') ? (
+                            <span style={{ ...styles.badge, background: '#d4edda', color: '#155724' }}>Completed</span>
+                          ) : group.scopes.some(s => s.status === 'In-Progress' || s.status === 'Ongoing') ? (
+                            <span style={{ ...styles.badge, background: '#cce5ff', color: '#004085' }}>Ongoing</span>
+                          ) : (
+                            <span style={{ ...styles.badge, background: '#fff3cd', color: '#856404' }}>Pending</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Allocation Modal */}
         {selectedServiceGroup && (
-          <div style={styles.modalOverlay} onClick={() => setSelectedServiceGroup(null)}>
-            <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+          <div style={styles.modalOverlay}>
+            <div style={styles.modalContent}>
               <div style={styles.modalHeader}>
-                <div>
-                  <h3 style={{ margin: 0 }}>Service Details: {selectedServiceGroup.service?.name}</h3>
-                  <span style={{ fontSize: '12.5px', color: '#6c757d' }}>
-                    LOE #{selectedServiceGroup.job?.loe?.loe_id} &bull; {selectedServiceGroup.job?.loe?.company?.name}
-                  </span>
-                </div>
-                <button style={styles.closeBtn} onClick={() => setSelectedServiceGroup(null)}>✕</button>
+                <h3 style={{ margin: 0 }}>
+                  Allocate Service: {selectedServiceGroup.service?.name}
+                </h3>
+                <button onClick={() => setSelectedServiceGroup(null)} style={styles.closeBtn}>✕</button>
               </div>
 
               <div style={styles.modalBody}>
                 <div style={styles.loeDetailsBox}>
-                  <p style={{ margin: '0 0 5px' }}><strong>Company:</strong> {selectedServiceGroup.job?.loe?.company?.name}</p>
-                  <p style={{ margin: 0 }}><strong>Department:</strong> {selectedServiceGroup.service?.department?.name}</p>
+                  <strong>Company:</strong> {selectedServiceGroup.job?.loe?.company?.name || 'N/A'} |{' '}
+                  <strong>Department:</strong> {selectedServiceGroup.service?.department?.name || 'N/A'}
                 </div>
 
-                <form onSubmit={handleSaveAllocation}>
-                  {/* Master Service Deadline */}
-                  <div style={{ background: '#eef2f7', padding: '14px', borderRadius: '6px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{...styles.label, fontSize: '14px', color: '#0056b3'}}>Target Deadline for Entire Service</label>
-                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6c757d' }}>
-                        {isEmployee ? 'The final due date set by your manager.' : 'Scope completion dates cannot exceed this date.'}
-                      </p>
-                    </div>
-                    <input
-                      type="date"
-                      required
-                      disabled={isEmployee}
-                      value={serviceDeadline}
-                      onChange={(e) => setServiceDeadline(e.target.value)}
-                      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '14px', fontWeight: 'bold', background: isEmployee ? '#e9ecef' : '#fff' }}
-                    />
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={styles.label}>Master Service Deadline:</label>
+                  <input
+                    type="date"
+                    value={serviceDeadline}
+                    onChange={(e) => setServiceDeadline(e.target.value)}
+                    style={styles.selectInput}
+                  />
+                </div>
+
+                {validationWarning && (
+                  <div style={{ background: '#fff3cd', color: '#856404', padding: '8px 12px', borderRadius: '4px', marginBottom: '12px', fontSize: '12.5px' }}>
+                    {validationWarning}
                   </div>
+                )}
 
-                  {validationWarning && !isEmployee && <div style={styles.warningBanner}>{validationWarning}</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {formScopes.map((scopeItem, idx) => (
+                    <div key={scopeItem.task_id} style={styles.scopeAssignmentCard}>
+                      <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
+                        Scope #{idx + 1}: {scopeItem.scope}
+                      </div>
 
-                  {/* Individual Scopes Breakdown */}
-                  <h4 style={{ margin: '0 0 10px 0', borderBottom: '2px solid #dee2e6', paddingBottom: '6px' }}>Breakdown &amp; Scope Assignments</h4>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {formScopes.map((scope, idx) => (
-                      <div key={scope.task_id} style={styles.scopeAssignmentCard}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#333' }}>
-                            <span style={styles.numberBadge}>{idx + 1}</span> {scope.scope || 'General Delivery'}
-                          </div>
-                          {/* Structured Task ID Badge */}
-                          <span style={styles.taskCodeBadge}>
-                            {scope.task_code || `task/${scope.task_id}`}
-                          </span>
+                      <div style={styles.formRow}>
+                        <div style={styles.formCol}>
+                          <label style={styles.label}>Duration (Days):</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="e.g. 5"
+                            value={scopeItem.duration_days}
+                            onChange={(e) => handleDurationChange(idx, e.target.value)}
+                            style={styles.selectInput}
+                          />
                         </div>
 
-                        <div style={styles.formRow}>
-                          {/* Left Column: Multiple Assignees Checkbox */}
-                          {!isEmployee && (
-                            <div style={{ flex: '1.5' }}>
-                              <label style={styles.label}>Assigned Employees</label>
-                              <div style={styles.multiSelectBox}>
-                                {editModalEmployees.map(emp => (
-                                  <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '2px 0', cursor: 'pointer' }}>
-                                    <input 
-                                      type="checkbox" 
-                                      checked={scope.assignee_ids.includes(emp.emp_id)} 
-                                      onChange={() => toggleAssignee(idx, emp.emp_id)}
-                                    />
-                                    {emp.name} <span style={{ color: '#888', fontSize: '11px' }}>({emp.role})</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                        <div style={styles.formCol}>
+                          <label style={styles.label}>Calculated Deadline:</label>
+                          <input
+                            type="date"
+                            value={scopeItem.calculated_deadline ? scopeItem.calculated_deadline.split('T')[0] : ''}
+                            onChange={(e) => {
+                              const updated = [...formScopes];
+                              updated[idx].calculated_deadline = e.target.value;
+                              setFormScopes(updated);
+                            }}
+                            style={styles.selectInput}
+                          />
+                        </div>
 
-                          {/* Middle Column: Auto Date Sequence */}
-                          <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <div>
-                              <label style={styles.label}>Duration (Days)</label>
-                              <input
-                                type="number"
-                                min="0"
-                                disabled={isEmployee}
-                                value={scope.duration_days}
-                                onChange={(e) => {
-                                  const updated = [...formScopes];
-                                  updated[idx].duration_days = e.target.value;
-                                  setFormScopes(updated);
-                                }}
-                                placeholder={isEmployee ? "—" : "e.g., 7"}
-                                style={{ ...styles.selectInput, background: isEmployee ? '#e9ecef' : '#fff' }}
-                              />
-                            </div>
-                            <div>
-                              <label style={styles.label}>End Date</label>
-                              <div style={{ fontSize: '13px', padding: '8px 10px', background: '#e9ecef', borderRadius: '4px', fontWeight: 'bold', color: scope.calculated_deadline && new Date(scope.calculated_deadline) > new Date(serviceDeadline) ? '#dc3545' : '#28a745' }}>
-                                {scope.calculated_deadline ? new Date(scope.calculated_deadline).toLocaleDateString() : '—'}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Right Column: Status & Manual Reminder */}
-                          <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <label style={styles.label}>Update Progress</label>
-                            <select
-                              value={scope.status}
-                              onChange={(e) => {
-                                const updated = [...formScopes];
-                                updated[idx].status = e.target.value;
-                                setFormScopes(updated);
-                              }}
-                              style={styles.selectInput}
-                            >
-                              <option value="Pending">Pending</option>
-                              <option value="In-Progress">In-Progress</option>
-                              <option value="Completed">Completed</option>
-                            </select>
-
-                            {/* Manual Task Reminder Button */}
-                            {!isEmployee && scope.status !== 'Completed' && (
-                              <button
-                                type="button"
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  try {
-                                    const res = await fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${scope.task_id}/remind`, {
-                                      method: 'POST',
-                                      headers: { Authorization: `Bearer ${token}` }
-                                    });
-                                    if(!res.ok) throw new Error("Failed to send reminder");
-                                    alert(`Reminders dispatched successfully for task ${scope.task_code}!`);
-                                  } catch(err) { alert("Error sending reminders."); }
-                                }}
-                                style={styles.remindBtn}
-                              >
-                                🔔 Remind Staff
-                              </button>
-                            )}
-                          </div>
+                        <div style={styles.formCol}>
+                          <label style={styles.label}>Status:</label>
+                          <select
+                            value={scopeItem.status}
+                            onChange={(e) => {
+                              const updated = [...formScopes];
+                              updated[idx].status = e.target.value;
+                              setFormScopes(updated);
+                            }}
+                            style={styles.selectInput}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="In-Progress">Ongoing</option>
+                            <option value="Completed">Completed</option>
+                          </select>
                         </div>
                       </div>
-                    ))}
-                  </div>
 
-                  <div style={styles.modalActions}>
-                    <button type="button" onClick={() => setSelectedServiceGroup(null)} style={styles.cancelBtn}>Cancel</button>
-                    <button type="submit" disabled={saving || (validationWarning && !isEmployee)} style={styles.saveBtn}>
-                      {saving ? 'Saving...' : 'Update Status'}
-                    </button>
-                  </div>
-                </form>
+                      <div style={{ marginTop: '10px' }}>
+                        <label style={styles.label}>Assign Employees:</label>
+                        <div style={styles.multiSelectBox}>
+                          {employees.length === 0 ? (
+                            <span style={{ fontSize: '12px', color: '#6c757d' }}>No employees available</span>
+                          ) : (
+                            employees.map(emp => {
+                              const checked = scopeItem.assignee_ids.includes(emp.emp_id);
+                              return (
+                                <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', marginBottom: '4px', cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => handleScopeAssigneeToggle(idx, emp.emp_id)}
+                                  />
+                                  {emp.name} ({emp.email})
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={styles.modalActions}>
+                  <button type="button" onClick={() => setSelectedServiceGroup(null)} style={styles.cancelBtn}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleSaveAllocation} disabled={saving} style={styles.saveBtn}>
+                    {saving ? 'Saving...' : 'Save Allocation'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Create Manual Custom Scope Modal */}
-        {isCreateOpen && !isEmployee && (
-          <div style={styles.modalOverlay} onClick={() => setIsCreateOpen(false)}>
-             <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-               <div style={styles.modalHeader}>
-                 <h3 style={{ margin: 0 }}>Create New Custom Scope</h3>
-                 <button style={styles.closeBtn} onClick={() => setIsCreateOpen(false)}>✕</button>
-               </div>
-               <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-                 <div style={styles.formCol}>
-                   <label style={styles.label}>Select LOE *</label>
-                   <select value={newTaskForm.loe_id} onChange={(e) => setNewTaskForm({ ...newTaskForm, loe_id: e.target.value, department_id: isAdmin ? '' : userDeptId, service_id: ''})} required style={styles.selectInput}>
-                     <option value="" disabled>-- Choose LOE --</option>
-                     {loes.map(loe => <option key={loe.loe_id} value={loe.loe_id}>LOE #{loe.loe_id} - {loe.company?.name}</option>)}
-                   </select>
-                 </div>
-                 <div style={styles.formCol}>
-                   <label style={styles.label}>Department *</label>
-                   <select value={newTaskForm.department_id} onChange={(e) => setNewTaskForm({ ...newTaskForm, department_id: e.target.value, service_id: ''})} required disabled={!newTaskForm.loe_id} style={styles.selectInput}>
-                     <option value="" disabled>{!newTaskForm.loe_id ? 'Select LOE first' : '-- Choose Department --'}</option>
-                     {availableDepartmentsInLoe.map(dept => <option key={dept.department_id} value={dept.department_id}>{dept.name}</option>)}
-                   </select>
-                 </div>
-                 <div style={styles.formCol}>
-                   <label style={styles.label}>Service Category *</label>
-                   <select value={newTaskForm.service_id} onChange={(e) => setNewTaskForm({ ...newTaskForm, service_id: e.target.value })} required disabled={!newTaskForm.loe_id} style={styles.selectInput}>
-                     <option value="" disabled>-- Choose Service --</option>
-                     {createModalServices.map(srv => <option key={srv.service_id} value={srv.service_id}>{srv.name}</option>)}
-                   </select>
-                 </div>
-                 <div style={styles.formCol}>
-                   <label style={styles.label}>Custom Scope Description</label>
-                   <textarea rows="3" value={newTaskForm.scope} onChange={(e) => setNewTaskForm({ ...newTaskForm, scope: e.target.value })} placeholder="Enter new scope..." style={{...styles.selectInput, resize: 'vertical'}} />
-                 </div>
-                 <div style={styles.modalActions}>
-                   <button type="button" onClick={() => setIsCreateOpen(false)} style={styles.cancelBtn}>Cancel</button>
-                   <button type="submit" disabled={saving} style={styles.saveBtn}>Create Scope</button>
-                 </div>
-               </form>
-             </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -519,21 +592,46 @@ export default function TaskAllocation() {
 
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
-  container: { padding: '40px' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  createTaskBtn: { padding: '10px 18px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' },
-  tableCard: { background: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflow: 'hidden' },
-  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' },
-  thRow: { background: '#f8f9fa', borderBottom: '2px solid #dee2e6' },
-  th: { padding: '14px 16px', color: '#495057', fontWeight: 'bold' },
-  tr: { borderBottom: '1px solid #dee2e6', cursor: 'pointer' },
-  td: { padding: '14px 16px', verticalAlign: 'middle' },
-  deptBadge: { background: '#e9ecef', color: '#495057', padding: '3px 8px', borderRadius: '4px', fontSize: '12px' },
-  taskCodeBadge: { background: '#e8f0fe', color: '#1a73e8', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #d2e3fc', display: 'inline-block' },
-  numberBadge: { background: '#6c757d', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginRight: '6px' },
-  emptyCell: { textAlign: 'center', padding: '30px', color: '#6c757d' },
-  errorBox: { background: '#f8d7da', color: '#721c24', padding: '10px 15px', borderRadius: '4px', marginBottom: '15px' },
-  warningBanner: { background: '#fff3cd', color: '#856404', padding: '10px', borderRadius: '4px', border: '1px solid #ffeeba', fontSize: '13px', fontWeight: 'bold', marginBottom: '15px' },
+  container: { maxWidth: '1240px', margin: '0 auto', padding: '35px 40px' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' },
+  pageTitle: { margin: 0, fontSize: '26px', color: '#1e293b' },
+  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#64748b' },
+  createTaskBtn: { padding: '10px 18px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13.5px', cursor: 'pointer' },
+  filterBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '14px',
+    alignItems: 'flex-end',
+    background: '#ffffff',
+    padding: '18px 20px',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    marginBottom: '24px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
+  },
+  filterField: { display: 'flex', flexDirection: 'column', gap: '5px', flex: '1', minWidth: '170px' },
+  filterLabel: { fontSize: '12px', fontWeight: 'bold', color: '#475569' },
+  filterInput: { padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' },
+  filterSelect: { padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' },
+  clearFilterBtn: {
+    padding: '8px 14px',
+    background: '#f1f5f9',
+    color: '#dc2626',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    cursor: 'pointer',
+    height: '35px'
+  },
+  errorBanner: { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px' },
+  card: { background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.04)', overflow: 'hidden' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
+  th: { textAlign: 'left', padding: '13px 16px', background: '#f1f5f9', color: '#475569', fontWeight: 'bold', borderBottom: '1px solid #cbd5e1' },
+  tr: { borderBottom: '1px solid #e2e8f0', cursor: 'pointer', transition: 'background 0.15s ease' },
+  td: { padding: '14px 16px', color: '#334155', verticalAlign: 'middle' },
+  badge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
+  scopeCountBadge: { background: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   modalContent: { background: '#fff', borderRadius: '8px', width: '95%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #dee2e6', paddingBottom: '12px' },
@@ -546,7 +644,6 @@ const styles = {
   label: { fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#495057' },
   selectInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px', width: '100%', boxSizing: 'border-box' },
   multiSelectBox: { background: '#fff', border: '1px solid #ced4da', borderRadius: '4px', padding: '8px 10px', maxHeight: '110px', overflowY: 'auto' },
-  remindBtn: { marginTop: '5px', padding: '6px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
   modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #dee2e6', paddingTop: '15px' },
   cancelBtn: { padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   saveBtn: { padding: '8px 20px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
