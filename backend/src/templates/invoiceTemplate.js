@@ -1,5 +1,5 @@
 /**
- * Generates HTML for the Official Invoice PDF with selected LOE currency
+ * Generates HTML for the Official Invoice PDF with formatted scope bullets & selected LOE currency
  */
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -13,6 +13,21 @@ const CURRENCY_SYMBOLS = {
   CAD: 'C$',
   SGD: 'S$'
 };
+
+function extractBulletPoints(scopesArray) {
+  const result = [];
+  (scopesArray || []).forEach((rawScope) => {
+    if (!rawScope) return;
+    const parts = String(rawScope)
+      .split(/\r?\n|•|●|▪/)
+      .map((s) => s.replace(/^[-*•●▪\s]+/, '').trim())
+      .filter(Boolean)
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
+
+    result.push(...parts);
+  });
+  return result.length > 0 ? result : ['Standard Deliverable'];
+}
 
 module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
   const currencyCode = loe?.currency || 'LKR';
@@ -70,7 +85,9 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
     .box { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     th { background: #0f172a; color: #ffffff; text-align: left; padding: 10px; font-size: 12px; }
-    td { padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; vertical-align: top; }
+    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; vertical-align: top; }
+    .scope-list { margin: 0; padding-left: 18px; color: #334155; line-height: 1.6; }
+    .scope-list li { margin-bottom: 5px; }
     .total-section { margin-top: 24px; text-align: right; background: #f1f5f9; padding: 16px; border-radius: 6px; }
     .total-amount { font-size: 18px; font-weight: bold; color: #0f172a; }
     .footer { margin-top: 40px; font-size: 11px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
@@ -108,22 +125,31 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
   <table>
     <thead>
       <tr>
-        <th style="width: 30%;">Service</th>
-        <th style="width: 45%;">Deliverables / Description</th>
-        <th style="width: 25%; text-align: right;">Amount (${currencyCode})</th>
+        <th style="width: 26%;">Service</th>
+        <th style="width: 52%;">Scope of Work &amp; Deliverables</th>
+        <th style="width: 22%; text-align: right;">Amount (${currencyCode})</th>
       </tr>
     </thead>
     <tbody>
-      ${serviceList.map(srv => `
-        <tr>
-          <td>
-            <strong>${srv.name}</strong><br/>
-            <span style="color: #64748b; font-size: 11px;">${srv.department}</span>
-          </td>
-          <td>${srv.scopes.join(', ') || 'Standard Deliverable'}</td>
-          <td style="text-align: right; font-weight: bold;">${formatCurrency(srv.amount)}</td>
-        </tr>
-      `).join('')}
+      ${serviceList.map((srv) => {
+        const cleanBullets = extractBulletPoints(srv.scopes);
+        return `
+          <tr>
+            <td>
+              <strong style="font-size: 13px; color: #0f172a;">${srv.name}</strong><br/>
+              <span style="color: #64748b; font-size: 11px;">${srv.department}</span>
+            </td>
+            <td>
+              <ul class="scope-list">
+                ${cleanBullets.map(pt => `<li>${pt}</li>`).join('')}
+              </ul>
+            </td>
+            <td style="text-align: right; font-weight: bold; font-size: 13px;">
+              ${formatCurrency(srv.amount)}
+            </td>
+          </tr>
+        `;
+      }).join('')}
     </tbody>
   </table>
 
