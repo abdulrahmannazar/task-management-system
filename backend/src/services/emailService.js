@@ -5,6 +5,29 @@
 
 const BASE_URL = process.env.BACKEND_URL || 'https://task-management-system-6ifq.onrender.com';
 
+const CURRENCY_SYMBOLS = {
+  LKR: 'Rs.',
+  USD: '\$',
+  EUR: '€',
+  GBP: '£',
+  AED: 'AED',
+  SAR: 'SAR',
+  INR: '₹',
+  AUD: 'A\$',
+  CAD: 'C\$',
+  SGD: 'S\$'
+};
+
+function formatMoney(amount, currency = 'LKR') {
+  const code = currency || 'LKR';
+  const sym = CURRENCY_SYMBOLS[code] || code;
+  const formatted = Number(amount || 0).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  return `${sym} ${formatted} (${code})`;
+}
+
 async function sendViaEmailJS({ toEmail, subject, textContent }) {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
@@ -52,12 +75,8 @@ async function dispatchEmail({ toEmail, subject, textContent }) {
   }
 }
 
-// ==========================================
-// EXPORTED DISPATCH HANDLERS (MANAGERS & ADMINS)
-// ==========================================
-
 // 1. Alert Managers/Admins when a new LOE is created
-async function sendLoeCreatedEmail(toEmail, recipientName, companyName, loeId, totalAmount) {
+async function sendLoeCreatedEmail(toEmail, recipientName, companyName, loeId, totalAmount, currency = 'LKR') {
   const loeCode = `LOE-${String(loeId).padStart(5, '0')}`;
   const pdfUrl = `${BASE_URL}/api/loes/${loeId}/pdf`;
 
@@ -69,7 +88,7 @@ A new Letter of Engagement has been drafted and is awaiting your review and appr
 Engagement Summary:
 - Reference: ${loeCode}
 - Company: ${companyName}
-- Total Value: $${Number(totalAmount).toFixed(2)}
+- Total Value: ${formatMoney(totalAmount, currency)}
 
 Review or download the LOE PDF:
 ${pdfUrl}
@@ -111,7 +130,7 @@ Please review and take action in the portal to avoid delaying project onboarding
 }
 
 // 3. Alert Managers/Admins when an invoice is created
-async function sendInvoiceCreatedEmail(toEmail, recipientName, companyName, invoiceId, amount, dueDate) {
+async function sendInvoiceCreatedEmail(toEmail, recipientName, companyName, invoiceId, amount, dueDate, currency = 'LKR') {
   const invoiceCode = `INV-${String(invoiceId).padStart(5, '0')}`;
   const pdfUrl = `${BASE_URL}/api/invoices/${invoiceId}/pdf`;
   const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A';
@@ -124,7 +143,7 @@ A new invoice has been generated.
 Invoice Summary:
 - Invoice Number: ${invoiceCode}
 - Client: ${companyName}
-- Total Due: $${Number(amount).toFixed(2)}
+- Total Due: ${formatMoney(amount, currency)}
 - Due Date: ${formattedDueDate}
 - Status: Not Paid
 
@@ -141,7 +160,7 @@ The record has been logged in the portal under Invoices.`;
 }
 
 // 4. Alert Managers/Admins regarding an unpaid invoice
-async function sendInvoiceReminderEmail(toEmail, recipientName, companyName, invoiceId, amount, dueDate) {
+async function sendInvoiceReminderEmail(toEmail, recipientName, companyName, invoiceId, amount, dueDate, currency = 'LKR') {
   const invoiceCode = `INV-${String(invoiceId).padStart(5, '0')}`;
   const pdfUrl = `${BASE_URL}/api/invoices/${invoiceId}/pdf`;
   const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A';
@@ -154,7 +173,7 @@ This is a reminder regarding an outstanding unpaid invoice.
 Invoice Details:
 - Invoice Number: ${invoiceCode}
 - Client Company: ${companyName}
-- Amount Outstanding: $${Number(amount).toFixed(2)}
+- Amount Outstanding: ${formatMoney(amount, currency)}
 - Due Date: ${formattedDueDate}
 
 Download Invoice PDF:

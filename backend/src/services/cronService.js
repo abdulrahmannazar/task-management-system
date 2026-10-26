@@ -24,9 +24,7 @@ async function runAutomationSweep() {
     const twentyFourHoursAgo = new Date(today.getTime() - 24 * 60 * 60 * 1000);
     const twoDaysAgo = new Date(currentDay.getTime() - 2 * 24 * 60 * 60 * 1000);
 
-    // =========================================
-    // 1. RECURRING INVOICES (Managers & Admins only)
-    // =========================================
+    // 1. RECURRING INVOICES
     const recurringLoes = await prisma.loe.findMany({
       where: {
         status: 'Approved',
@@ -58,6 +56,7 @@ async function runAutomationSweep() {
         const totalAmount = loe.loe_items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
         const dueDate = new Date(currentDay);
         dueDate.setDate(dueDate.getDate() + 30);
+        const currency = loe.currency || 'LKR';
 
         const newInvoice = await prisma.invoice.create({
           data: {
@@ -69,24 +68,21 @@ async function runAutomationSweep() {
           }
         });
 
-        // Notify Managers and Admins only (NO email to company)
         const leaders = await getManagersAndAdmins();
         for (const leader of leaders) {
-          sendInvoiceCreatedEmail(leader.email, leader.name, loe.company.name, newInvoice.invoice_id, totalAmount, dueDate);
+          sendInvoiceCreatedEmail(leader.email, leader.name, loe.company.name, newInvoice.invoice_id, totalAmount, dueDate, currency);
           await prisma.notification.create({
             data: {
               emp_id: leader.emp_id,
               title: 'Recurring Invoice Generated',
-              message: `Recurring Invoice INV-${String(newInvoice.invoice_id).padStart(5, '0')} generated for ${loe.company.name}.`
+              message: `Recurring Invoice INV-${String(newInvoice.invoice_id).padStart(5, '0')} generated for ${loe.company.name} (${currency} ${Number(totalAmount).toFixed(2)}).`
             }
           });
         }
       }
     }
 
-    // =========================================
-    // 2. UNPAID INVOICE REMINDERS (Managers & Admins only)
-    // =========================================
+    // 2. UNPAID INVOICE REMINDERS
     const unpaidInvoices = await prisma.invoice.findMany({
       where: {
         status: 'Not Paid',
@@ -100,15 +96,16 @@ async function runAutomationSweep() {
 
     for (const inv of unpaidInvoices) {
       const company = inv.job.loe.company;
+      const currency = inv.job.loe.currency || 'LKR';
 
       const leaders = await getManagersAndAdmins();
       for (const leader of leaders) {
-        sendInvoiceReminderEmail(leader.email, leader.name, company.name, inv.invoice_id, inv.total_amount, inv.due_date);
+        sendInvoiceReminderEmail(leader.email, leader.name, company.name, inv.invoice_id, inv.total_amount, inv.due_date, currency);
         await prisma.notification.create({
           data: {
             emp_id: leader.emp_id,
             title: 'Unpaid Invoice Alert',
-            message: `Automated reminder: Invoice INV-${String(inv.invoice_id).padStart(5, '0')} for ${company.name} remains unpaid.`
+            message: `Automated reminder: Invoice INV-${String(inv.invoice_id).padStart(5, '0')} for ${company.name} (${currency} ${Number(inv.total_amount).toFixed(2)}) remains unpaid.`
           }
         });
       }
@@ -119,9 +116,7 @@ async function runAutomationSweep() {
       });
     }
 
-    // =========================================
     // 3. LOE PENDING APPROVAL REMINDERS (> 2 Days)
-    // =========================================
     const pendingLoes = await prisma.loe.findMany({
       where: {
         status: 'Approval Pending',
@@ -131,7 +126,6 @@ async function runAutomationSweep() {
     });
 
     for (const loe of pendingLoes) {
-      // Avoid sending duplicate alerts within a 24-hour window
       const alreadyReminded = await prisma.notification.findFirst({
         where: {
           title: 'LOE Pending Approval Reminder',
@@ -155,9 +149,7 @@ async function runAutomationSweep() {
       }
     }
 
-    // =========================================
-    // 4. TASK DEADLINE REMINDERS (Employees)
-    // =========================================
+    // 4. TASK DEADLINE REMINDERS
     const upcomingTasks = await prisma.task.findMany({
       where: {
         status: { not: 'Completed' },
