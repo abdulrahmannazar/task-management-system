@@ -2,6 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
+// Helper to parse long or multi-point scopes into clean bullet lists
+const parseScopePoints = (scopeText) => {
+  if (!scopeText) return ['Standard Service Scope'];
+  const points = String(scopeText)
+    .split(/\r?\n|•|●|▪|\b(?=\d+\.\s+)/)
+    .map((line) => line.replace(/^[-*•●▪\d.\s]+/, '').trim())
+    .filter(Boolean)
+    .map((line) => line.charAt(0).toUpperCase() + line.slice(1));
+
+  return points.length > 0 ? points : ['Standard Service Scope'];
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'loe'
@@ -164,7 +176,7 @@ export default function Dashboard() {
         <div style={styles.insightsContainer}>
           <div style={styles.insightsHeader}>
             <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>
-              {activeTab === 'tasks' ? ' Task Insights' : ' LOE Insights'}
+              {activeTab === 'tasks' ? '📋 Task Insights' : '📄 LOE Insights'}
             </h2>
             <button
               onClick={() => navigate(activeTab === 'tasks' ? '/tasks' : '/loes')}
@@ -172,7 +184,7 @@ export default function Dashboard() {
             >
               {activeTab === 'tasks' ? 'Open Task Allocation →' : 'Open LOE Manager →'}
             </button>
-          </div> 
+          </div>
 
           {loading ? (
             <div style={styles.loadingState}>Loading insights...</div>
@@ -277,31 +289,45 @@ export default function Dashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tasks.slice(0, 8).map((t) => (
-                        <tr key={t.task_id} style={styles.tr}>
-                          <td style={{ ...styles.td, fontWeight: 'bold', color: '#1e293b' }}>
-                            {t.task_code || `TSK-${t.task_id}`}
-                          </td>
-                          <td style={styles.td}>{t.job?.loe?.company?.name || 'N/A'}</td>
-                          <td style={styles.td}>
-                            <strong>{t.service?.name}</strong>
-                            {t.scope && <div style={{ fontSize: '12px', color: '#64748b' }}>{t.scope}</div>}
-                          </td>
-                          <td style={styles.td}>
-                            {t.assignees && t.assignees.length > 0
-                              ? t.assignees.map(a => a.name).join(', ')
-                              : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Unassigned</span>}
-                          </td>
-                          <td style={styles.td}>
-                            {t.deadline ? new Date(t.deadline).toLocaleDateString() : 'Not set'}
-                          </td>
-                          <td style={styles.td}>
-                            <span style={{ ...styles.badge, ...getTaskStatusBadge(t.status) }}>
-                              {t.status === 'In-Progress' ? 'Ongoing' : t.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {tasks.slice(0, 8).map((t) => {
+                        const scopePoints = parseScopePoints(t.scope);
+
+                        return (
+                          <tr key={t.task_id} style={styles.tr}>
+                            <td style={{ ...styles.td, fontWeight: 'bold', color: '#1e293b', verticalAlign: 'top' }}>
+                              {t.task_code || `TSK-${t.task_id}`}
+                            </td>
+                            <td style={{ ...styles.td, verticalAlign: 'top' }}>
+                              {t.job?.loe?.company?.name || 'N/A'}
+                            </td>
+                            <td style={{ ...styles.td, verticalAlign: 'top', minWidth: '320px' }}>
+                              <strong style={{ display: 'block', marginBottom: '4px', color: '#0f172a' }}>
+                                {t.service?.name || 'Service'}
+                              </strong>
+                              <ul style={styles.scopeBulletList}>
+                                {scopePoints.map((pt, idx) => (
+                                  <li key={idx} style={styles.scopeBulletItem}>
+                                    {pt}
+                                  </li>
+                                ))}
+                              </ul>
+                            </td>
+                            <td style={{ ...styles.td, verticalAlign: 'top' }}>
+                              {t.assignees && t.assignees.length > 0
+                                ? t.assignees.map(a => a.name).join(', ')
+                                : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Unassigned</span>}
+                            </td>
+                            <td style={{ ...styles.td, verticalAlign: 'top' }}>
+                              {t.deadline ? new Date(t.deadline).toLocaleDateString() : 'Not set'}
+                            </td>
+                            <td style={{ ...styles.td, verticalAlign: 'top' }}>
+                              <span style={{ ...styles.badge, ...getTaskStatusBadge(t.status) }}>
+                                {t.status === 'In-Progress' ? 'Ongoing' : t.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -507,6 +533,16 @@ const styles = {
   },
   tr: { borderBottom: '1px solid #e2e8f0' },
   td: { padding: '12px', color: '#334155', verticalAlign: 'middle' },
+  scopeBulletList: {
+    margin: '4px 0 0 0',
+    paddingLeft: '16px',
+    color: '#334155',
+    fontSize: '12.5px',
+    lineHeight: '1.5'
+  },
+  scopeBulletItem: {
+    marginBottom: '3px'
+  },
   badge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
   loadingState: { padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '15px' },
   emptyText: { color: '#64748b', fontStyle: 'italic', fontSize: '14px' },
