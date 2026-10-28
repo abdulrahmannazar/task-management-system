@@ -25,6 +25,7 @@ export default function LoeManager() {
   const [companies, setCompanies] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
   
+  // Form State
   const [formData, setFormData] = useState({
     company_id: '',
     type: 'Adhoc',
@@ -38,6 +39,14 @@ export default function LoeManager() {
   const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
   const [formError, setFormError] = useState('');
   const [actionError, setActionError] = useState('');
+
+  // Filter States for LOE List
+  const [filterCompany, setFilterCompany] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterFrequency, setFilterFrequency] = useState('ALL');
+  const [filterCurrency, setFilterCurrency] = useState('ALL');
+  const [filterDepartment, setFilterDepartment] = useState('ALL');
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -452,12 +461,76 @@ export default function LoeManager() {
     return { background: '#6c757d', color: '#fff' };
   };
 
-  const activeSymbol = CURRENCY_SYMBOLS[formData.currency] || 'Rs.';
+  const resetFilters = () => {
+    setFilterCompany('');
+    setFilterStatus('ALL');
+    setFilterType('ALL');
+    setFilterFrequency('ALL');
+    setFilterCurrency('ALL');
+    setFilterDepartment('ALL');
+  };
 
+  // Filter logic for displayed LOEs
   const displayedLoes = loes.filter(loe => {
-    if (isAdmin) return true;
-    return (loe.loe_items || []).some(item => item.service?.department_id === userDeptId);
+    // 1. Role-based department restriction
+    if (!isAdmin) {
+      const hasDept = (loe.loe_items || []).some(item => item.service?.department_id === userDeptId);
+      if (!hasDept) return false;
+    }
+
+    // 2. Company Name filter
+    if (filterCompany) {
+      const compName = (getCompanyName(loe.company_id) || '').toLowerCase();
+      if (!compName.includes(filterCompany.toLowerCase())) return false;
+    }
+
+    // 3. Status filter
+    if (filterStatus !== 'ALL') {
+      if (filterStatus === 'Approval Pending') {
+        if (loe.status !== 'Approval Pending' && loe.status !== 'Pending') return false;
+      } else if (loe.status !== filterStatus) {
+        return false;
+      }
+    }
+
+    // 4. Billing Type filter
+    if (filterType !== 'ALL') {
+      const loeType = loe.type || 'Adhoc';
+      if (loeType !== filterType) return false;
+    }
+
+    // 5. Billing Frequency filter
+    if (filterFrequency !== 'ALL') {
+      const loeFreq = loe.billing_frequency || 'One-Time';
+      if (loeFreq !== filterFrequency) return false;
+    }
+
+    // 6. Currency filter
+    if (filterCurrency !== 'ALL') {
+      const loeCur = loe.currency || 'LKR';
+      if (loeCur !== filterCurrency) return false;
+    }
+
+    // 7. Department filter (Admin only)
+    if (isAdmin && filterDepartment !== 'ALL') {
+      const hasSelectedDept = (loe.loe_items || []).some(
+        item => Number(item.service?.department_id) === Number(filterDepartment)
+      );
+      if (!hasSelectedDept) return false;
+    }
+
+    return true;
   });
+
+  const hasActiveFilters = 
+    filterCompany !== '' ||
+    filterStatus !== 'ALL' ||
+    filterType !== 'ALL' ||
+    filterFrequency !== 'ALL' ||
+    filterCurrency !== 'ALL' ||
+    (isAdmin && filterDepartment !== 'ALL');
+
+  const activeSymbol = CURRENCY_SYMBOLS[formData.currency] || 'Rs.';
 
   return (
     <div style={styles.pageContainer}>
@@ -559,7 +632,7 @@ export default function LoeManager() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <h3 style={{ fontSize: '15px', margin: 0 }}>Services, Pricing &amp; Scope Requirements</h3>
                   <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#0284c7' }}>
-                    Client Payment Currency: {formData.currency} ({activeSymbol})
+                    Billing in: {formData.currency} ({activeSymbol})
                   </span>
                 </div>
                 
@@ -628,7 +701,7 @@ export default function LoeManager() {
                           </option>
                           {departmentServices.map(srv => (
                             <option key={srv.service_id} value={srv.service_id}>
-                              {srv.name} (Base: {activeSymbol} {Number(srv.price || 0).toFixed(2)})
+                              {srv.name} (Base: {activeSymbol}{Number(srv.price || 0).toFixed(2)})
                             </option>
                           ))}
                         </select>
@@ -644,7 +717,7 @@ export default function LoeManager() {
                             onChange={(e) => handleAmountChange(srvIdx, e.target.value)}
                             required
                             style={styles.servicePriceInput}
-                            title={`Custom Price in ${formData.currency}`}
+                            title={`Price in ${formData.currency}`}
                           />
                         </div>
 
@@ -761,12 +834,124 @@ export default function LoeManager() {
           </div>
         )}
 
-        {/* Existing LOEs List */}
+        {/* Existing LOEs List with Search & Filtering Bar */}
         <div style={styles.listSection}>
-          <h2>Available Letters of Engagement</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>Available Letters of Engagement</h2>
+            <span style={styles.countBadge}>
+              {displayedLoes.length} {displayedLoes.length === 1 ? 'Record' : 'Records'}
+            </span>
+          </div>
           <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
             Click any card to view its full details and service scopes.
           </p>
+
+          {/* Filter Bar */}
+          <div style={styles.filterBar}>
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Company</label>
+              <input
+                type="text"
+                list="loe-company-filter-list"
+                placeholder="Search company..."
+                value={filterCompany}
+                onChange={(e) => setFilterCompany(e.target.value)}
+                style={styles.filterInput}
+              />
+              <datalist id="loe-company-filter-list">
+                {companies.map((c) => (
+                  <option key={c.company_id} value={c.name || c.company_name} />
+                ))}
+              </datalist>
+            </div>
+
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="Approval Pending">Approval Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Type</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Types</option>
+                <option value="Adhoc">Adhoc</option>
+                <option value="Retainer">Retainer</option>
+              </select>
+            </div>
+
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Billing Cycle</label>
+              <select
+                value={filterFrequency}
+                onChange={(e) => setFilterFrequency(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Cycles</option>
+                <option value="One-Time">One-Time</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly</option>
+                <option value="Annually">Annually</option>
+              </select>
+            </div>
+
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Currency</label>
+              <select
+                value={filterCurrency}
+                onChange={(e) => setFilterCurrency(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Currencies</option>
+                <option value="LKR">LKR (Rs.)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="AED">AED</option>
+                <option value="SAR">SAR</option>
+                <option value="INR">INR (₹)</option>
+                <option value="AUD">AUD (A$)</option>
+                <option value="CAD">CAD (C$)</option>
+                <option value="SGD">SGD (S$)</option>
+              </select>
+            </div>
+
+            {isAdmin && (
+              <div style={styles.filterField}>
+                <label style={styles.filterLabel}>Department (Admin)</label>
+                <select
+                  value={filterDepartment}
+                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  style={styles.filterSelect}
+                >
+                  <option value="ALL">All Departments</option>
+                  {departments.map((d) => (
+                    <option key={d.department_id} value={d.department_id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {hasActiveFilters && (
+              <button type="button" onClick={resetFilters} style={styles.clearFilterBtn}>
+                Reset Filters
+              </button>
+            )}
+          </div>
 
           {actionError && (
             <div style={{ background: '#fed7d7', color: '#c53030', padding: '10px 14px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #feb2b2', fontSize: '13px' }}>
@@ -774,12 +959,14 @@ export default function LoeManager() {
             </div>
           )}
 
-          {displayedLoes.length === 0 ? <p>No LOEs found for your department.</p> : (
+          {displayedLoes.length === 0 ? (
+            <div style={styles.emptyCard}>No LOEs found matching your criteria.</div>
+          ) : (
             <div style={styles.grid}>
               {displayedLoes.map((loe) => {
                 const badgeStyle = getStatusBadgeStyle(loe.status);
                 const loeCurrency = loe.currency || 'LKR';
-                const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || loeCurrency;
+                const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || (loeCurrency + ' ');
 
                 const relevantItems = isAdmin 
                   ? (loe.loe_items || [])
@@ -879,9 +1066,38 @@ export default function LoeManager() {
 
 const styles = {
   pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
-  container: { display: 'flex', gap: '40px', padding: '40px' },
-  formSection: { flex: '1.3', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
-  listSection: { flex: '1.7' },
+  container: { display: 'flex', gap: '30px', padding: '30px 40px' },
+  formSection: { flex: '1.15', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
+  listSection: { flex: '1.85' },
+  countBadge: { background: '#1e293b', color: '#fff', padding: '4px 10px', borderRadius: '14px', fontSize: '12px', fontWeight: 'bold' },
+  filterBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '10px',
+    alignItems: 'flex-end',
+    background: '#ffffff',
+    padding: '14px',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    marginBottom: '18px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+  },
+  filterField: { display: 'flex', flexDirection: 'column', gap: '4px', flex: '1', minWidth: '125px' },
+  filterLabel: { fontSize: '11.5px', fontWeight: 'bold', color: '#475569' },
+  filterInput: { padding: '7px 9px', borderRadius: '5px', border: '1px solid #cbd5e1', fontSize: '12px' },
+  filterSelect: { padding: '7px 9px', borderRadius: '5px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#fff' },
+  clearFilterBtn: {
+    padding: '7px 12px',
+    background: '#f1f5f9',
+    color: '#dc2626',
+    border: '1px solid #cbd5e1',
+    borderRadius: '5px',
+    fontWeight: 'bold',
+    fontSize: '11.5px',
+    cursor: 'pointer',
+    height: '31px'
+  },
+  emptyCard: { background: '#fff', padding: '30px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
   itemsWrapper: { padding: '15px', background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px' },
