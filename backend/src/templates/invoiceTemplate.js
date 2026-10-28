@@ -19,8 +19,9 @@ function extractBulletPoints(scopesArray) {
   (scopesArray || []).forEach((rawScope) => {
     if (!rawScope) return;
     const parts = String(rawScope)
-      .split(/\r?\n|•|●|▪/)
-      .map((s) => s.replace(/^[-*•●▪\s]+/, '').trim())
+      .replace(/&bull;/gi, '•')
+      .split(/\r?\n|[\u2022\u2023\u25E6\u2043\u2219•●▪♦]|\s+o\s+|\b(?=\d+\.\s+)/)
+      .map((s) => s.replace(/^[-*•●▪♦\d.\s]+/, '').trim())
       .filter(Boolean)
       .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
 
@@ -57,6 +58,7 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       serviceMap.set(sId, {
         name: item.service?.name || `Service #${sId}`,
         department: item.service?.department?.name || 'General',
+        subCategory: item.service?.sub_category || '',
         amount: Number(item.amount || 0),
         scopes: []
       });
@@ -84,10 +86,10 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
     .grid { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
     .box { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; font-size: 12px; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th { background: #0f172a; color: #ffffff; text-align: left; padding: 10px; font-size: 12px; }
-    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; vertical-align: top; }
-    .scope-list { margin: 0; padding-left: 18px; color: #334155; line-height: 1.6; }
-    .scope-list li { margin-bottom: 5px; }
+    th { background: #0f172a; color: #ffffff; text-align: left; padding: 10px; font-size: 11.5px; text-transform: uppercase; }
+    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; vertical-align: top; }
+    .scope-list { margin: 8px 0 0 0; padding-left: 18px; color: #475569; line-height: 1.6; list-style-type: disc; }
+    .scope-list li { margin-bottom: 6px; }
     .total-section { margin-top: 24px; text-align: right; background: #f1f5f9; padding: 16px; border-radius: 6px; }
     .total-amount { font-size: 18px; font-weight: bold; color: #0f172a; }
     .footer { margin-top: 40px; font-size: 11px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
@@ -125,26 +127,31 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
   <table>
     <thead>
       <tr>
-        <th style="width: 26%;">Service</th>
-        <th style="width: 52%;">Scope of Work &amp; Deliverables</th>
-        <th style="width: 22%; text-align: right;">Amount (${currencyCode})</th>
+        <th style="width: 6%;">#</th>
+        <th style="width: 68%;">Service &amp; Scope of Work</th>
+        <th style="width: 26%; text-align: right;">Amount (${currencyCode})</th>
       </tr>
     </thead>
     <tbody>
-      ${serviceList.map((srv) => {
+      ${serviceList.map((srv, idx) => {
         const cleanBullets = extractBulletPoints(srv.scopes);
+        const deptInfo = srv.subCategory
+          ? `${srv.department} - ${srv.subCategory}`
+          : srv.department;
+
         return `
           <tr>
+            <td style="font-weight: bold; color: #334155;">${idx + 1}</td>
             <td>
-              <strong style="font-size: 13px; color: #0f172a;">${srv.name}</strong><br/>
-              <span style="color: #64748b; font-size: 11px;">${srv.department}</span>
-            </td>
-            <td>
+              <div>
+                <strong style="font-size: 13.5px; color: #0f172a;">${srv.name}</strong>
+                <span style="color: #64748b; font-size: 12px;"> (${deptInfo})</span>
+              </div>
               <ul class="scope-list">
                 ${cleanBullets.map(pt => `<li>${pt}</li>`).join('')}
               </ul>
             </td>
-            <td style="text-align: right; font-weight: bold; font-size: 13px;">
+            <td style="text-align: right; font-weight: bold; font-size: 13px; color: #0f172a;">
               ${formatCurrency(srv.amount)}
             </td>
           </tr>
