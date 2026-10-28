@@ -14,14 +14,15 @@ const CURRENCY_SYMBOLS = {
   SGD: 'S$'
 };
 
-// Splits custom scopes and multi-bullet strings into clean individual bullet points
+// Splits custom scopes, unicode bullets (•), and numbered items into clean individual bullet points
 function extractBulletPoints(scopesArray) {
   const result = [];
   (scopesArray || []).forEach((rawScope) => {
     if (!rawScope) return;
     const parts = String(rawScope)
-      .split(/\r?\n|•|●|▪/)
-      .map((s) => s.replace(/^[-*•●▪\s]+/, '').trim())
+      .replace(/&bull;/gi, '•')
+      .split(/\r?\n|[\u2022\u2023\u25E6\u2043\u2219•●▪♦]|\s+o\s+|\b(?=\d+\.\s+)/)
+      .map((s) => s.replace(/^[-*•●▪♦\d.\s]+/, '').trim())
       .filter(Boolean)
       .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
 
@@ -60,7 +61,7 @@ module.exports = function generateLoeTemplate({ loe, company }) {
         name: item.service?.name || `Service #${sId}`,
         department: item.service?.department?.name || 'General',
         subCategory: item.service?.sub_category || '',
-        billingType: item.service?.billing_type || 'Fixed Fee',
+        billingType: item.service?.billing_type || 'Fixed',
         amount: Number(item.amount || item.service?.price || 0),
         scopes: []
       });
@@ -83,21 +84,21 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   <style>
     @page { size: A4; margin: 18mm 15mm; }
     body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2d3748; margin: 0; padding: 0; font-size: 13px; line-height: 1.5; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1e293b; padding-bottom: 15px; margin-bottom: 24px; }
-    .title { font-size: 22px; font-weight: bold; color: #1e293b; margin: 0; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1e56a0; padding-bottom: 15px; margin-bottom: 24px; }
+    .title { font-size: 22px; font-weight: bold; color: #1e56a0; margin: 0; }
     .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
     .meta-box { text-align: right; font-size: 12px; }
-    .section-title { font-size: 15px; font-weight: bold; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; margin: 22px 0 12px; }
+    .section-title { font-size: 15px; font-weight: bold; color: #1e56a0; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; margin: 22px 0 12px; }
     .grid { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 15px; }
     .info-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 15px; }
     .info-row { margin-bottom: 6px; font-size: 12px; }
     .info-label { font-weight: bold; color: #475569; display: inline-block; width: 125px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #1e293b; color: #fff; text-align: left; padding: 10px; font-size: 12px; }
-    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; font-size: 12px; }
-    .scope-list { margin: 0; padding-left: 18px; color: #334155; line-height: 1.6; }
-    .scope-list li { margin-bottom: 5px; }
-    .total-box { margin-top: 20px; text-align: right; background: #f1f5f9; padding: 14px 18px; border-radius: 6px; font-size: 15px; font-weight: bold; color: #0f172a; }
+    th { background: #1e56a0; color: #fff; text-align: left; padding: 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+    td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; font-size: 12.5px; }
+    .scope-list { margin: 8px 0 0 0; padding-left: 18px; color: #475569; line-height: 1.6; list-style-type: disc; }
+    .scope-list li { margin-bottom: 6px; }
+    .total-box { margin-top: 0; text-align: right; background: #ebf4ff; border-top: 2px solid #1e56a0; padding: 14px 18px; font-size: 14.5px; font-weight: bold; color: #0f172a; }
     .signature-grid { display: flex; justify-content: space-between; gap: 40px; margin-top: 50px; }
     .sig-block { flex: 1; border-top: 1px solid #94a3b8; padding-top: 8px; font-size: 12px; color: #475569; }
   </style>
@@ -136,26 +137,33 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   <table>
     <thead>
       <tr>
-        <th style="width: 26%;">Service &amp; Department</th>
-        <th style="width: 52%;">Agreed Scope of Work &amp; Deliverables</th>
+        <th style="width: 6%;">#</th>
+        <th style="width: 56%;">Service &amp; Scope of Work</th>
+        <th style="width: 16%;">Billing Type</th>
         <th style="width: 22%; text-align: right;">Agreed Fee (${currencyCode})</th>
       </tr>
     </thead>
     <tbody>
-      ${serviceList.map((srv) => {
+      ${serviceList.map((srv, idx) => {
         const cleanBullets = extractBulletPoints(srv.scopes);
+        const deptInfo = srv.subCategory
+          ? `${srv.department} - ${srv.subCategory}`
+          : srv.department;
+
         return `
           <tr>
+            <td style="font-weight: bold; color: #334155;">${idx + 1}</td>
             <td>
-              <strong style="font-size: 13px; color: #0f172a;">${srv.name}</strong><br/>
-              <span style="color: #64748b; font-size: 11px;">Dept: ${srv.department}</span>
-            </td>
-            <td>
+              <div>
+                <strong style="font-size: 13.5px; color: #0f172a;">${srv.name}</strong>
+                <span style="color: #64748b; font-size: 12px;"> (${deptInfo})</span>
+              </div>
               <ul class="scope-list">
                 ${cleanBullets.map(pt => `<li>${pt}</li>`).join('')}
               </ul>
             </td>
-            <td style="text-align: right; font-weight: bold; font-size: 13px;">
+            <td style="color: #334155;">${srv.billingType}</td>
+            <td style="text-align: right; font-weight: bold; font-size: 13px; color: #0f172a;">
               ${formatCurrency(srv.amount)}
             </td>
           </tr>
@@ -165,7 +173,7 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   </table>
 
   <div class="total-box">
-    Total Engagement Fee (${currencyCode}): ${formatCurrency(totalAmount)}
+    Total Agreed Professional Fee (${currencyCode}): ${formatCurrency(totalAmount)}
   </div>
 
   <div class="signature-grid">

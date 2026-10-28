@@ -400,9 +400,24 @@ export default function LoeManager() {
       setDownloadingId(loeId);
       setActionError('');
 
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/pdf`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      let response;
+      const cacheBuster = `?t=${Date.now()}`;
+
+      if (window.location.hostname === 'localhost') {
+        try {
+          response = await fetch(`http://localhost:3000/api/loes/${loeId}/pdf${cacheBuster}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        } catch {
+          response = null;
+        }
+      }
+
+      if (!response || !response.ok) {
+        response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/pdf${cacheBuster}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

@@ -172,9 +172,26 @@ export default function LoeDetails() {
       setDownloading(true);
       setError('');
 
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      let response;
+      const cacheBuster = `?t=${Date.now()}`;
+
+      // If running on localhost, try local backend (port 3000) first so template edits show immediately
+      if (window.location.hostname === 'localhost') {
+        try {
+          response = await fetch(`http://localhost:3000/api/loes/${id}/pdf${cacheBuster}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch {
+          response = null;
+        }
+      }
+
+      // Fallback to Render backend if local backend is not running
+      if (!response || !response.ok) {
+        response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}/pdf${cacheBuster}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
