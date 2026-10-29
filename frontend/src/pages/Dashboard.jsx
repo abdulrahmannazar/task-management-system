@@ -22,6 +22,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Stores expanded/collapsed state for each task's scope list
+  const [expandedTasks, setExpandedTasks] = useState({});
+
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
@@ -75,6 +78,13 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleTaskScope = (taskId) => {
+    setExpandedTasks((prev) => ({
+      ...prev,
+      [taskId]: !prev[taskId]
+    }));
   };
 
   // ==========================================
@@ -131,6 +141,8 @@ export default function Dashboard() {
     if (status === 'Rejected') return { background: '#f8d7da', color: '#721c24' };
     return { background: '#fff3cd', color: '#856404' };
   };
+
+  const COLLAPSED_LIMIT = 3;
 
   return (
     <div style={styles.pageContainer}>
@@ -291,6 +303,9 @@ export default function Dashboard() {
                     <tbody>
                       {tasks.slice(0, 8).map((t) => {
                         const scopePoints = parseScopePoints(t.scope);
+                        const isExpanded = Boolean(expandedTasks[t.task_id]);
+                        const hasMore = scopePoints.length > COLLAPSED_LIMIT;
+                        const visiblePoints = isExpanded ? scopePoints : scopePoints.slice(0, COLLAPSED_LIMIT);
 
                         return (
                           <tr key={t.task_id} style={styles.tr}>
@@ -300,17 +315,29 @@ export default function Dashboard() {
                             <td style={{ ...styles.td, verticalAlign: 'top' }}>
                               {t.job?.loe?.company?.name || 'N/A'}
                             </td>
-                            <td style={{ ...styles.td, verticalAlign: 'top', minWidth: '320px' }}>
+                            <td style={{ ...styles.td, verticalAlign: 'top', minWidth: '340px' }}>
                               <strong style={{ display: 'block', marginBottom: '4px', color: '#0f172a' }}>
                                 {t.service?.name || 'Service'}
                               </strong>
                               <ul style={styles.scopeBulletList}>
-                                {scopePoints.map((pt, idx) => (
+                                {visiblePoints.map((pt, idx) => (
                                   <li key={idx} style={styles.scopeBulletItem}>
                                     {pt}
                                   </li>
                                 ))}
                               </ul>
+
+                              {hasMore && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleTaskScope(t.task_id)}
+                                  style={styles.toggleMoreBtn}
+                                >
+                                  {isExpanded
+                                    ? '▲ View Less'
+                                    : `▼ View More (${scopePoints.length - COLLAPSED_LIMIT} more items)`}
+                                </button>
+                              )}
                             </td>
                             <td style={{ ...styles.td, verticalAlign: 'top' }}>
                               {t.assignees && t.assignees.length > 0
@@ -532,7 +559,7 @@ const styles = {
     borderBottom: '1px solid #cbd5e1'
   },
   tr: { borderBottom: '1px solid #e2e8f0' },
-  td: { padding: '12px', color: '#334155', verticalAlign: 'middle' },
+  td: { padding: '12px', color: '#334155' },
   scopeBulletList: {
     margin: '4px 0 0 0',
     paddingLeft: '16px',
@@ -542,6 +569,19 @@ const styles = {
   },
   scopeBulletItem: {
     marginBottom: '3px'
+  },
+  toggleMoreBtn: {
+    marginTop: '6px',
+    marginLeft: '16px',
+    background: '#eff6ff',
+    border: '1px solid #bfdbfe',
+    color: '#2563eb',
+    borderRadius: '4px',
+    padding: '3px 9px',
+    fontSize: '11.5px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'inline-block'
   },
   badge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
   loadingState: { padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '15px' },
