@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [notifications, setNotifications] = useState([]);
   const [showNotifs, setShowNotifs] = useState(false);
   const [toasts, setToasts] = useState([]);
@@ -15,11 +16,9 @@ export default function Navbar() {
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
   const isPrivileged = user.role === 'MANAGER' || user.role === 'ADMIN';
 
-  // Track seen IDs so we only trigger popups for newly arrived alerts
   const seenNotifIdsRef = useRef(new Set());
   const isFirstLoadRef = useRef(true);
 
-  // Soft audio chime using Web Audio API (zero external assets needed)
   const playChime = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -29,8 +28,8 @@ export default function Navbar() {
       const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
 
       gain.gain.setValueAtTime(0.12, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
@@ -42,7 +41,6 @@ export default function Navbar() {
     } catch (e) {}
   };
 
-  // Request native browser desktop notification permission
   const requestBrowserPermission = async () => {
     if ('Notification' in window) {
       try {
@@ -54,9 +52,7 @@ export default function Navbar() {
     }
   };
 
-  // Trigger both on-screen visual toast and native OS desktop Web Push popup
   const triggerNotificationPopups = (notif) => {
-    // 1. In-App Floating Toast Card
     const toastId = `${notif.notification_id}-${Date.now()}`;
     const newToast = {
       id: toastId,
@@ -69,12 +65,10 @@ export default function Navbar() {
     setToasts((prev) => [newToast, ...prev].slice(0, 4));
     playChime();
 
-    // Auto-dismiss the floating toast after 6 seconds
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== toastId));
     }, 6000);
 
-    // 2. Native Browser Desktop Notification (Web Push)
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
         const browserNotif = new Notification(notif.title || 'Task Management Alert', {
@@ -106,11 +100,9 @@ export default function Navbar() {
         const unreadItems = list.filter((n) => !n.is_read);
 
         if (isFirstLoadRef.current) {
-          // On initial page load, record existing IDs to prevent spamming popups for old history
           unreadItems.forEach((n) => seenNotifIdsRef.current.add(n.notification_id));
           isFirstLoadRef.current = false;
         } else {
-          // Trigger popups for any newly arrived unread notification
           unreadItems.forEach((n) => {
             if (!seenNotifIdsRef.current.has(n.notification_id)) {
               seenNotifIdsRef.current.add(n.notification_id);
@@ -127,13 +119,11 @@ export default function Navbar() {
   useEffect(() => {
     if (token) {
       fetchNotifications();
-      // Fast polling every 4 seconds for immediate responsiveness
       const interval = setInterval(fetchNotifications, 4000);
       return () => clearInterval(interval);
     }
   }, [token]);
 
-  // Prompt for desktop Web Push permissions on mount if still default
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       requestBrowserPermission();
@@ -169,12 +159,8 @@ export default function Navbar() {
     setToasts((prev) => prev.filter((t) => t.id !== toastId));
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
-
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const isSettingsActive = location.pathname === '/settings';
 
   return (
     <>
@@ -276,7 +262,17 @@ export default function Navbar() {
             )}
           </div>
 
-          <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
+          {/* Settings Icon Button */}
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              ...styles.settingsBtn,
+              ...(isSettingsActive ? styles.settingsBtnActive : {})
+            }}
+            title="Account Settings & Logout"
+          >
+            ⚙️
+          </button>
         </div>
       </nav>
 
@@ -322,7 +318,25 @@ const styles = {
   brand: { margin: 0 },
   links: { display: 'flex', gap: '20px', alignItems: 'center' },
   link: { color: '#fff', textDecoration: 'none', fontWeight: 'bold' },
-  logoutBtn: { padding: '8px 15px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  settingsBtn: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    color: '#fff',
+    fontSize: '18px',
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
+  },
+  settingsBtnActive: {
+    background: '#0284c7',
+    borderColor: '#38bdf8',
+    boxShadow: '0 0 0 3px rgba(56, 189, 248, 0.25)'
+  },
   notifContainer: { position: 'relative' },
   bellBtn: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', position: 'relative' },
   badge: { position: 'absolute', top: '-4px', right: '-6px', background: '#dc3545', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '2px 5px', borderRadius: '10px' },
@@ -331,8 +345,6 @@ const styles = {
   notifDropdown: { position: 'absolute', top: '35px', right: '0', width: '320px', maxHeight: '420px', overflowY: 'auto', background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', border: '1px solid #e2e8f0', color: '#000', zIndex: 10000 },
   permissionPrompt: { background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '8px 10px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#0369a1' },
   enableBtn: { background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' },
-  
-  // Floating Toast Container
   toastContainer: {
     position: 'fixed',
     bottom: '24px',
