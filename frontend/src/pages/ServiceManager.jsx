@@ -142,7 +142,7 @@ export default function ServiceManager() {
         <div style={styles.formSection}>
           <h2>{editingId ? `Edit Service #${editingId}` : 'Add New Service'}</h2>
           <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
-            Set service categories, deliverables, default scope, and base pricing.
+            Set service categories, deliverables, default scope, and base pricing in LKR.
           </p>
 
           {error && <div style={styles.errorBox}>{error}</div>}
@@ -218,22 +218,25 @@ export default function ServiceManager() {
               </div>
             </div>
 
-            {/* Base Price */}
+            {/* Base Price (Strictly LKR) */}
             <div style={styles.fieldGroup}>
-              <label style={styles.label}>Base Price / Standard Fee (USD / LKR) *</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                name="price"
-                value={formData.price}
-                onChange={handleChange}
-                placeholder="e.g. 500.00"
-                required
-                style={styles.input}
-              />
+              <label style={styles.label}>Base Price / Standard Fee (LKR) *</label>
+              <div style={styles.priceInputWrapper}>
+                <span style={styles.currencyPrefix}>Rs.</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="price"
+                  value={formData.price}
+                  onChange={handleChange}
+                  placeholder="e.g. 500.00"
+                  required
+                  style={styles.priceInput}
+                />
+              </div>
               <span style={{ fontSize: '11px', color: '#6c757d' }}>
-                Default price that auto-populates when added to an LOE.
+                Default LKR price that auto-populates when added to an LOE.
               </span>
             </div>
 
@@ -335,7 +338,7 @@ export default function ServiceManager() {
 
                     <div style={{ textAlign: 'right' }}>
                       <span style={styles.priceBadge}>
-                        ${Number(srv.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        Rs. {Number(srv.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                       <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
                         {srv.billing_type}
@@ -381,6 +384,27 @@ const styles = {
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
   label: { fontSize: '12px', fontWeight: 'bold', color: '#4a5568' },
   input: { padding: '9px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13.5px' },
+  priceInputWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    border: '1px solid #ced4da',
+    borderRadius: '4px',
+    background: '#fff',
+    padding: '0 10px'
+  },
+  currencyPrefix: {
+    fontSize: '13.5px',
+    fontWeight: 'bold',
+    color: '#4a5568',
+    marginRight: '6px'
+  },
+  priceInput: {
+    border: 'none',
+    outline: 'none',
+    padding: '9px 0',
+    fontSize: '13.5px',
+    width: '100%'
+  },
   lockedField: { padding: '9px 10px', borderRadius: '4px', background: '#e9ecef', border: '1px solid #ced4da', fontSize: '13.5px', display: 'flex', flexDirection: 'column' },
   lockedNote: { fontSize: '11px', color: '#6c757d', marginTop: '2px' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
