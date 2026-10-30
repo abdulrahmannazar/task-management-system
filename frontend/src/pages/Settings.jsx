@@ -16,8 +16,6 @@ export default function Settings() {
   const [formData, setFormData] = useState({
     name: storedUser.name || '',
     email: storedUser.email || '',
-    department_id: storedUser.department_id || 1,
-    role: storedUser.role || 'EMPLOYEE',
     password: '',
     confirmPassword: ''
   });
@@ -25,8 +23,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-
-  const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
     if (!token || !user?.emp_id) {
@@ -71,9 +67,7 @@ export default function Settings() {
         setFormData((prev) => ({
           ...prev,
           name: data.name || '',
-          email: data.email || '',
-          department_id: data.department_id || 1,
-          role: data.role || 'EMPLOYEE'
+          email: data.email || ''
         }));
       }
     } catch (err) {
@@ -107,8 +101,6 @@ export default function Settings() {
       const payload = {
         name: formData.name.trim(),
         email: formData.email.trim(),
-        department_id: Number(formData.department_id),
-        role: formData.role,
         requester_emp_id: user.emp_id,
         requester_role: user.role,
         requester_dept_id: user.department_id
@@ -150,17 +142,10 @@ export default function Settings() {
         throw new Error(data.error || 'Failed to update profile details.');
       }
 
-      const matchedDept = departments.find(
-        (d) => Number(d.department_id) === Number(data.department_id)
-      );
-
       const updatedUserObj = {
         ...user,
         name: data.name,
-        email: data.email,
-        role: data.role,
-        department_id: data.department_id,
-        department_name: data.department?.name || matchedDept?.name || user.department_name
+        email: data.email
       };
 
       setUser(updatedUserObj);
@@ -249,7 +234,7 @@ export default function Settings() {
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Change Profile Details</h3>
             <p style={styles.cardSubtitle}>
-              Update your name, email address, or account password below.
+              Update your full name, email address, or login password below.
             </p>
 
             <form onSubmit={handleUpdateProfile} style={styles.form}>
@@ -277,56 +262,6 @@ export default function Settings() {
                   required
                   style={styles.input}
                 />
-              </div>
-
-              <div style={styles.twoColRow}>
-                <div style={styles.fieldGroup}>
-                  <label style={styles.label}>Department</label>
-                  {isAdmin ? (
-                    <select
-                      name="department_id"
-                      value={formData.department_id}
-                      onChange={handleChange}
-                      style={styles.input}
-                    >
-                      {departments.map((dept) => (
-                        <option key={dept.department_id} value={dept.department_id}>
-                          {dept.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={getDepartmentName(formData.department_id)}
-                      disabled
-                      style={styles.disabledInput}
-                    />
-                  )}
-                </div>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.label}>Account Role</label>
-                  {isAdmin ? (
-                    <select
-                      name="role"
-                      value={formData.role}
-                      onChange={handleChange}
-                      style={styles.input}
-                    >
-                      <option value="EMPLOYEE">EMPLOYEE</option>
-                      <option value="MANAGER">MANAGER</option>
-                      <option value="ADMIN">ADMIN</option>
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={formData.role}
-                      disabled
-                      style={styles.disabledInput}
-                    />
-                  )}
-                </div>
               </div>
 
               <div style={styles.divider} />
@@ -486,15 +421,6 @@ const styles = {
     border: '1px solid #cbd5e1',
     fontSize: '13.5px',
     outline: 'none'
-  },
-  disabledInput: {
-    padding: '10px 12px',
-    borderRadius: '6px',
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
-    color: '#64748b',
-    fontSize: '13.5px',
-    fontWeight: 'bold'
   },
   divider: { height: '1px', background: '#e2e8f0', margin: '4px 0' },
   showPassBtn: {
