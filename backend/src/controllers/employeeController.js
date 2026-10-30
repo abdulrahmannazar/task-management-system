@@ -44,7 +44,6 @@ exports.getAll = asyncHandler(async (req, res) => {
     orderBy: { emp_id: 'desc' }
   };
 
-  // Managers only view their department's employees; Admins view all
   if (role !== 'ADMIN' && !isNaN(deptId)) {
     query.where = { department_id: deptId };
   }
@@ -87,12 +86,10 @@ exports.create = asyncHandler(async (req, res) => {
   const isAdmin = requester.role === 'ADMIN';
   const isManager = requester.role === 'MANAGER';
 
-  // Only Admins and Managers have authorization to create staff accounts
   if (!isAdmin && !isManager) {
     return res.status(403).json({ error: 'Access denied. Only Admins and Managers can add staff.' });
   }
 
-  // Check email uniqueness
   const existing = await prisma.employee.findUnique({ where: { email } });
   if (existing) {
     return res.status(400).json({ error: 'An employee account with this email already exists' });
@@ -102,13 +99,11 @@ exports.create = asyncHandler(async (req, res) => {
   let targetRole;
 
   if (isAdmin) {
-    // Admin can select any department and assign EMPLOYEE, MANAGER, or ADMIN
     targetDeptId = parseInt(department_id);
     targetRole = (role && ['ADMIN', 'MANAGER', 'EMPLOYEE'].includes(role.toUpperCase()))
       ? role.toUpperCase()
       : 'EMPLOYEE';
   } else {
-    // Manager is locked to their own department and can ONLY create EMPLOYEE accounts
     targetDeptId = requester.department_id;
     targetRole = 'EMPLOYEE';
   }
@@ -117,7 +112,6 @@ exports.create = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'A valid department assignment is required' });
   }
 
-  // Hash the manual password with bcryptjs
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -153,8 +147,10 @@ exports.update = asyncHandler(async (req, res) => {
   const requester = getRequester(req);
   const isAdmin = requester.role === 'ADMIN';
   const isManager = requester.role === 'MANAGER';
+  const isSelf = Number(requester.emp_id) === id;
 
-  if (!isAdmin && !isManager) {
+  // Allow Admins, Managers, or the user updating their own profile
+  if (!isAdmin && !isManager && !isSelf) {
     return res.status(403).json({ error: 'Access denied.' });
   }
 
@@ -162,8 +158,18 @@ exports.update = asyncHandler(async (req, res) => {
   const data = {};
 
   if (name !== undefined) data.name = name;
-  if (email !== undefined) data.email = email;
-  if (is_active !== undefined) data.is_active = is_active;
+
+  if (email !== undefined) {
+    const existingEmail = await prisma.employee.findUnique({ where: { email } });
+    if (existingEmail && existingEmail.emp_id !== id) {
+      return res.status(400).json({ error: 'Email address is already in use by another account.' });
+    }
+    data.email = email;
+  }
+
+  if (is_active !== undefined && (isAdmin || isManager)) {
+    data.is_active = is_active;
+  }
 
   // Password reset (only hash if a new password string was provided)
   if (password && password.trim() !== '') {
