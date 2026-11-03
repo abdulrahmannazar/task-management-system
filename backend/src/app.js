@@ -5,6 +5,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const createCrudRouter = require('./routes/crudRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const permissionRoutes = require('./routes/permissionRoutes');
 
 // Import Controllers
 const companyController = require('./controllers/companyController');
@@ -37,7 +38,8 @@ app.use('/api/loes', createCrudRouter(loeController));
 app.use('/api/jobs', createCrudRouter(jobController));
 app.use('/api/tasks', createCrudRouter(taskController));
 app.use('/api/invoices', createCrudRouter(invoiceController));
-app.use('/api/notifications', notificationRoutes); // NEW: Notification endpoints
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
