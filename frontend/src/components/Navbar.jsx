@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { usePermissions } from '../utils/permissionHelper';
 
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission } = usePermissions();
+
   const [notifications, setNotifications] = useState([]);
   const [showNotifs, setShowNotifs] = useState(false);
   const [toasts, setToasts] = useState([]);
@@ -14,7 +17,6 @@ export default function Navbar() {
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
-  const isPrivileged = user.role === 'MANAGER' || user.role === 'ADMIN';
 
   const seenNotifIdsRef = useRef(new Set());
   const isFirstLoadRef = useRef(true);
@@ -184,19 +186,32 @@ export default function Navbar() {
         <h2 style={styles.brand}>Task System</h2>
         <div style={styles.links}>
           <Link to="/dashboard" style={styles.link}>Dashboard</Link>
-          <Link to="/dispatch" style={styles.link}>Client Dispatch</Link>
-          <Link to="/loes" style={styles.link}>LOE Manager</Link>
-          
-          {isPrivileged && <Link to="/approvals" style={styles.link}>Approvals</Link>}
-          
-          <Link to="/tasks" style={styles.link}>
-            {isPrivileged ? 'Task Allocation' : 'My Tasks'}
-          </Link>
-
-          {isPrivileged && <Link to="/invoices" style={styles.link}>Invoices</Link>}
-          {isPrivileged && <Link to="/employees" style={styles.link}>Employees</Link>}
-          {isPrivileged && <Link to="/services" style={styles.link}>Services</Link>}
-          {isPrivileged && <Link to="/companies" style={styles.link}>Companies</Link>}
+          {hasPermission(user, 'VIEW_DISPATCH') && (
+            <Link to="/dispatch" style={styles.link}>Client Dispatch</Link>
+          )}
+          {hasPermission(user, 'VIEW_LOES') && (
+            <Link to="/loes" style={styles.link}>LOE Manager</Link>
+          )}
+          {hasPermission(user, 'VIEW_APPROVALS') && (
+            <Link to="/approvals" style={styles.link}>Approvals</Link>
+          )}
+          {hasPermission(user, 'VIEW_TASKS') && (
+            <Link to="/tasks" style={styles.link}>
+              {hasPermission(user, 'MANAGE_TASKS') ? 'Task Allocation' : 'My Tasks'}
+            </Link>
+          )}
+          {hasPermission(user, 'VIEW_INVOICES') && (
+            <Link to="/invoices" style={styles.link}>Invoices</Link>
+          )}
+          {hasPermission(user, 'VIEW_EMPLOYEES') && (
+            <Link to="/employees" style={styles.link}>Employees</Link>
+          )}
+          {hasPermission(user, 'VIEW_SERVICES') && (
+            <Link to="/services" style={styles.link}>Services</Link>
+          )}
+          {hasPermission(user, 'VIEW_COMPANIES') && (
+            <Link to="/companies" style={styles.link}>Companies</Link>
+          )}
           
           {/* Notification Bell */}
           <div style={styles.notifContainer}>
@@ -269,7 +284,7 @@ export default function Navbar() {
               ...styles.settingsBtn,
               ...(isSettingsActive ? styles.settingsBtnActive : {})
             }}
-            title="Account Settings & Logout"
+            title="Account Settings & Access Control"
           >
             ⚙️
           </button>

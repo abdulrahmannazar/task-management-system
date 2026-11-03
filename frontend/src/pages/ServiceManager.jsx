@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 export default function ServiceManager() {
+  const { hasPermission } = usePermissions();
+
   const [services, setServices] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
@@ -14,6 +17,9 @@ export default function ServiceManager() {
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
   const isAdmin = user?.role === 'ADMIN';
   const userDeptId = user?.department_id || 1;
+
+  const canViewServices = hasPermission(user, 'VIEW_SERVICES');
+  const canManageServices = hasPermission(user, 'MANAGE_SERVICES');
 
   const [formData, setFormData] = useState({
     department_id: isAdmin ? '' : userDeptId,
@@ -133,165 +139,173 @@ export default function ServiceManager() {
     return srv.department_id === Number(selectedDeptFilter);
   });
 
+  if (!canViewServices) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Access Denied. You do not have permission to view the Services page.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.pageContainer}>
       <Navbar />
       <div style={styles.container}>
         
         {/* Left Form: Add / Edit Service */}
-        <div style={styles.formSection}>
-          <h2>{editingId ? `Edit Service #${editingId}` : 'Add New Service'}</h2>
-          <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
-            Set service categories, deliverables, default scope, and base pricing in LKR.
-          </p>
+        {canManageServices && (
+          <div style={styles.formSection}>
+            <h2>{editingId ? `Edit Service #${editingId}` : 'Add New Service'}</h2>
+            <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
+              Set service categories, deliverables, default scope, and base pricing in LKR.
+            </p>
 
-          {error && <div style={styles.errorBox}>{error}</div>}
+            {error && <div style={styles.errorBox}>{error}</div>}
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            {/* Department */}
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Department *</label>
-              {isAdmin ? (
-                <select
-                  name="department_id"
-                  value={formData.department_id}
-                  onChange={handleChange}
-                  required
-                  style={styles.input}
-                >
-                  <option value="" disabled>-- Select Department --</option>
-                  {departments.map((dept) => (
-                    <option key={dept.department_id} value={dept.department_id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div style={styles.lockedField}>
-                  <strong>{getDepartmentName(userDeptId)}</strong>
-                  <span style={styles.lockedNote}>(Locked to your managing department)</span>
-                </div>
-              )}
-            </div>
+            <form onSubmit={handleSubmit} style={styles.form}>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Department *</label>
+                {isAdmin ? (
+                  <select
+                    name="department_id"
+                    value={formData.department_id}
+                    onChange={handleChange}
+                    required
+                    style={styles.input}
+                  >
+                    <option value="" disabled>-- Select Department --</option>
+                    {departments.map((dept) => (
+                      <option key={dept.department_id} value={dept.department_id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={styles.lockedField}>
+                    <strong>{getDepartmentName(userDeptId)}</strong>
+                    <span style={styles.lockedNote}>(Locked to your managing department)</span>
+                  </div>
+                )}
+              </div>
 
-            {/* Service Name */}
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Service Name *</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                placeholder="e.g. Annual Audit & Financial Statements"
-                required
-                style={styles.input}
-              />
-            </div>
-
-            {/* Sub-Category & Billing Type */}
-            <div style={styles.formRow}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={styles.label}>Sub-Category</label>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Service Name *</label>
                 <input
                   type="text"
-                  name="sub_category"
-                  value={formData.sub_category}
+                  name="name"
+                  value={formData.name}
                   onChange={handleChange}
-                  placeholder="e.g. Assurance, Statutory"
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={styles.label}>Billing Type *</label>
-                <select
-                  name="billing_type"
-                  value={formData.billing_type}
-                  onChange={handleChange}
-                  style={styles.input}
-                >
-                  <option value="Fixed">Fixed Fee</option>
-                  <option value="Hourly">Hourly Rate</option>
-                  <option value="Monthly">Monthly Retainer</option>
-                  <option value="Quarterly">Quarterly</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Base Price (Strictly LKR) */}
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Base Price / Standard Fee (LKR) *</label>
-              <div style={styles.priceInputWrapper}>
-                <span style={styles.currencyPrefix}>Rs.</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleChange}
-                  placeholder="e.g. 500.00"
+                  placeholder="e.g. Annual Audit & Financial Statements"
                   required
-                  style={styles.priceInput}
+                  style={styles.input}
                 />
               </div>
-              <span style={{ fontSize: '11px', color: '#6c757d' }}>
-                Default LKR price that auto-populates when added to an LOE.
-              </span>
-            </div>
 
-            {/* Default Scope Template */}
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Default Scope Template (Separate lines with Enter)</label>
-              <textarea
-                rows="4"
-                name="scope"
-                value={formData.scope}
-                onChange={handleChange}
-                placeholder="Review previous audit files&#10;Conduct year-end verification&#10;Draft audit report for management"
-                style={{ ...styles.input, fontFamily: 'inherit', resize: 'vertical' }}
-              />
-            </div>
+              <div style={styles.formRow}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={styles.label}>Sub-Category</label>
+                  <input
+                    type="text"
+                    name="sub_category"
+                    value={formData.sub_category}
+                    onChange={handleChange}
+                    placeholder="e.g. Assurance, Statutory"
+                    style={styles.input}
+                  />
+                </div>
 
-            {editingId && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                <input
-                  type="checkbox"
-                  name="is_active"
-                  checked={formData.is_active}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={styles.label}>Billing Type *</label>
+                  <select
+                    name="billing_type"
+                    value={formData.billing_type}
+                    onChange={handleChange}
+                    style={styles.input}
+                  >
+                    <option value="Fixed">Fixed Fee</option>
+                    <option value="Hourly">Hourly Rate</option>
+                    <option value="Monthly">Monthly Retainer</option>
+                    <option value="Quarterly">Quarterly</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Base Price / Standard Fee (LKR) *</label>
+                <div style={styles.priceInputWrapper}>
+                  <span style={styles.currencyPrefix}>Rs.</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    name="price"
+                    value={formData.price}
+                    onChange={handleChange}
+                    placeholder="e.g. 500.00"
+                    required
+                    style={styles.priceInput}
+                  />
+                </div>
+                <span style={{ fontSize: '11px', color: '#6c757d' }}>
+                  Default LKR price that auto-populates when added to an LOE.
+                </span>
+              </div>
+
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Default Scope Template (Separate lines with Enter)</label>
+                <textarea
+                  rows="4"
+                  name="scope"
+                  value={formData.scope}
                   onChange={handleChange}
+                  placeholder="Review previous audit files&#10;Conduct year-end verification&#10;Draft audit report for management"
+                  style={{ ...styles.input, fontFamily: 'inherit', resize: 'vertical' }}
                 />
-                Service is Active &amp; Selectable in LOEs
-              </label>
-            )}
+              </div>
 
-            <div style={styles.buttonGroup}>
-              <button type="submit" disabled={saving} style={styles.button}>
-                {saving ? 'Saving...' : editingId ? 'Update Service' : 'Create Service'}
-              </button>
               {editingId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingId(null);
-                    setFormData({
-                      department_id: isAdmin ? '' : userDeptId,
-                      name: '',
-                      sub_category: '',
-                      billing_type: 'Fixed',
-                      price: '',
-                      scope: '',
-                      is_active: true
-                    });
-                  }}
-                  style={styles.cancelButton}
-                >
-                  Cancel
-                </button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    name="is_active"
+                    checked={formData.is_active}
+                    onChange={handleChange}
+                  />
+                  Service is Active &amp; Selectable in LOEs
+                </label>
               )}
-            </div>
-          </form>
-        </div>
+
+              <div style={styles.buttonGroup}>
+                <button type="submit" disabled={saving} style={styles.button}>
+                  {saving ? 'Saving...' : editingId ? 'Update Service' : 'Create Service'}
+                </button>
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setFormData({
+                        department_id: isAdmin ? '' : userDeptId,
+                        name: '',
+                        sub_category: '',
+                        billing_type: 'Fixed',
+                        price: '',
+                        scope: '',
+                        is_active: true
+                      });
+                    }}
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Right Directory: Services List */}
         <div style={styles.listSection}>
@@ -359,9 +373,11 @@ export default function ServiceManager() {
                     <span style={{ fontSize: '12px', color: srv.is_active ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
                       {srv.is_active ? '● Active' : '○ Inactive'}
                     </span>
-                    <button onClick={() => handleEdit(srv)} style={styles.editBtn}>
-                      Edit Service &amp; Price
-                    </button>
+                    {canManageServices && (
+                      <button onClick={() => handleEdit(srv)} style={styles.editBtn}>
+                        Edit Service &amp; Price
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

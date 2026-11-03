@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 export default function CompanyManager() {
+  const { hasPermission } = usePermissions();
+
   const [companies, setCompanies] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
 
   const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const canEdit = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const userStr = localStorage.getItem('user');
+  const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
+
+  const canView = hasPermission(user, 'VIEW_COMPANIES');
+  const canEdit = hasPermission(user, 'MANAGE_COMPANIES');
 
   const initialFormState = {
     name: '',
@@ -107,8 +113,15 @@ export default function CompanyManager() {
     }
   };
 
-  if (!user || (user.role !== 'MANAGER' && user.role !== 'ADMIN')) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied. Managers and Admins only.</div>;
+  if (!canView) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Access Denied. You do not have permission to view the Companies page.
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -131,9 +144,6 @@ export default function CompanyManager() {
                   placeholder="e.g. Nexus Corp Ltd"
                   required
                   style={styles.input}
-
-
-                  
                 />
               </div>
 

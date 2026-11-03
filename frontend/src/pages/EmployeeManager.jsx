@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 export default function EmployeeManager() {
+  const { hasPermission } = usePermissions();
+
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
@@ -14,8 +17,11 @@ export default function EmployeeManager() {
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
   
   const isAdmin = user?.role === 'ADMIN';
-  const isManager = user?.role === 'MANAGER';
   const userDeptId = user?.department_id || 1;
+
+  const canViewPage = hasPermission(user, 'VIEW_EMPLOYEES');
+  const canCreateOrEdit = hasPermission(user, 'CREATE_EMPLOYEE');
+  const canDelete = hasPermission(user, 'DELETE_EMPLOYEE');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -67,12 +73,30 @@ export default function EmployeeManager() {
     setFormData({
       name: emp.name,
       email: emp.email,
-      password: '', // Blank unless setting a new password
+      password: '',
       department_id: emp.department_id,
       role: emp.role,
       is_active: emp.is_active
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteEmployee = async (empId, empName) => {
+    if (!window.confirm(`Are you sure you want to delete employee "${empName}"?`)) return;
+    try {
+      setError('');
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/employees/${empId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const d = await response.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to delete employee');
+      }
+      setEmployees(prev => prev.filter(e => e.emp_id !== empId));
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -86,12 +110,11 @@ export default function EmployeeManager() {
 
     const method = editingId ? 'PUT' : 'POST';
 
-    // Enforcement: Managers can only add EMPLOYEES to their own department
     const payload = {
       ...formData,
       department_id: isAdmin ? Number(formData.department_id) : userDeptId,
       role: isAdmin ? formData.role : 'EMPLOYEE',
-      requester_role: user?.role,
+      requester_role: isAdmin ? 'ADMIN' : 'MANAGER',
       requester_dept_id: userDeptId,
       requester_emp_id: user?.emp_id
     };
@@ -151,8 +174,15 @@ export default function EmployeeManager() {
     return emp.department_id === Number(selectedDeptFilter);
   });
 
-  if (!isAdmin && !isManager) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Access Denied. Admins and Managers only.</div>;
+  if (!canViewPage) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Access Denied. You do not have permission to view the Employees page.
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -161,144 +191,146 @@ export default function EmployeeManager() {
       <div style={styles.container}>
         
         {/* Left Form: Add or Edit Employee */}
-        <div style={styles.formSection}>
-          <h2>{editingId ? 'Edit Employee Details' : 'Add New Employee'}</h2>
-          <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
-            {isAdmin 
-              ? 'Admins can assign employees or managers to any department.' 
-              : `Managers can add team members directly to the ${getDepartmentName(userDeptId)} department.`}
-          </p>
+        {canCreateOrEdit && (
+          <div style={styles.formSection}>
+            <h2>{editingId ? 'Edit Employee Details' : 'Add New Employee'}</h2>
+            <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
+              {isAdmin 
+                ? 'Admins can assign employees or managers to any department.' 
+                : `Add team members directly to the ${getDepartmentName(userDeptId)} department.`}
+            </p>
 
-          {error && <div style={styles.errorBox}>{error}</div>}
+            {error && <div style={styles.errorBox}>{error}</div>}
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Full Name *</label>
-              <input 
-                type="text" 
-                name="name" 
-                value={formData.name} 
-                onChange={handleChange} 
-                placeholder="e.g. John Doe" 
-                required 
-                style={styles.input} 
-              />
-            </div>
-
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Email Address (Login Username) *</label>
-              <input 
-                type="email" 
-                name="email" 
-                value={formData.email} 
-                onChange={handleChange} 
-                placeholder="john.doe@company.com" 
-                required 
-                style={styles.input} 
-              />
-            </div>
-
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>
-                {editingId ? 'New Password (leave blank to keep current)' : 'Login Password *'}
-              </label>
-              <input 
-                type="text" 
-                name="password" 
-                value={formData.password} 
-                onChange={handleChange} 
-                placeholder="Set initial login password" 
-                required={!editingId} 
-                style={styles.input} 
-              />
-            </div>
-
-            {/* Department Assignment */}
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Department *</label>
-              {isAdmin ? (
-                <select 
-                  name="department_id" 
-                  value={formData.department_id} 
-                  onChange={handleChange} 
-                  required 
-                  style={styles.input}
-                >
-                  <option value="" disabled>-- Select Department --</option>
-                  {departments.map((dept) => (
-                    <option key={dept.department_id} value={dept.department_id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div style={styles.lockedField}>
-                  <strong>{getDepartmentName(userDeptId)}</strong>
-                  <span style={styles.lockedNote}>(Locked to your managing department)</span>
-                </div>
-              )}
-            </div>
-
-            {/* Role Selection */}
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Role *</label>
-              {isAdmin ? (
-                <select 
-                  name="role" 
-                  value={formData.role} 
-                  onChange={handleChange} 
-                  style={styles.input}
-                >
-                  <option value="EMPLOYEE">EMPLOYEE (Standard Staff)</option>
-                  <option value="MANAGER">MANAGER (Department Head)</option>
-                  <option value="ADMIN">ADMIN (Universal Access)</option>
-                </select>
-              ) : (
-                <div style={styles.lockedField}>
-                  <strong>EMPLOYEE</strong>
-                  <span style={styles.lockedNote}>(Managers add team employees to their department)</span>
-                </div>
-              )}
-            </div>
-
-            {editingId && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+            <form onSubmit={handleSubmit} style={styles.form}>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Full Name *</label>
                 <input 
-                  type="checkbox" 
-                  name="is_active" 
-                  checked={formData.is_active} 
+                  type="text" 
+                  name="name" 
+                  value={formData.name} 
                   onChange={handleChange} 
+                  placeholder="e.g. John Doe" 
+                  required 
+                  style={styles.input} 
                 />
-                Account is Active
-              </label>
-            )}
+              </div>
 
-            <div style={styles.buttonGroup}>
-              <button type="submit" disabled={saving} style={styles.button}>
-                {saving ? 'Saving...' : editingId ? 'Update Details' : 'Create Employee'}
-              </button>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Email Address (Login Username) *</label>
+                <input 
+                  type="email" 
+                  name="email" 
+                  value={formData.email} 
+                  onChange={handleChange} 
+                  placeholder="john.doe@company.com" 
+                  required 
+                  style={styles.input} 
+                />
+              </div>
+
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>
+                  {editingId ? 'New Password (leave blank to keep current)' : 'Login Password *'}
+                </label>
+                <input 
+                  type="text" 
+                  name="password" 
+                  value={formData.password} 
+                  onChange={handleChange} 
+                  placeholder="Set initial login password" 
+                  required={!editingId} 
+                  style={styles.input} 
+                />
+              </div>
+
+              {/* Department Assignment */}
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Department *</label>
+                {isAdmin ? (
+                  <select 
+                    name="department_id" 
+                    value={formData.department_id} 
+                    onChange={handleChange} 
+                    required 
+                    style={styles.input}
+                  >
+                    <option value="" disabled>-- Select Department --</option>
+                    {departments.map((dept) => (
+                      <option key={dept.department_id} value={dept.department_id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={styles.lockedField}>
+                    <strong>{getDepartmentName(userDeptId)}</strong>
+                    <span style={styles.lockedNote}>(Locked to your department)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Role Selection */}
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Role *</label>
+                {isAdmin ? (
+                  <select 
+                    name="role" 
+                    value={formData.role} 
+                    onChange={handleChange} 
+                    style={styles.input}
+                  >
+                    <option value="EMPLOYEE">EMPLOYEE (Standard Staff)</option>
+                    <option value="MANAGER">MANAGER (Department Head)</option>
+                    <option value="ADMIN">ADMIN (Universal Access)</option>
+                  </select>
+                ) : (
+                  <div style={styles.lockedField}>
+                    <strong>EMPLOYEE</strong>
+                    <span style={styles.lockedNote}>(Standard employee role)</span>
+                  </div>
+                )}
+              </div>
+
               {editingId && (
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setEditingId(null);
-                    setFormData({
-                      name: '',
-                      email: '',
-                      password: '',
-                      department_id: isAdmin ? '' : userDeptId,
-                      role: 'EMPLOYEE',
-                      is_active: true
-                    });
-                  }} 
-                  style={styles.cancelButton}
-                >
-                  Cancel
-                </button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                  <input 
+                    type="checkbox" 
+                    name="is_active" 
+                    checked={formData.is_active} 
+                    onChange={handleChange} 
+                  />
+                  Account is Active
+                </label>
               )}
-            </div>
-          </form>
-        </div>
+
+              <div style={styles.buttonGroup}>
+                <button type="submit" disabled={saving} style={styles.button}>
+                  {saving ? 'Saving...' : editingId ? 'Update Details' : 'Create Employee'}
+                </button>
+                {editingId && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setEditingId(null);
+                      setFormData({
+                        name: '',
+                        email: '',
+                        password: '',
+                        department_id: isAdmin ? '' : userDeptId,
+                        role: 'EMPLOYEE',
+                        is_active: true
+                      });
+                    }} 
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Right Directory: Employees List */}
         <div style={styles.listSection}>
@@ -354,9 +386,21 @@ export default function EmployeeManager() {
                       </strong>
                     </p>
 
-                    <button onClick={() => handleEdit(emp)} style={styles.editBtn}>
-                      Edit Details / Reset Password
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                      {canCreateOrEdit && (
+                        <button onClick={() => handleEdit(emp)} style={styles.editBtn}>
+                          Edit / Reset Password
+                        </button>
+                      )}
+                      {canDelete && emp.emp_id !== user.emp_id && (
+                        <button
+                          onClick={() => handleDeleteEmployee(emp.emp_id, emp.name)}
+                          style={styles.deleteBtn}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -388,5 +432,6 @@ const styles = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' },
   card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' },
   badge: { padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 'bold' },
-  editBtn: { width: '100%', marginTop: '6px', padding: '6px', background: '#f8f9fa', color: '#007bff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  editBtn: { flex: 1, padding: '6px', background: '#f8f9fa', color: '#007bff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  deleteBtn: { padding: '6px 10px', background: '#fff5f5', color: '#dc3545', border: '1px solid #feb2b2', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };

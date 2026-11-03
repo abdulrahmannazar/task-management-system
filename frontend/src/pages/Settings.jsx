@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import {
+  DEFAULT_PERMISSIONS,
+  PERMISSION_GROUPS,
+  usePermissions,
+  savePermissionsToServer
+} from '../utils/permissionHelper';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -23,6 +29,13 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Dynamic Role Permissions State (Editable by Admin & Manager)
+  const { matrix, setMatrix } = usePermissions();
+  const [permSaving, setPermSaving] = useState(false);
+  const [permSuccess, setPermSuccess] = useState('');
+
+  const canManageAccess = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
   useEffect(() => {
     if (!token || !user?.emp_id) {
@@ -122,7 +135,6 @@ export default function Settings() {
         }
       );
 
-      // Fallback if backend employee self-update hasn't been deployed to Render yet
       if (response.status === 403) {
         response = await fetch(
           `https://task-management-system-6ifq.onrender.com/api/employees/${user.emp_id}`,
@@ -165,6 +177,42 @@ export default function Settings() {
     }
   };
 
+  const handleTogglePermission = (role, permKey) => {
+    setPermSuccess('');
+    setMatrix((prev) => ({
+      ...prev,
+      [role]: {
+        ...(prev[role] || {}),
+        [permKey]: !prev[role]?.[permKey]
+      }
+    }));
+  };
+
+  const handleSavePermissions = async () => {
+    setPermSaving(true);
+    setPermSuccess('');
+    try {
+      const saved = await savePermissionsToServer(matrix);
+      setMatrix(saved);
+      setPermSuccess('Role access permissions saved and applied across the system!');
+    } finally {
+      setPermSaving(false);
+    }
+  };
+
+  const handleResetPermissions = async () => {
+    if (!window.confirm('Reset all role permissions back to system defaults?')) return;
+    setPermSaving(true);
+    setPermSuccess('');
+    try {
+      const saved = await savePermissionsToServer(DEFAULT_PERMISSIONS);
+      setMatrix(saved);
+      setPermSuccess('Permissions reset to default configuration.');
+    } finally {
+      setPermSaving(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/login');
@@ -201,7 +249,7 @@ export default function Settings() {
           <div>
             <h1 style={styles.pageTitle}>⚙️ Account Settings</h1>
             <p style={styles.subTitle}>
-              Manage your personal profile details, login credentials, and account session.
+              Manage your personal profile details, login credentials, and role access permissions.
             </p>
           </div>
         </div>
@@ -355,6 +403,84 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        {/* Role & Access Control Matrix (Visible ONLY to Admin & Manager) */}
+        {canManageAccess && (
+          <div style={{ ...styles.card, marginTop: '28px' }}>
+            <div style={styles.permHeaderRow}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>
+                  🔐 Role &amp; Access Permissions Control
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                  Adjust page visibility and feature permissions for each role directly from the frontend.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleResetPermissions}
+                  disabled={permSaving}
+                  style={styles.resetPermBtn}
+                >
+                  Reset Defaults
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePermissions}
+                  disabled={permSaving}
+                  style={styles.savePermBtn}
+                >
+                  {permSaving ? 'Saving...' : '✓ Save Access Permissions'}
+                </button>
+              </div>
+            </div>
+
+            {permSuccess && (
+              <div style={{ ...styles.successBanner, marginTop: '14px', marginBottom: '4px' }}>
+                {permSuccess}
+              </div>
+            )}
+
+            {PERMISSION_GROUPS.map((group, gIdx) => (
+              <div key={gIdx} style={{ marginTop: '20px' }}>
+                <h4 style={styles.groupHeading}>{group.groupTitle}</h4>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={styles.permTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...styles.permTh, width: '52%' }}>Permission / Capability</th>
+                        <th style={{ ...styles.permTh, textAlign: 'center' }}>ADMIN</th>
+                        <th style={{ ...styles.permTh, textAlign: 'center' }}>MANAGER</th>
+                        <th style={{ ...styles.permTh, textAlign: 'center' }}>EMPLOYEE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map((item) => (
+                        <tr key={item.key} style={styles.permTr}>
+                          <td style={styles.permTd}>
+                            <strong>{item.label}</strong>
+                          </td>
+                          {['ADMIN', 'MANAGER', 'EMPLOYEE'].map((roleKey) => (
+                            <td key={roleKey} style={{ ...styles.permTd, textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(matrix[roleKey]?.[item.key])}
+                                onChange={() => handleTogglePermission(roleKey, item.key)}
+                                style={styles.checkbox}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -469,6 +595,69 @@ const styles = {
     fontWeight: 'bold',
     fontSize: '14px',
     cursor: 'pointer'
+  },
+  permHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '14px',
+    borderBottom: '1px solid #e2e8f0',
+    paddingBottom: '14px'
+  },
+  savePermBtn: {
+    padding: '9px 18px',
+    background: '#16a34a',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '13px',
+    cursor: 'pointer'
+  },
+  resetPermBtn: {
+    padding: '9px 14px',
+    background: '#f1f5f9',
+    color: '#475569',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '13px',
+    cursor: 'pointer'
+  },
+  groupHeading: {
+    margin: '0 0 10px',
+    fontSize: '13.5px',
+    color: '#1e293b',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px'
+  },
+  permTable: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '13px',
+    border: '1px solid #e2e8f0'
+  },
+  permTh: {
+    background: '#f8fafc',
+    color: '#475569',
+    padding: '10px 14px',
+    textAlign: 'left',
+    borderBottom: '1px solid #cbd5e1',
+    fontWeight: 'bold'
+  },
+  permTr: {
+    borderBottom: '1px solid #e2e8f0'
+  },
+  permTd: {
+    padding: '10px 14px',
+    color: '#334155'
+  },
+  checkbox: {
+    width: '17px',
+    height: '17px',
+    cursor: 'pointer',
+    accentColor: '#0284c7'
   },
   errorBanner: {
     background: '#fee2e2',
