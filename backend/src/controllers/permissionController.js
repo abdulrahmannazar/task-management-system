@@ -58,7 +58,8 @@ const DEFAULT_PERMISSIONS = {
     MANAGE_INVOICES: false,
     MANAGE_SERVICES: false,
     MANAGE_COMPANIES: false
-  }
+  },
+  USERS: {}
 };
 
 async function ensureTableExists() {
@@ -79,15 +80,18 @@ exports.getPermissions = asyncHandler(async (req, res) => {
     const result = {
       ADMIN: { ...DEFAULT_PERMISSIONS.ADMIN },
       MANAGER: { ...DEFAULT_PERMISSIONS.MANAGER },
-      EMPLOYEE: { ...DEFAULT_PERMISSIONS.EMPLOYEE }
+      EMPLOYEE: { ...DEFAULT_PERMISSIONS.EMPLOYEE },
+      USERS: {}
     };
 
     if (Array.isArray(rows)) {
       rows.forEach((row) => {
-        const r = String(row.role).toUpperCase();
-        if (result[r] && row.permissions) {
-          const parsed = typeof row.permissions === 'string' ? JSON.parse(row.permissions) : row.permissions;
-          result[r] = { ...result[r], ...parsed };
+        const key = String(row.role).toUpperCase();
+        const parsed = typeof row.permissions === 'string' ? JSON.parse(row.permissions) : row.permissions;
+        if (key === 'USERS' && parsed) {
+          result.USERS = parsed;
+        } else if (result[key] && parsed) {
+          result[key] = { ...result[key], ...parsed };
         }
       });
     }
@@ -105,7 +109,9 @@ exports.updatePermissions = asyncHandler(async (req, res) => {
   const payload = req.body || {};
 
   const roles = ['ADMIN', 'MANAGER', 'EMPLOYEE'];
-  const updatedMatrix = {};
+  const updatedMatrix = {
+    USERS: payload.USERS && typeof payload.USERS === 'object' ? payload.USERS : {}
+  };
 
   for (const role of roles) {
     const mergedRolePerms = {
@@ -124,6 +130,15 @@ exports.updatePermissions = asyncHandler(async (req, res) => {
       jsonStr
     );
   }
+
+  // Save per-employee overrides under 'USERS'
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO role_permissions (role, permissions, updated_at)
+     VALUES ('USERS', $1::jsonb, NOW())
+     ON CONFLICT (role) DO UPDATE
+     SET permissions = EXCLUDED.permissions, updated_at = NOW()`,
+    JSON.stringify(updatedMatrix.USERS)
+  );
 
   res.json(updatedMatrix);
 });

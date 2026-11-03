@@ -60,7 +60,9 @@ export const DEFAULT_PERMISSIONS = {
     MANAGE_INVOICES: false,
     MANAGE_SERVICES: false,
     MANAGE_COMPANIES: false
-  }
+  },
+  // Stores person-specific permission overrides keyed by emp_id
+  USERS: {}
 };
 
 export const PERMISSION_GROUPS = [
@@ -94,12 +96,12 @@ export const PERMISSION_GROUPS = [
 ];
 
 export function mergeWithDefaults(customMatrix) {
-  const merged = {
+  return {
     ADMIN: { ...DEFAULT_PERMISSIONS.ADMIN, ...(customMatrix?.ADMIN || {}) },
     MANAGER: { ...DEFAULT_PERMISSIONS.MANAGER, ...(customMatrix?.MANAGER || {}) },
-    EMPLOYEE: { ...DEFAULT_PERMISSIONS.EMPLOYEE, ...(customMatrix?.EMPLOYEE || {}) }
+    EMPLOYEE: { ...DEFAULT_PERMISSIONS.EMPLOYEE, ...(customMatrix?.EMPLOYEE || {}) },
+    USERS: { ...(customMatrix?.USERS || {}) }
   };
-  return merged;
 }
 
 export function getPermissionsMatrix() {
@@ -119,10 +121,24 @@ export function setLocalPermissionsMatrix(matrix) {
   return merged;
 }
 
+/**
+ * Checks if a user has a given permission:
+ * 1. First checks if a person-specific override exists for `user.emp_id` in `matrix.USERS`
+ * 2. Otherwise falls back to their role's permission (`ADMIN`, `MANAGER`, `EMPLOYEE`)
+ */
 export function hasPermission(user, permKey, matrixOverride = null) {
   if (!user || !user.role) return false;
-  const role = String(user.role).toUpperCase();
   const matrix = matrixOverride || getPermissionsMatrix();
+
+  const empId = user.emp_id ? String(user.emp_id) : null;
+  if (empId && matrix.USERS && matrix.USERS[empId] !== undefined) {
+    const userOverride = matrix.USERS[empId][permKey];
+    if (typeof userOverride === 'boolean') {
+      return userOverride;
+    }
+  }
+
+  const role = String(user.role).toUpperCase();
   const rolePerms = matrix[role] || DEFAULT_PERMISSIONS[role] || {};
   return Boolean(rolePerms[permKey]);
 }
@@ -147,12 +163,12 @@ export async function fetchPermissionsFromServer() {
     }
     if (res && res.ok) {
       const data = await res.json();
-      if (data && (data.ADMIN || data.MANAGER || data.EMPLOYEE)) {
+      if (data && (data.ADMIN || data.MANAGER || data.EMPLOYEE || data.USERS)) {
         return setLocalPermissionsMatrix(data);
       }
     }
   } catch {
-    // Fallback to localStorage matrix if backend endpoint is not yet deployed
+    // Fallback to localStorage matrix if backend endpoint is offline
   }
   return getPermissionsMatrix();
 }
