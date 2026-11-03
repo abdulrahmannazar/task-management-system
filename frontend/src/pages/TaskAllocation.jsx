@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 export default function TaskAllocation() {
+  const { hasPermission } = usePermissions();
+
   const [tasks, setTasks] = useState([]);
   const [loes, setLoes] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -32,7 +35,9 @@ export default function TaskAllocation() {
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'MANAGER';
   const isEmployee = !isAdmin && !isManager; 
-  const canManage = isAdmin || isManager;
+
+  const canViewTasks = hasPermission(user, 'VIEW_TASKS');
+  const canManage = hasPermission(user, 'MANAGE_TASKS');
 
   const [serviceDeadline, setServiceDeadline] = useState('');
   const [formScopes, setFormScopes] = useState([]);
@@ -48,7 +53,7 @@ export default function TaskAllocation() {
 
   useEffect(() => {
     fetchTasks();
-    if (!isEmployee) fetchLoes();
+    if (!isEmployee || canManage) fetchLoes();
     fetchEmployees();
     fetchCompanies();
     fetchServices();
@@ -205,26 +210,63 @@ export default function TaskAllocation() {
           scopeItem.calculated_deadline = serviceDeadline;
         }
 
-        const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${scopeItem.task_id}/allocate`, {
+        const payload = {
+          assignee_ids: scopeItem.assignee_ids,
+          service_deadline: serviceDeadline || null,
+          deadline: scopeItem.calculated_deadline || null,
+          duration_days: scopeItem.duration_days ? parseInt(scopeItem.duration_days) : null,
+          status: scopeItem.status
+        };
+
+        const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${scopeItem.task_id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            assignee_ids: scopeItem.assignee_ids,
-            service_deadline: serviceDeadline || null,
-            deadline: scopeItem.calculated_deadline || null,
-            duration_days: scopeItem.duration_days ? parseInt(scopeItem.duration_days) : null,
-            status: scopeItem.status
-          })
+          body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-          const d = await response.json();
+          const d = await response.json().catch(() => ({}));
           throw new Error(d.error || 'Failed to save task allocation');
         }
       }
 
       await fetchTasks();
       setSelectedServiceGroup(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateCustomTask = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+
+    try {
+      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newTaskForm)
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to create custom task');
+
+      await fetchTasks();
+      setIsCreateOpen(false);
+      setNewTaskForm({
+        loe_id: '',
+        department_id: isAdmin ? '' : userDeptId,
+        service_id: '',
+        scope: '',
+        assignee_ids: [],
+        status: 'Pending'
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -272,6 +314,17 @@ export default function TaskAllocation() {
     filterStatus !== 'ALL' || 
     filterAssignee !== 'ALL' || 
     (isAdmin && filterDepartment !== 'ALL');
+
+  if (!canViewTasks) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Access Denied. You do not have permission to view the Tasks page.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.pageContainer}>
@@ -483,6 +536,7 @@ export default function TaskAllocation() {
                   <input
                     type="date"
                     value={serviceDeadline}
+                    disabled={!canManage}
                     onChange={(e) => setServiceDeadline(e.target.value)}
                     style={styles.selectInput}
                   />
@@ -508,6 +562,7 @@ export default function TaskAllocation() {
                             type="number"
                             min="1"
                             placeholder="e.g. 5"
+                            disabled={!canManage}
                             value={scopeItem.duration_days}
                             onChange={(e) => handleDurationChange(idx, e.target.value)}
                             style={styles.selectInput}
@@ -518,6 +573,7 @@ export default function TaskAllocation() {
                           <label style={styles.label}>Calculated Deadline:</label>
                           <input
                             type="date"
+                            disabled={!canManage}
                             value={scopeItem.calculated_deadline ? scopeItem.calculated_deadline.split('T')[0] : ''}
                             onChange={(e) => {
                               const updated = [...formScopes];
@@ -546,28 +602,30 @@ export default function TaskAllocation() {
                         </div>
                       </div>
 
-                      <div style={{ marginTop: '10px' }}>
-                        <label style={styles.label}>Assign Employees:</label>
-                        <div style={styles.multiSelectBox}>
-                          {employees.length === 0 ? (
-                            <span style={{ fontSize: '12px', color: '#6c757d' }}>No employees available</span>
-                          ) : (
-                            employees.map(emp => {
-                              const checked = scopeItem.assignee_ids.includes(emp.emp_id);
-                              return (
-                                <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', marginBottom: '4px', cursor: 'pointer' }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => handleScopeAssigneeToggle(idx, emp.emp_id)}
-                                  />
-                                  {emp.name} ({emp.email})
-                                </label>
-                              );
-                            })
-                          )}
+                      {canManage && (
+                        <div style={{ marginTop: '10px' }}>
+                          <label style={styles.label}>Assign Employees:</label>
+                          <div style={styles.multiSelectBox}>
+                            {employees.length === 0 ? (
+                              <span style={{ fontSize: '12px', color: '#6c757d' }}>No employees available</span>
+                            ) : (
+                              employees.map(emp => {
+                                const checked = scopeItem.assignee_ids.includes(emp.emp_id);
+                                return (
+                                  <label key={emp.emp_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', marginBottom: '4px', cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => handleScopeAssigneeToggle(idx, emp.emp_id)}
+                                    />
+                                    {emp.name} ({emp.email})
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -577,10 +635,79 @@ export default function TaskAllocation() {
                     Cancel
                   </button>
                   <button type="button" onClick={handleSaveAllocation} disabled={saving} style={styles.saveBtn}>
-                    {saving ? 'Saving...' : 'Save Allocation'}
+                    {saving ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Custom Task Modal */}
+        {isCreateOpen && canManage && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modalContent}>
+              <div style={styles.modalHeader}>
+                <h3 style={{ margin: 0 }}>Create Custom Task</h3>
+                <button onClick={() => setIsCreateOpen(false)} style={styles.closeBtn}>✕</button>
+              </div>
+
+              <form onSubmit={handleCreateCustomTask} style={styles.modalBody}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={styles.label}>Select Approved LOE *</label>
+                  <select
+                    value={newTaskForm.loe_id}
+                    onChange={(e) => setNewTaskForm({ ...newTaskForm, loe_id: e.target.value })}
+                    required
+                    style={styles.selectInput}
+                  >
+                    <option value="" disabled>-- Select LOE --</option>
+                    {loes.filter(l => l.status === 'Approved').map(l => (
+                      <option key={l.loe_id} value={l.loe_id}>
+                        {l.loe_code || `LOE #${l.loe_id}`} - {l.company?.name || 'Client'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={styles.label}>Select Service *</label>
+                  <select
+                    value={newTaskForm.service_id}
+                    onChange={(e) => setNewTaskForm({ ...newTaskForm, service_id: e.target.value })}
+                    required
+                    style={styles.selectInput}
+                  >
+                    <option value="" disabled>-- Select Service --</option>
+                    {services.map(srv => (
+                      <option key={srv.service_id} value={srv.service_id}>
+                        {srv.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={styles.label}>Custom Task Scope / Deliverable *</label>
+                  <textarea
+                    rows="3"
+                    value={newTaskForm.scope}
+                    onChange={(e) => setNewTaskForm({ ...newTaskForm, scope: e.target.value })}
+                    placeholder="Describe the task deliverable..."
+                    required
+                    style={styles.selectInput}
+                  />
+                </div>
+
+                <div style={styles.modalActions}>
+                  <button type="button" onClick={() => setIsCreateOpen(false)} style={styles.cancelBtn}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={saving} style={styles.saveBtn}>
+                    {saving ? 'Creating...' : 'Create Task'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

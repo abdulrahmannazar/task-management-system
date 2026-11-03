@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -15,6 +16,8 @@ const CURRENCY_SYMBOLS = {
 };
 
 export default function InvoiceManager() {
+  const { hasPermission } = usePermissions();
+
   const [invoices, setInvoices] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -36,7 +39,8 @@ export default function InvoiceManager() {
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
 
   const isAdmin = user.role === 'ADMIN';
-  const canManage = user.role === 'ADMIN' || user.role === 'MANAGER';
+  const canViewPage = hasPermission(user, 'VIEW_INVOICES');
+  const canManage = hasPermission(user, 'MANAGE_INVOICES');
   const userDeptId = user.department_id || 1;
 
   useEffect(() => {
@@ -187,7 +191,6 @@ export default function InvoiceManager() {
     setFilterCurrency('ALL');
   };
 
-  // Filter Logic
   const filteredInvoices = invoices.filter((inv) => {
     const invCode = `INV-${String(inv.invoice_id).padStart(5, '0')}`.toLowerCase();
     const rawId = String(inv.invoice_id);
@@ -196,7 +199,6 @@ export default function InvoiceManager() {
     const invStatus = inv.status || 'Not Paid';
     const invCurrency = inv.job?.loe?.currency || 'LKR';
 
-    // 1. Filter by Invoice Number
     if (filterInvoiceNo.trim()) {
       const q = filterInvoiceNo.trim().toLowerCase();
       const strippedQ = q.replace(/^inv-?/i, '').replace(/^0+/, '');
@@ -208,12 +210,10 @@ export default function InvoiceManager() {
       }
     }
 
-    // 2. Filter by Company Name
     if (filterCompany.trim() && !compName.includes(filterCompany.trim().toLowerCase())) {
       return false;
     }
 
-    // 3. Filter by Department
     if (filterDepartment !== 'ALL') {
       const loeItems = inv.job?.loe?.loe_items || [];
       const matchesDept = loeItems.some(
@@ -222,12 +222,10 @@ export default function InvoiceManager() {
       if (!matchesDept) return false;
     }
 
-    // 4. Filter by Payment Status
     if (filterStatus !== 'ALL' && invStatus !== filterStatus) {
       return false;
     }
 
-    // 5. Filter by Currency
     if (filterCurrency !== 'ALL' && invCurrency !== filterCurrency) {
       return false;
     }
@@ -241,6 +239,17 @@ export default function InvoiceManager() {
     filterDepartment !== 'ALL' ||
     filterStatus !== 'ALL' ||
     filterCurrency !== 'ALL';
+
+  if (!canViewPage) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Access Denied. You do not have permission to view the Invoices page.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.pageContainer}>
@@ -265,7 +274,6 @@ export default function InvoiceManager() {
 
         {/* Filter Bar */}
         <div style={styles.filterBar}>
-          {/* Invoice Number Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Invoice Number</label>
             <input
@@ -277,7 +285,6 @@ export default function InvoiceManager() {
             />
           </div>
 
-          {/* Company Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Company</label>
             <input
@@ -295,7 +302,6 @@ export default function InvoiceManager() {
             </datalist>
           </div>
 
-          {/* Department Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Dept</label>
             <select
@@ -312,7 +318,6 @@ export default function InvoiceManager() {
             </select>
           </div>
 
-          {/* Payment Status Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Status</label>
             <select
@@ -326,7 +331,6 @@ export default function InvoiceManager() {
             </select>
           </div>
 
-          {/* Currency Filter */}
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Currency</label>
             <select

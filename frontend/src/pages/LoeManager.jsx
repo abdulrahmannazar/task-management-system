@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -18,6 +19,7 @@ const CURRENCY_SYMBOLS = {
 export default function LoeManager() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission } = usePermissions();
 
   const [loes, setLoes] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -25,7 +27,6 @@ export default function LoeManager() {
   const [companies, setCompanies] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
   
-  // Form State
   const [formData, setFormData] = useState({
     company_id: '',
     type: 'Adhoc',
@@ -52,7 +53,8 @@ export default function LoeManager() {
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
   
-  const canEdit = user.role === 'ADMIN' || user.role === 'MANAGER';
+  const canEdit = hasPermission(user, 'CREATE_LOE');
+  const canDelete = hasPermission(user, 'DELETE_LOE');
   const isAdmin = user.role === 'ADMIN';
   const userDeptId = user.department_id || 1;
 
@@ -329,6 +331,28 @@ export default function LoeManager() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleDeleteLoe = async (e, loeId) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to delete LOE #${loeId}?`)) return;
+
+    try {
+      setActionError('');
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to delete LOE');
+      }
+
+      setLoes(prev => prev.filter(l => l.loe_id !== loeId));
+    } catch (err) {
+      setActionError(err.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -470,21 +494,17 @@ export default function LoeManager() {
     setFilterDepartment('ALL');
   };
 
-  // Filter logic for displayed LOEs
   const displayedLoes = loes.filter(loe => {
-    // 1. Role-based department restriction
     if (!isAdmin) {
       const hasDept = (loe.loe_items || []).some(item => item.service?.department_id === userDeptId);
       if (!hasDept) return false;
     }
 
-    // 2. Company Name filter
     if (filterCompany) {
       const compName = (getCompanyName(loe.company_id) || '').toLowerCase();
       if (!compName.includes(filterCompany.toLowerCase())) return false;
     }
 
-    // 3. Status filter
     if (filterStatus !== 'ALL') {
       if (filterStatus === 'Approval Pending') {
         if (loe.status !== 'Approval Pending' && loe.status !== 'Pending') return false;
@@ -493,25 +513,21 @@ export default function LoeManager() {
       }
     }
 
-    // 4. Billing Type filter
     if (filterType !== 'ALL') {
       const loeType = loe.type || 'Adhoc';
       if (loeType !== filterType) return false;
     }
 
-    // 5. Billing Frequency filter
     if (filterFrequency !== 'ALL') {
       const loeFreq = loe.billing_frequency || 'One-Time';
       if (loeFreq !== filterFrequency) return false;
     }
 
-    // 6. Currency filter
     if (filterCurrency !== 'ALL') {
       const loeCur = loe.currency || 'LKR';
       if (loeCur !== filterCurrency) return false;
     }
 
-    // 7. Department filter (Admin only)
     if (isAdmin && filterDepartment !== 'ALL') {
       const hasSelectedDept = (loe.loe_items || []).some(
         item => Number(item.service?.department_id) === Number(filterDepartment)
@@ -531,6 +547,17 @@ export default function LoeManager() {
     (isAdmin && filterDepartment !== 'ALL');
 
   const activeSymbol = CURRENCY_SYMBOLS[formData.currency] || 'Rs.';
+
+  if (!hasPermission(user, 'VIEW_LOES')) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Access Denied. You do not have permission to view LOEs.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.pageContainer}>
@@ -834,7 +861,7 @@ export default function LoeManager() {
           </div>
         )}
 
-        {/* Existing LOEs List with Search & Filtering Bar */}
+        {/* Existing LOEs List */}
         <div style={styles.listSection}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>Available Letters of Engagement</h2>
@@ -1050,8 +1077,17 @@ export default function LoeManager() {
                         disabled={downloadingId === loe.loe_id}
                         style={styles.downloadButton}
                       >
-                        {downloadingId === loe.loe_id ? 'PDF...' : 'Download LOE PDF'}
+                        {downloadingId === loe.loe_id ? 'PDF...' : 'PDF'}
                       </button>
+
+                      {canDelete && (
+                        <button
+                          onClick={(e) => handleDeleteLoe(e, loe.loe_id)}
+                          style={styles.deleteButton}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1132,5 +1168,6 @@ const styles = {
   miniItemRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
   cardActions: { display: 'flex', gap: '6px', marginTop: '14px' },
   editButton: { flex: '1', padding: '6px 8px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  downloadButton: { flex: '1', padding: '6px 8px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  downloadButton: { flex: '1', padding: '6px 8px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  deleteButton: { flex: '0.8', padding: '6px 8px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };

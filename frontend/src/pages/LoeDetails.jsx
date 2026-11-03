@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -15,7 +16,6 @@ const CURRENCY_SYMBOLS = {
   SGD: 'S$'
 };
 
-// Helper to parse any custom or template scope into clean, capitalized bullet points
 const parseScopePoints = (scopeText) => {
   if (!scopeText) return ['Standard Deliverable'];
   const points = String(scopeText)
@@ -30,6 +30,7 @@ const parseScopePoints = (scopeText) => {
 export default function LoeDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = usePermissions();
 
   const [loe, setLoe] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +45,9 @@ export default function LoeDetails() {
   const userStr = localStorage.getItem('user');
   const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
   
-  const canEdit = user.role === 'ADMIN' || user.role === 'MANAGER';
+  const canEdit = hasPermission(user, 'CREATE_LOE');
+  const canApprove = hasPermission(user, 'APPROVE_LOE');
+  const canDelete = hasPermission(user, 'DELETE_LOE');
   const isAdmin = user.role === 'ADMIN';
   const userDeptId = user.department_id || 1;
 
@@ -167,6 +170,26 @@ export default function LoeDetails() {
     }
   };
 
+  const handleDeleteLoe = async () => {
+    if (!window.confirm(`Are you sure you want to permanently delete LOE #${id}?`)) return;
+    try {
+      setError('');
+      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to delete LOE');
+      }
+
+      navigate('/loes');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     try {
       setDownloading(true);
@@ -175,7 +198,6 @@ export default function LoeDetails() {
       let response;
       const cacheBuster = `?t=${Date.now()}`;
 
-      // If running on localhost, try local backend (port 3000) first so template edits show immediately
       if (window.location.hostname === 'localhost') {
         try {
           response = await fetch(`http://localhost:3000/api/loes/${id}/pdf${cacheBuster}`, {
@@ -186,7 +208,6 @@ export default function LoeDetails() {
         }
       }
 
-      // Fallback to Render backend if local backend is not running
       if (!response || !response.ok) {
         response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}/pdf${cacheBuster}`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -253,7 +274,7 @@ export default function LoeDetails() {
           </div>
           
           <div style={styles.actionButtons}>
-            {canEdit && hasPendingItems && (
+            {canApprove && hasPendingItems && (
               <button
                 onClick={handleApproveAll}
                 disabled={processingId === 'ALL'}
@@ -279,6 +300,15 @@ export default function LoeDetails() {
             >
               {downloading ? 'Generating PDF...' : 'Download LOE PDF'}
             </button>
+
+            {canDelete && (
+              <button
+                onClick={handleDeleteLoe}
+                style={styles.deleteBtn}
+              >
+                Delete LOE
+              </button>
+            )}
           </div>
         </div>
 
@@ -330,7 +360,7 @@ export default function LoeDetails() {
                 </div>
                 <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Registration No.</span>
-                  <span style={styles.detailValue}>{loe.company?.reg_no || 'N/A'}</span>
+                  <span style={styles.detailValue}>{loe.company?.reg_no || loe.company?.reg_number || 'N/A'}</span>
                 </div>
                 <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Email Address</span>
@@ -338,7 +368,7 @@ export default function LoeDetails() {
                 </div>
                 <div style={styles.detailRow}>
                   <span style={styles.detailLabel}>Phone Number</span>
-                  <span style={styles.detailValue}>{loe.company?.phone || 'N/A'}</span>
+                  <span style={styles.detailValue}>{loe.company?.phone || loe.company?.phone_number || 'N/A'}</span>
                 </div>
               </div>
 
@@ -378,7 +408,7 @@ export default function LoeDetails() {
                 <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>
                   Service Deliverables &amp; Approval Workspace ({loeCurrency})
                 </h3>
-                {canEdit && (
+                {canApprove && (
                   <span style={{ fontSize: '12px', color: '#64748b' }}>
                     Review and approve/reject individual deliverables below
                   </span>
@@ -414,7 +444,7 @@ export default function LoeDetails() {
                           </div>
                         </div>
 
-                        {/* Formatted Bulleted Scope Block */}
+                        {/* Formatted Bulleted Scope List */}
                         <div style={styles.scopeBox}>
                           <div style={styles.scopeTitle}>Scope of Work:</div>
                           <ul style={styles.scopeBulletList}>
@@ -433,7 +463,7 @@ export default function LoeDetails() {
                         )}
 
                         {/* Approval Controls Inside LOE Details */}
-                        {canEdit && (
+                        {canApprove && (
                           <div style={styles.approvalActionRow}>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               {item.status !== 'Approved' && (
@@ -517,6 +547,7 @@ const styles = {
   approveAllTopBtn: { padding: '8px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   editBtn: { padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   downloadBtn: { padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  deleteBtn: { padding: '8px 16px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   errorBanner: { background: '#fed7d7', color: '#c53030', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' },
   successBanner: { background: '#d4edda', color: '#155724', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' },
   loadingBox: { background: '#fff', padding: '40px', textAlign: 'center', borderRadius: '8px', color: '#64748b' },
@@ -539,7 +570,7 @@ const styles = {
     padding: '10px 14px'
   },
   scopeTitle: {
-    fontSize: '12px',
+    fontSize: '11.5px',
     fontWeight: 'bold',
     color: '#475569',
     textTransform: 'uppercase',
@@ -548,13 +579,13 @@ const styles = {
   },
   scopeBulletList: {
     margin: 0,
-    paddingLeft: '20px',
+    paddingLeft: '18px',
     color: '#334155',
-    fontSize: '13.5px',
-    lineHeight: '1.6'
+    fontSize: '13px',
+    lineHeight: '1.55'
   },
   scopeBulletItem: {
-    marginBottom: '4px'
+    marginBottom: '3px'
   },
   approvalActionRow: { marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' },
   approveItemBtn: { padding: '6px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -28,6 +29,7 @@ const parseScopePoints = (scopeText) => {
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
+  const { hasPermission } = usePermissions();
 
   const [pendingLoes, setPendingLoes] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -50,6 +52,8 @@ export default function ManagerDashboard() {
 
   const isAdmin = user.role === 'ADMIN';
   const userDeptId = user.department_id || 1;
+  const canViewApprovals = hasPermission(user, 'VIEW_APPROVALS');
+  const canApprove = hasPermission(user, 'APPROVE_LOE');
 
   useEffect(() => {
     fetchPendingLoes();
@@ -227,6 +231,17 @@ export default function ManagerDashboard() {
     filterCurrency !== 'ALL' ||
     filterBillingCycle !== 'ALL' ||
     (isAdmin && filterDepartment !== 'ALL');
+
+  if (!canViewApprovals) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Access Denied. You do not have permission to view the Approvals page.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.pageContainer}>
@@ -444,28 +459,34 @@ export default function ManagerDashboard() {
                             </div>
 
                             {item.status === 'Pending' ? (
-                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleApproveItem(e, loe.loe_id, item.loe_item_id)}
-                                  style={styles.approveBtn}
-                                >
-                                  ✓ Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRejectingItemId(
-                                      rejectingItemId === item.loe_item_id ? null : item.loe_item_id
-                                    );
-                                    setRejectionReason('');
-                                  }}
-                                  style={styles.rejectBtn}
-                                >
-                                  ✕ Reject
-                                </button>
-                              </div>
+                              canApprove ? (
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleApproveItem(e, loe.loe_id, item.loe_item_id)}
+                                    style={styles.approveBtn}
+                                  >
+                                    ✓ Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRejectingItemId(
+                                        rejectingItemId === item.loe_item_id ? null : item.loe_item_id
+                                      );
+                                      setRejectionReason('');
+                                    }}
+                                    style={styles.rejectBtn}
+                                  >
+                                    ✕ Reject
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 'bold' }}>
+                                  ⏳ Pending
+                                </span>
+                              )
                             ) : (
                               <span
                                 style={{
@@ -479,7 +500,7 @@ export default function ManagerDashboard() {
                             )}
                           </div>
 
-                          {rejectingItemId === item.loe_item_id && (
+                          {canApprove && rejectingItemId === item.loe_item_id && (
                             <div
                               style={styles.rejectBox}
                               onClick={(e) => e.stopPropagation()}
@@ -510,13 +531,15 @@ export default function ManagerDashboard() {
                       Click to open full LOE details &amp; approval page →
                     </span>
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleApproveAll(e, loe.loe_id)}
-                      style={styles.approveAllBtn}
-                    >
-                      Approve All Services
-                    </button>
+                    {canApprove && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleApproveAll(e, loe.loe_id)}
+                        style={styles.approveAllBtn}
+                      >
+                        Approve All Services
+                      </button>
+                    )}
                   </div>
                 </div>
               );
