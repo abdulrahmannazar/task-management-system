@@ -309,8 +309,8 @@ export default function Dashboard() {
 
                         return (
                           <tr key={t.task_id} style={styles.tr}>
-                            <td style={{ ...styles.td, fontWeight: 'bold', color: '#1e293b', verticalAlign: 'top' }}>
-                              {t.task_code || `TSK-${t.task_id}`}
+                            <td style={{ ...styles.td, fontWeight: 'bold', color: '#1e293b', verticalAlign: 'top', letterSpacing: '0.5px' }}>
+                              {t.task_code ? String(t.task_code).toUpperCase() : `TSK-${t.task_id}`}
                             </td>
                             <td style={{ ...styles.td, verticalAlign: 'top' }}>
                               {t.job?.loe?.company?.name || 'N/A'}
