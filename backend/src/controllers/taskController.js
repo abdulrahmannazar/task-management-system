@@ -51,14 +51,15 @@ exports.getAll = asyncHandler(async (req, res) => {
   const tasks = await prisma.task.findMany(query);
 
   const enriched = tasks.map((t, idx) => {
-    if (!t.task_code) {
+    let code = t.task_code;
+    if (!code) {
       const companyName = t.job?.loe?.company?.name || 'CMP';
-      return {
-        ...t,
-        task_code: generateTaskCode(companyName, t.scope || t.service?.name, t.task_id || idx + 1)
-      };
+      code = generateTaskCode(companyName, t.scope || t.service?.name, t.task_id || idx + 1);
     }
-    return t;
+    return {
+      ...t,
+      task_code: String(code).toUpperCase()
+    };
   });
 
   res.json(enriched);
@@ -80,13 +81,15 @@ exports.getById = asyncHandler(async (req, res) => {
 
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
-  if (!task.task_code) {
-    task.task_code = generateTaskCode(
+  let code = task.task_code;
+  if (!code) {
+    code = generateTaskCode(
       task.job?.loe?.company?.name || 'CMP',
       task.scope || task.service?.name,
       task.task_id
     );
   }
+  task.task_code = String(code).toUpperCase();
 
   res.json(task);
 });
@@ -213,7 +216,7 @@ exports.update = asyncHandler(async (req, res) => {
   res.json(updatedTask);
 });
 
-// POST /api/tasks/:id/remind (Immediate notification + Async email)
+// POST /api/tasks/:id/remind
 exports.remind = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });
@@ -228,7 +231,6 @@ exports.remind = asyncHandler(async (req, res) => {
 
   const currentEmpId = getEmpId(req);
 
-  // 1. In-App Notifications for assignees
   for (const emp of task.assignees) {
     await prisma.notification.create({
       data: {
@@ -241,7 +243,6 @@ exports.remind = asyncHandler(async (req, res) => {
     sendTaskReminderEmail(emp.email, emp.name, task.task_code, task.scope, task.deadline);
   }
 
-  // 2. In-App Notification for the sender
   if (currentEmpId) {
     await prisma.notification.create({
       data: {
@@ -252,7 +253,6 @@ exports.remind = asyncHandler(async (req, res) => {
     });
   }
 
-  // 3. Update DB tracker
   const updatedTask = await prisma.task.update({
     where: { task_id: id },
     data: { last_reminded_at: new Date() }
@@ -271,6 +271,4 @@ const deleteTask = asyncHandler(async (req, res) => {
 });
 
 exports.remove = deleteTask;
-
-
 exports.delete = deleteTask;
