@@ -2,6 +2,29 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
+// Helper to parse multi-line or bulleted scopes into clean structured points
+const parseScopePoints = (scopeText) => {
+  if (!scopeText) return [];
+  return String(scopeText)
+    .split(/\r?\n|(?=[•●▪♦\u2022])|\b(?=\d+\.\s+)/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (/^[oO]\s+/.test(line)) {
+        return {
+          type: 'sub',
+          text: line.replace(/^[oO]\s+/, '').trim()
+        };
+      }
+      const cleaned = line.replace(/^[-*•●▪♦\d.\s]+/, '').trim();
+      return {
+        type: 'main',
+        text: cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+      };
+    })
+    .filter((item) => item.text.length > 0);
+};
+
 export default function ServiceManager() {
   const { hasPermission } = usePermissions();
 
@@ -9,6 +32,7 @@ export default function ServiceManager() {
   const [departments, setDepartments] = useState([]);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
   const [editingId, setEditingId] = useState(null);
+  const [selectedService, setSelectedService] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -67,7 +91,9 @@ export default function ServiceManager() {
     setFormData({ ...formData, [e.target.name]: value });
   };
 
-  const handleEdit = (srv) => {
+  const handleEdit = (e, srv) => {
+    if (e) e.stopPropagation();
+    setSelectedService(null);
     setEditingId(srv.service_id);
     setFormData({
       department_id: srv.department_id,
@@ -130,7 +156,7 @@ export default function ServiceManager() {
   };
 
   const getDepartmentName = (deptId) => {
-    const found = departments.find(d => d.department_id === Number(deptId));
+    const found = departments.find((d) => d.department_id === Number(deptId));
     return found ? found.name : `Dept #${deptId}`;
   };
 
@@ -315,7 +341,7 @@ export default function ServiceManager() {
                 {isAdmin ? 'All Standard Services' : `${getDepartmentName(userDeptId)} Services`}
               </h2>
               <p style={{ margin: '4px 0 0 0', color: '#6c757d', fontSize: '13px' }}>
-                {displayedServices.length} registered service{displayedServices.length === 1 ? '' : 's'}.
+                {displayedServices.length} registered service{displayedServices.length === 1 ? '' : 's'}. Click any service card to view full details.
               </p>
             </div>
 
@@ -339,51 +365,217 @@ export default function ServiceManager() {
             <p>No services registered in this department yet.</p>
           ) : (
             <div style={styles.grid}>
-              {displayedServices.map((srv) => (
-                <div key={srv.service_id} style={styles.card}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              {displayedServices.map((srv) => {
+                const parsedPoints = parseScopePoints(srv.scope);
+                const previewPoints = parsedPoints.slice(0, 3);
+                const remainingCount = parsedPoints.length - previewPoints.length;
+
+                return (
+                  <div
+                    key={srv.service_id}
+                    onClick={() => setSelectedService(srv)}
+                    style={styles.card}
+                    title="Click to view full service details"
+                  >
                     <div>
-                      <h3 style={{ margin: 0, fontSize: '16px', color: '#1a202c' }}>{srv.name}</h3>
-                      <span style={styles.categoryBadge}>{srv.sub_category || 'Standard'}</span>
-                      <span style={styles.deptBadge}>
-                        {srv.department?.name || getDepartmentName(srv.department_id)}
-                      </span>
+                      <div style={styles.cardTopRow}>
+                        <div style={{ flex: 1, paddingRight: '10px' }}>
+                          <h3 style={styles.cardTitle}>{srv.name}</h3>
+                          <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            <span style={styles.categoryBadge}>{srv.sub_category || 'Standard'}</span>
+                            <span style={styles.deptBadge}>
+                              {srv.department?.name || getDepartmentName(srv.department_id)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <span style={styles.priceBadge}>
+                            Rs. {Number(srv.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px' }}>
+                            {srv.billing_type}
+                          </div>
+                        </div>
+                      </div>
+
+                      {parsedPoints.length > 0 && (
+                        <div style={styles.scopePreviewBox}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>
+                              Default Scope ({parsedPoints.length} {parsedPoints.length === 1 ? 'item' : 'items'}):
+                            </span>
+                          </div>
+                          <ul style={styles.previewBulletList}>
+                            {previewPoints.map((pt, i) => (
+                              <li key={i} style={styles.previewBulletItem}>
+                                {pt.text.length > 90 ? `${pt.text.slice(0, 90)}...` : pt.text}
+                              </li>
+                            ))}
+                          </ul>
+                          {remainingCount > 0 && (
+                            <div style={styles.moreItemsHint}>
+                              + {remainingCount} more deliverable{remainingCount === 1 ? '' : 's'} — Click to view in detail →
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={styles.priceBadge}>
-                        Rs. {Number(srv.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <div style={styles.cardFooter}>
+                      <span style={{ fontSize: '12px', color: srv.is_active ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                        {srv.is_active ? '● Active' : '○ Inactive'}
                       </span>
-                      <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
-                        {srv.billing_type}
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={styles.viewDetailLink}>View Details</span>
+                        {canManageServices && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleEdit(e, srv)}
+                            style={styles.editBtn}
+                          >
+                            Edit Service &amp; Price
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  {srv.scope && (
-                    <div style={styles.scopePreviewBox}>
-                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#6c757d' }}>Default Scope:</span>
-                      <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#4a5568', whiteSpace: 'pre-line' }}>
-                        {srv.scope}
-                      </p>
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: srv.is_active ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
-                      {srv.is_active ? '● Active' : '○ Inactive'}
-                    </span>
-                    {canManageServices && (
-                      <button onClick={() => handleEdit(srv)} style={styles.editBtn}>
-                        Edit Service &amp; Price
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
+
+        {/* Service Details Modal */}
+        {selectedService && (
+          <div
+            style={styles.modalOverlay}
+            onClick={() => setSelectedService(null)}
+          >
+            <div
+              style={styles.modalContent}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={styles.modalHeader}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <h2 style={{ margin: 0, fontSize: '21px', color: '#0f172a' }}>
+                      {selectedService.name}
+                    </h2>
+                    <span
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        fontSize: '11.5px',
+                        fontWeight: 'bold',
+                        background: selectedService.is_active ? '#dcfce7' : '#fee2e2',
+                        color: selectedService.is_active ? '#15803d' : '#b91c1c'
+                      }}
+                    >
+                      {selectedService.is_active ? '● Active' : '○ Inactive'}
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                    Service ID: #{selectedService.service_id} &nbsp;&bull;&nbsp; Department:{' '}
+                    <strong>
+                      {selectedService.department?.name || getDepartmentName(selectedService.department_id)}
+                    </strong>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedService(null)}
+                  style={styles.closeBtn}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Service Metadata Summary Cards */}
+              <div style={styles.modalMetaGrid}>
+                <div style={styles.metaCard}>
+                  <span style={styles.metaLabel}>Standard Base Fee (LKR)</span>
+                  <span style={{ ...styles.metaValue, color: '#0f766e', fontSize: '17px' }}>
+                    Rs.{' '}
+                    {Number(selectedService.price || 0).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </span>
+                </div>
+
+                <div style={styles.metaCard}>
+                  <span style={styles.metaLabel}>Billing Type</span>
+                  <span style={styles.metaValue}>{selectedService.billing_type || 'Fixed Fee'}</span>
+                </div>
+
+                <div style={styles.metaCard}>
+                  <span style={styles.metaLabel}>Sub-Category</span>
+                  <span style={styles.metaValue}>{selectedService.sub_category || 'Standard'}</span>
+                </div>
+
+                <div style={styles.metaCard}>
+                  <span style={styles.metaLabel}>Department</span>
+                  <span style={styles.metaValue}>
+                    {selectedService.department?.name || getDepartmentName(selectedService.department_id)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Full Scope of Work & Deliverables */}
+              <div style={styles.modalScopeContainer}>
+                <h4 style={styles.modalScopeHeading}>
+                  📋 Full Default Scope of Work &amp; Deliverables
+                </h4>
+
+                {parseScopePoints(selectedService.scope).length === 0 ? (
+                  <p style={{ margin: 0, color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
+                    No default scope template defined for this service.
+                  </p>
+                ) : (
+                  <ul style={styles.modalScopeList}>
+                    {parseScopePoints(selectedService.scope).map((pt, idx) => (
+                      <li
+                        key={idx}
+                        style={
+                          pt.type === 'sub'
+                            ? styles.modalScopeSubItem
+                            : styles.modalScopeMainItem
+                        }
+                      >
+                        {pt.type === 'sub' ? `o  ${pt.text}` : pt.text}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div style={styles.modalActions}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedService(null)}
+                  style={styles.modalCloseActionBtn}
+                >
+                  Close
+                </button>
+
+                {canManageServices && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleEdit(e, selectedService)}
+                    style={styles.modalEditActionBtn}
+                  >
+                    ✎ Edit Service &amp; Price
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
@@ -428,11 +620,221 @@ const styles = {
   cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   errorBox: { padding: '10px 14px', background: '#fed7d7', color: '#c53030', borderRadius: '4px', fontSize: '13px', border: '1px solid #feb2b2' },
   filterDropdown: { padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px', background: '#fff', fontWeight: 'bold' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' },
-  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' },
-  categoryBadge: { background: '#e2e8f0', color: '#4a5568', padding: '2px 6px', borderRadius: '3px', fontSize: '11px', marginRight: '6px' },
-  deptBadge: { background: '#edf2f7', color: '#2b6cb0', padding: '2px 6px', borderRadius: '3px', fontSize: '11px' },
-  priceBadge: { background: '#e6fffa', color: '#234e52', padding: '3px 8px', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold', border: '1px solid #b2f5ea' },
-  scopePreviewBox: { marginTop: '10px', background: '#f8fafc', padding: '8px 10px', borderRadius: '4px', border: '1px solid #edf2f7' },
-  editBtn: { padding: '6px 12px', background: '#f8f9fa', color: '#007bff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' },
+  card: {
+    background: '#fff',
+    padding: '18px',
+    borderRadius: '8px',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+    border: '1px solid #e2e8f0',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    cursor: 'pointer',
+    transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease'
+  },
+  cardTopRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '8px'
+  },
+  cardTitle: {
+    margin: 0,
+    fontSize: '16px',
+    color: '#1a202c',
+    lineHeight: '1.35'
+  },
+  categoryBadge: { background: '#e2e8f0', color: '#4a5568', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: '500' },
+  deptBadge: { background: '#edf2f7', color: '#2b6cb0', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: '500' },
+  priceBadge: {
+    background: '#e6fffa',
+    color: '#234e52',
+    padding: '4px 9px',
+    borderRadius: '5px',
+    fontSize: '13px',
+    fontWeight: 'bold',
+    border: '1px solid #b2f5ea',
+    whiteSpace: 'nowrap',
+    display: 'inline-block'
+  },
+  scopePreviewBox: {
+    marginTop: '12px',
+    background: '#f8fafc',
+    padding: '10px 12px',
+    borderRadius: '6px',
+    border: '1px solid #edf2f7'
+  },
+  previewBulletList: {
+    margin: '4px 0 0 0',
+    paddingLeft: '16px',
+    fontSize: '12px',
+    color: '#475569',
+    lineHeight: '1.5'
+  },
+  previewBulletItem: {
+    marginBottom: '3px'
+  },
+  moreItemsHint: {
+    marginTop: '6px',
+    fontSize: '11.5px',
+    fontWeight: 'bold',
+    color: '#0284c7'
+  },
+  cardFooter: {
+    marginTop: '14px',
+    paddingTop: '10px',
+    borderTop: '1px solid #f1f5f9',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  viewDetailLink: {
+    fontSize: '12px',
+    fontWeight: 'bold',
+    color: '#64748b'
+  },
+  editBtn: {
+    padding: '6px 12px',
+    background: '#f8f9fa',
+    color: '#007bff',
+    border: '1px solid #ced4da',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px'
+  },
+
+  // Service Detail Modal Styles
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(15, 23, 42, 0.55)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10000,
+    padding: '20px'
+  },
+  modalContent: {
+    background: '#ffffff',
+    borderRadius: '10px',
+    width: '100%',
+    maxWidth: '720px',
+    maxHeight: '88vh',
+    overflowY: 'auto',
+    padding: '26px 28px',
+    boxShadow: '0 20px 35px -5px rgba(0, 0, 0, 0.2)'
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottom: '1px solid #e2e8f0',
+    paddingBottom: '16px',
+    marginBottom: '18px'
+  },
+  closeBtn: {
+    background: '#f1f5f9',
+    border: 'none',
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    fontSize: '15px',
+    cursor: 'pointer',
+    color: '#475569',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalMetaGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '12px',
+    marginBottom: '20px'
+  },
+  metaCard: {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  },
+  metaLabel: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px'
+  },
+  metaValue: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#0f172a'
+  },
+  modalScopeContainer: {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    padding: '18px 20px'
+  },
+  modalScopeHeading: {
+    margin: '0 0 12px 0',
+    fontSize: '14px',
+    color: '#1e293b',
+    borderBottom: '1px solid #e2e8f0',
+    paddingBottom: '8px'
+  },
+  modalScopeList: {
+    margin: 0,
+    paddingLeft: '20px',
+    color: '#334155',
+    fontSize: '13.5px',
+    lineHeight: '1.65'
+  },
+  modalScopeMainItem: {
+    marginBottom: '8px'
+  },
+  modalScopeSubItem: {
+    listStyleType: 'none',
+    marginLeft: '14px',
+    marginBottom: '6px',
+    fontFamily: 'monospace',
+    fontSize: '12.5px',
+    color: '#475569'
+  },
+  modalActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '10px',
+    marginTop: '22px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e2e8f0'
+  },
+  modalCloseActionBtn: {
+    padding: '9px 18px',
+    background: '#e2e8f0',
+    color: '#334155',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '13px',
+    cursor: 'pointer'
+  },
+  modalEditActionBtn: {
+    padding: '9px 18px',
+    background: '#007bff',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '13px',
+    cursor: 'pointer'
+  }
 };
