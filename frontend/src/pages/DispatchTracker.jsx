@@ -193,7 +193,7 @@ export default function DispatchTracker() {
         <div style={styles.insightsContainer}>
           <div style={styles.insightsHeader}>
             <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>
-              {activeTab === 'loe' ? '📄 LOE Client Dispatch Status' : '🧾 Invoice Client Dispatch Status'}
+              {activeTab === 'loe' ? 'LOE Client Dispatch Status' : 'Invoice Client Dispatch Status'}
             </h2>
 
             <div style={styles.filterGroup}>
@@ -306,7 +306,7 @@ export default function DispatchTracker() {
                             <td style={styles.td}>
                               {sent ? (
                                 <div>
-                                  <span style={styles.sentBadge}>✅ Sent to Client</span>
+                                  <span style={styles.sentBadge}>Sent to Client</span>
                                   {sentAt && (
                                     <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px' }}>
                                       {new Date(sentAt).toLocaleDateString()}
@@ -314,7 +314,7 @@ export default function DispatchTracker() {
                                   )}
                                 </div>
                               ) : (
-                                <span style={styles.notSentBadge}>⏳ Not Sent</span>
+                                <span style={styles.notSentBadge}>Not Sent</span>
                               )}
                             </td>
                             <td style={styles.td}>
@@ -405,7 +405,7 @@ export default function DispatchTracker() {
                             <td style={styles.td}>
                               {sent ? (
                                 <div>
-                                  <span style={styles.sentBadge}>✅ Sent to Client</span>
+                                  <span style={styles.sentBadge}>Sent to Client</span>
                                   {sentAt && (
                                     <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px' }}>
                                       {new Date(sentAt).toLocaleDateString()}
@@ -413,7 +413,7 @@ export default function DispatchTracker() {
                                   )}
                                 </div>
                               ) : (
-                                <span style={styles.notSentBadge}>⏳ Not Sent</span>
+                                <span style={styles.notSentBadge}>Not Sent</span>
                               )}
                             </td>
                             <td style={styles.td}>
@@ -441,35 +441,41 @@ export default function DispatchTracker() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { maxWidth: '1240px', margin: '0 auto', padding: '35px 40px' },
-  topHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '16px' },
-  pageTitle: { margin: 0, fontSize: '26px', color: '#1e293b' },
-  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#64748b' },
+  topHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '16px', paddingRight: '90px' },
+  pageTitle: { margin: 0, fontSize: '26px', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.3px' },
+  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#475569' },
   tabGroup: { display: 'flex', gap: '12px' },
-  tabBtn: { padding: '10px 28px', fontSize: '15px', fontWeight: 'bold', borderRadius: '6px', border: '2px solid #cbd5e1', background: '#ffffff', color: '#334155', cursor: 'pointer', transition: 'all 0.15s ease' },
-  activeTabBtn: { background: '#1e293b', color: '#ffffff', borderColor: '#1e293b', boxShadow: '0 4px 10px rgba(30, 41, 59, 0.2)' },
-  insightsContainer: { background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '28px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.04)', minHeight: '420px' },
+  tabBtn: { padding: '9px 24px', fontSize: '14.5px', fontWeight: 'bold', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#334155', cursor: 'pointer', transition: 'all 0.15s ease' },
+  activeTabBtn: { background: '#0284c7', color: '#ffffff', borderColor: '#0284c7', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)' },
+  insightsContainer: { background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '28px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', minHeight: '420px' },
   insightsHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' },
   filterGroup: { display: 'flex', gap: '8px' },
   filterPill: { padding: '6px 14px', borderRadius: '20px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
   activeFilterPill: { background: '#0284c7', color: '#ffffff', borderColor: '#0284c7' },
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px', marginBottom: '28px' },
-  statCard: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '6px' },
-  statLabel: { fontSize: '13px', fontWeight: 'bold', color: '#64748b' },
+  statCard: { background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)' },
+  statLabel: { fontSize: '12.5px', fontWeight: 'bold', color: '#64748b' },
   statValue: { fontSize: '30px', fontWeight: '800', color: '#0f172a' },
   statSubtext: { fontSize: '12px', color: '#94a3b8' },
   tableWrapper: { overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-  th: { textAlign: 'left', padding: '12px', background: '#f1f5f9', color: '#475569', fontWeight: 'bold', borderBottom: '1px solid #cbd5e1' },
+  th: { textAlign: 'left', padding: '12px 14px', background: '#f8fafc', color: '#475569', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0' },
   tr: { borderBottom: '1px solid #e2e8f0' },
-  td: { padding: '12px', color: '#334155', verticalAlign: 'middle' },
+  td: { padding: '12px 14px', color: '#334155', verticalAlign: 'middle' },
   badge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
-  sentBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', display: 'inline-block' },
-  notSentBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', display: 'inline-block' },
+  sentBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', display: 'inline-block' },
+  notSentBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', display: 'inline-block' },
   markSentBtn: { padding: '6px 12px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
   markUnsentBtn: { padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
   loadingState: { padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '15px' },
   emptyText: { color: '#64748b', fontStyle: 'italic', fontSize: '14px' },
-  errorBanner: { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #fca5a5', fontSize: '13px' }
+  errorBanner: { background: '#fff1f2', color: '#e11d48', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #fecdd3', fontSize: '13px' }
 };

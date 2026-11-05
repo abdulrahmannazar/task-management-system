@@ -466,7 +466,7 @@ export default function ManagerDashboard() {
                                     onClick={(e) => handleApproveItem(e, loe.loe_id, item.loe_item_id)}
                                     style={styles.approveBtn}
                                   >
-                                    ✓ Approve
+                                    Approve
                                   </button>
                                   <button
                                     type="button"
@@ -479,12 +479,12 @@ export default function ManagerDashboard() {
                                     }}
                                     style={styles.rejectBtn}
                                   >
-                                    ✕ Reject
+                                    Reject
                                   </button>
                                 </div>
                               ) : (
                                 <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 'bold' }}>
-                                  ⏳ Pending
+                                  Pending
                                 </span>
                               )
                             ) : (
@@ -495,7 +495,7 @@ export default function ManagerDashboard() {
                                   color: item.status === 'Approved' ? '#15803d' : '#b91c1c'
                                 }}
                               >
-                                {item.status === 'Approved' ? '✅ Approved' : '❌ Rejected'}
+                                {item.status === 'Approved' ? 'Approved' : 'Rejected'}
                               </span>
                             )}
                           </div>
@@ -552,12 +552,18 @@ export default function ManagerDashboard() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { maxWidth: '1200px', margin: '0 auto', padding: '35px 40px' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  pageTitle: { margin: 0, fontSize: '26px', color: '#1e293b' },
-  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#64748b' },
-  countBadge: { background: '#1e293b', color: '#fff', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingRight: '90px' },
+  pageTitle: { margin: 0, fontSize: '26px', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.3px' },
+  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#475569' },
+  countBadge: { background: '#0284c7', color: '#fff', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' },
   filterBar: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -568,7 +574,7 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid #e2e8f0',
     marginBottom: '24px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)'
   },
   filterField: { display: 'flex', flexDirection: 'column', gap: '5px', flex: '1', minWidth: '165px' },
   filterLabel: { fontSize: '12px', fontWeight: 'bold', color: '#475569' },
@@ -576,8 +582,8 @@ const styles = {
   filterSelect: { padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' },
   clearFilterBtn: {
     padding: '8px 14px',
-    background: '#f1f5f9',
-    color: '#dc2626',
+    background: '#f8fafc',
+    color: '#e11d48',
     border: '1px solid #cbd5e1',
     borderRadius: '6px',
     fontWeight: 'bold',
@@ -585,7 +591,7 @@ const styles = {
     cursor: 'pointer',
     height: '35px'
   },
-  errorBanner: { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '6px', marginBottom: '18px', fontSize: '13px' },
+  errorBanner: { background: '#fff1f2', color: '#e11d48', padding: '12px 16px', borderRadius: '6px', marginBottom: '18px', fontSize: '13px', border: '1px solid #fecdd3' },
   emptyBox: { background: '#fff', padding: '45px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
   grid: { display: 'flex', flexDirection: 'column', gap: '18px' },
   card: {
@@ -593,15 +599,15 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid #e2e8f0',
     padding: '20px',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
     cursor: 'pointer',
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease'
   },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' },
-  cardTitle: { margin: 0, fontSize: '18px', color: '#2563eb' },
+  cardTitle: { margin: 0, fontSize: '18px', color: '#0284c7', fontWeight: '700' },
   companySub: { fontSize: '14px', color: '#334155', display: 'block', marginTop: '4px' },
-  currencyTag: { background: '#e0f2fe', color: '#0369a1', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
-  statusBadge: { background: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  currencyTag: { background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
+  statusBadge: { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   metaStrip: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -636,12 +642,12 @@ const styles = {
   scopeBulletItem: {
     marginBottom: '3px'
   },
-  approveBtn: { padding: '6px 12px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  rejectBtn: { padding: '6px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  approveBtn: { padding: '6px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  rejectBtn: { padding: '6px 12px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   rejectBox: { width: '100%', display: 'flex', gap: '8px', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #cbd5e1' },
   rejectInput: { flex: 1, padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' },
-  confirmRejectBtn: { padding: '6px 12px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  confirmRejectBtn: { padding: '6px 12px', background: '#be123c', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   cardFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #e2e8f0' },
-  viewDetailsLink: { fontSize: '13px', fontWeight: 'bold', color: '#2563eb' },
-  approveAllBtn: { padding: '8px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }
+  viewDetailsLink: { fontSize: '13px', fontWeight: 'bold', color: '#0284c7' },
+  approveAllBtn: { padding: '8px 16px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }
 };

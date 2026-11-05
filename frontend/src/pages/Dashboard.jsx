@@ -131,15 +131,15 @@ export default function Dashboard() {
 
   // Badge helpers
   const getTaskStatusBadge = (status) => {
-    if (status === 'Completed') return { background: '#d4edda', color: '#155724' };
-    if (status === 'In-Progress' || status === 'Ongoing') return { background: '#cce5ff', color: '#004085' };
-    return { background: '#fff3cd', color: '#856404' };
+    if (status === 'Completed') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
+    if (status === 'In-Progress' || status === 'Ongoing') return { background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd' };
+    return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
   };
 
   const getLoeStatusBadge = (status) => {
-    if (status === 'Approved') return { background: '#d4edda', color: '#155724' };
-    if (status === 'Rejected') return { background: '#f8d7da', color: '#721c24' };
-    return { background: '#fff3cd', color: '#856404' };
+    if (status === 'Approved') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
+    if (status === 'Rejected') return { background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3' };
+    return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
   };
 
   const COLLAPSED_LIMIT = 3;
@@ -188,7 +188,7 @@ export default function Dashboard() {
         <div style={styles.insightsContainer}>
           <div style={styles.insightsHeader}>
             <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>
-              {activeTab === 'tasks' ? '📋 Task Insights' : '📄 LOE Insights'}
+              {activeTab === 'tasks' ? 'Task Insights' : 'LOE Insights'}
             </h2>
             <button
               onClick={() => navigate(activeTab === 'tasks' ? '/tasks' : '/loes')}
@@ -445,7 +445,13 @@ export default function Dashboard() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { maxWidth: '1240px', margin: '0 auto', padding: '35px 40px' },
   topHeaderRow: {
     display: 'flex',
@@ -453,37 +459,38 @@ const styles = {
     alignItems: 'center',
     marginBottom: '25px',
     flexWrap: 'wrap',
-    gap: '16px'
+    gap: '16px',
+    paddingRight: '90px'
   },
-  pageTitle: { margin: 0, fontSize: '26px', color: '#1e293b' },
-  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#64748b' },
+  pageTitle: { margin: 0, fontSize: '26px', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.3px' },
+  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#475569' },
   tabGroup: {
     display: 'flex',
     gap: '12px'
   },
   tabBtn: {
-    padding: '10px 28px',
-    fontSize: '15px',
+    padding: '9px 24px',
+    fontSize: '14.5px',
     fontWeight: 'bold',
     borderRadius: '6px',
-    border: '2px solid #cbd5e1',
+    border: '1px solid #cbd5e1',
     background: '#ffffff',
     color: '#334155',
     cursor: 'pointer',
     transition: 'all 0.15s ease'
   },
   activeTabBtn: {
-    background: '#1e293b',
+    background: '#0284c7',
     color: '#ffffff',
-    borderColor: '#1e293b',
-    boxShadow: '0 4px 10px rgba(30, 41, 59, 0.2)'
+    borderColor: '#0284c7',
+    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
   },
   insightsContainer: {
     background: '#ffffff',
     borderRadius: '10px',
     border: '1px solid #e2e8f0',
     padding: '28px',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.04)',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
     minHeight: '420px'
   },
   insightsHeader: {
@@ -496,9 +503,9 @@ const styles = {
   },
   gotoBtn: {
     padding: '8px 14px',
-    background: '#f1f5f9',
-    color: '#0f172a',
-    border: '1px solid #cbd5e1',
+    background: '#f0f9ff',
+    color: '#0369a1',
+    border: '1px solid #bae6fd',
     borderRadius: '6px',
     fontWeight: 'bold',
     fontSize: '13px',
@@ -511,15 +518,16 @@ const styles = {
     marginBottom: '28px'
   },
   statCard: {
-    background: '#f8fafc',
+    background: '#ffffff',
     border: '1px solid #e2e8f0',
     borderRadius: '8px',
     padding: '18px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px'
+    gap: '6px',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)'
   },
-  statLabel: { fontSize: '13px', fontWeight: 'bold', color: '#64748b' },
+  statLabel: { fontSize: '12.5px', fontWeight: 'bold', color: '#64748b' },
   statValue: { fontSize: '30px', fontWeight: '800', color: '#0f172a' },
   statSubtext: { fontSize: '12px', color: '#94a3b8' },
   progressSection: {
@@ -547,19 +555,19 @@ const styles = {
   },
   legendItem: { display: 'flex', alignItems: 'center', gap: '6px' },
   dot: { width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block' },
-  tableHeading: { fontSize: '16px', color: '#1e293b', margin: '0 0 14px' },
+  tableHeading: { fontSize: '16px', color: '#0f172a', margin: '0 0 14px', fontWeight: '700' },
   tableWrapper: { overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
   th: {
     textAlign: 'left',
-    padding: '12px',
-    background: '#f1f5f9',
+    padding: '12px 14px',
+    background: '#f8fafc',
     color: '#475569',
     fontWeight: 'bold',
-    borderBottom: '1px solid #cbd5e1'
+    borderBottom: '1px solid #e2e8f0'
   },
   tr: { borderBottom: '1px solid #e2e8f0' },
-  td: { padding: '12px', color: '#334155' },
+  td: { padding: '12px 14px', color: '#334155' },
   scopeBulletList: {
     margin: '4px 0 0 0',
     paddingLeft: '16px',
@@ -573,9 +581,9 @@ const styles = {
   toggleMoreBtn: {
     marginTop: '6px',
     marginLeft: '16px',
-    background: '#eff6ff',
-    border: '1px solid #bfdbfe',
-    color: '#2563eb',
+    background: '#f0f9ff',
+    border: '1px solid #bae6fd',
+    color: '#0284c7',
     borderRadius: '4px',
     padding: '3px 9px',
     fontSize: '11.5px',
@@ -587,12 +595,12 @@ const styles = {
   loadingState: { padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '15px' },
   emptyText: { color: '#64748b', fontStyle: 'italic', fontSize: '14px' },
   errorBanner: {
-    background: '#fee2e2',
-    color: '#b91c1c',
+    background: '#fff1f2',
+    color: '#e11d48',
     padding: '12px 16px',
     borderRadius: '6px',
     marginBottom: '20px',
-    border: '1px solid #fca5a5',
+    border: '1px solid #fecdd3',
     fontSize: '13px'
   }
 };

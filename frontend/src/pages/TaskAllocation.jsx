@@ -498,11 +498,11 @@ export default function TaskAllocation() {
                         </td>
                         <td style={styles.td}>
                           {group.scopes.every(s => s.status === 'Completed') ? (
-                            <span style={{ ...styles.badge, background: '#d4edda', color: '#155724' }}>Completed</span>
+                            <span style={{ ...styles.badge, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>Completed</span>
                           ) : group.scopes.some(s => s.status === 'In-Progress' || s.status === 'Ongoing') ? (
-                            <span style={{ ...styles.badge, background: '#cce5ff', color: '#004085' }}>Ongoing</span>
+                            <span style={{ ...styles.badge, background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd' }}>Ongoing</span>
                           ) : (
-                            <span style={{ ...styles.badge, background: '#fff3cd', color: '#856404' }}>Pending</span>
+                            <span style={{ ...styles.badge, background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' }}>Pending</span>
                           )}
                         </td>
                       </tr>
@@ -718,12 +718,18 @@ export default function TaskAllocation() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { maxWidth: '1240px', margin: '0 auto', padding: '35px 40px' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' },
-  pageTitle: { margin: 0, fontSize: '26px', color: '#1e293b' },
-  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#64748b' },
-  createTaskBtn: { padding: '10px 18px', background: '#1e293b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13.5px', cursor: 'pointer' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px', paddingRight: '90px' },
+  pageTitle: { margin: 0, fontSize: '26px', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.3px' },
+  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#475569' },
+  createTaskBtn: { padding: '10px 18px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13.5px', cursor: 'pointer', transition: 'background 0.15s ease' },
   filterBar: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -734,7 +740,7 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid #e2e8f0',
     marginBottom: '24px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)'
   },
   filterField: { display: 'flex', flexDirection: 'column', gap: '5px', flex: '1', minWidth: '170px' },
   filterLabel: { fontSize: '12px', fontWeight: 'bold', color: '#475569' },
@@ -742,8 +748,8 @@ const styles = {
   filterSelect: { padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' },
   clearFilterBtn: {
     padding: '8px 14px',
-    background: '#f1f5f9',
-    color: '#dc2626',
+    background: '#f8fafc',
+    color: '#e11d48',
     border: '1px solid #cbd5e1',
     borderRadius: '6px',
     fontWeight: 'bold',
@@ -751,27 +757,27 @@ const styles = {
     cursor: 'pointer',
     height: '35px'
   },
-  errorBanner: { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px' },
-  card: { background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.04)', overflow: 'hidden' },
+  errorBanner: { background: '#fff1f2', color: '#e11d48', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', fontSize: '13px', border: '1px solid #fecdd3' },
+  card: { background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-  th: { textAlign: 'left', padding: '13px 16px', background: '#f1f5f9', color: '#475569', fontWeight: 'bold', borderBottom: '1px solid #cbd5e1' },
+  th: { textAlign: 'left', padding: '13px 16px', background: '#f8fafc', color: '#475569', fontWeight: 'bold', borderBottom: '1px solid #e2e8f0' },
   tr: { borderBottom: '1px solid #e2e8f0', cursor: 'pointer', transition: 'background 0.15s ease' },
   td: { padding: '14px 16px', color: '#334155', verticalAlign: 'middle' },
   badge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
-  scopeCountBadge: { background: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
-  modalContent: { background: '#fff', borderRadius: '8px', width: '95%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #dee2e6', paddingBottom: '12px' },
-  closeBtn: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#6c757d' },
+  scopeCountBadge: { background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+  modalContent: { background: '#fff', borderRadius: '8px', width: '95%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.2)', border: '1px solid #e2e8f0' },
+  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' },
+  closeBtn: { background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' },
   modalBody: { marginTop: '16px', display: 'flex', flexDirection: 'column' },
-  loeDetailsBox: { background: '#f1f5f9', padding: '12px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13.5px', marginBottom: '15px' },
-  scopeAssignmentCard: { border: '1px solid #dee2e6', padding: '14px', borderRadius: '6px', background: '#fafbfc' },
+  loeDetailsBox: { background: '#f8fafc', padding: '12px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13.5px', marginBottom: '15px' },
+  scopeAssignmentCard: { border: '1px solid #e2e8f0', padding: '14px', borderRadius: '6px', background: '#f8fafc' },
   formRow: { display: 'flex', gap: '15px' },
   formCol: { flex: 1, display: 'flex', flexDirection: 'column' },
-  label: { fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#495057' },
-  selectInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13px', width: '100%', boxSizing: 'border-box' },
-  multiSelectBox: { background: '#fff', border: '1px solid #ced4da', borderRadius: '4px', padding: '8px 10px', maxHeight: '110px', overflowY: 'auto' },
-  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #dee2e6', paddingTop: '15px' },
-  cancelBtn: { padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  saveBtn: { padding: '8px 20px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
+  label: { fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' },
+  selectInput: { padding: '8px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%', boxSizing: 'border-box' },
+  multiSelectBox: { background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '8px 10px', maxHeight: '110px', overflowY: 'auto' },
+  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' },
+  cancelBtn: { padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  saveBtn: { padding: '8px 20px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };

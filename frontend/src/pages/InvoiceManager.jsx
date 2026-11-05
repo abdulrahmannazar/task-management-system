@@ -387,8 +387,9 @@ export default function InvoiceManager() {
                     </h3>
                     <span style={{
                       ...styles.badge,
-                      background: isPaid ? '#d4edda' : '#fee2e2',
-                      color: isPaid ? '#155724' : '#991b1b'
+                      background: isPaid ? '#ecfdf5' : '#fff1f2',
+                      color: isPaid ? '#059669' : '#e11d48',
+                      border: `1px solid ${isPaid ? '#a7f3d0' : '#fecdd3'}`
                     }}>
                       {inv.status}
                     </span>
@@ -447,7 +448,7 @@ export default function InvoiceManager() {
                         disabled={remindingId === inv.invoice_id}
                         style={styles.remindBtn}
                       >
-                        {remindingId === inv.invoice_id ? 'Sending Reminder...' : '📧 Send Reminder Email'}
+                        {remindingId === inv.invoice_id ? 'Sending Reminder...' : 'Send Reminder Email'}
                       </button>
                     )}
                   </div>
@@ -462,10 +463,16 @@ export default function InvoiceManager() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { maxWidth: '1240px', margin: '0 auto', padding: '35px 40px' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '15px' },
-  countBadge: { background: '#1e293b', color: '#fff', padding: '6px 14px', borderRadius: '18px', fontSize: '12.5px', fontWeight: 'bold' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '15px', paddingRight: '90px' },
+  countBadge: { background: '#0284c7', color: '#fff', padding: '6px 14px', borderRadius: '18px', fontSize: '12.5px', fontWeight: 'bold' },
   filterBar: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -476,7 +483,7 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid #e2e8f0',
     marginBottom: '24px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)'
   },
   filterField: { display: 'flex', flexDirection: 'column', gap: '4px', flex: '1', minWidth: '150px' },
   filterLabel: { fontSize: '11.5px', fontWeight: 'bold', color: '#475569' },
@@ -484,8 +491,8 @@ const styles = {
   filterSelect: { padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', background: '#fff' },
   clearFilterBtn: {
     padding: '8px 14px',
-    background: '#f1f5f9',
-    color: '#dc2626',
+    background: '#f8fafc',
+    color: '#e11d48',
     border: '1px solid #cbd5e1',
     borderRadius: '6px',
     fontWeight: 'bold',
@@ -495,11 +502,11 @@ const styles = {
   },
   emptyCard: { background: '#fff', padding: '40px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '20px' },
-  invoiceCard: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' },
+  invoiceCard: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0' },
   badge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
   actionColumn: { display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' },
   actionBtn: { flex: 1, padding: '8px 10px', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  remindBtn: { width: '100%', padding: '8px 10px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  errorBanner: { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' },
-  successBanner: { background: '#d4edda', color: '#155724', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' }
+  remindBtn: { width: '100%', padding: '8px 10px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', transition: 'background 0.15s ease' },
+  errorBanner: { background: '#fff1f2', color: '#e11d48', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', border: '1px solid #fecdd3' },
+  successBanner: { background: '#ecfdf5', color: '#059669', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', border: '1px solid #a7f3d0' }
 };

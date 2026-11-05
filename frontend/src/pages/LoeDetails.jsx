@@ -236,16 +236,16 @@ export default function LoeDetails() {
   };
 
   const getStatusBadgeStyle = (status) => {
-    if (status === 'Approved') return { background: '#28a745', color: '#fff' };
-    if (status === 'Rejected') return { background: '#dc3545', color: '#fff' };
-    if (status === 'Approval Pending') return { background: '#ffc107', color: '#000' };
-    return { background: '#6c757d', color: '#fff' };
+    if (status === 'Approved') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
+    if (status === 'Rejected') return { background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3' };
+    if (status === 'Approval Pending') return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
+    return { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' };
   };
 
   const getItemBadgeStyle = (status) => {
-    if (status === 'Approved') return { background: '#e6fffa', color: '#234e52', border: '1px solid #b2f5ea' };
-    if (status === 'Rejected') return { background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' };
-    return { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' };
+    if (status === 'Approved') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
+    if (status === 'Rejected') return { background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3' };
+    return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
   };
 
   const relevantItems = isAdmin 
@@ -280,7 +280,7 @@ export default function LoeDetails() {
                 disabled={processingId === 'ALL'}
                 style={styles.approveAllTopBtn}
               >
-                {processingId === 'ALL' ? 'Approving...' : '✓ Approve All Deliverables'}
+                {processingId === 'ALL' ? 'Approving...' : 'Approve All Deliverables'}
               </button>
             )}
 
@@ -340,7 +340,7 @@ export default function LoeDetails() {
               
               {loe.status === 'Rejected' && (
                 <div style={styles.rejectedBanner}>
-                  ⚠️ This LOE has rejected items requiring correction. Click <strong>Edit &amp; Resubmit</strong> above to update the scopes.
+                  This LOE has rejected items requiring correction. Click <strong>Edit &amp; Resubmit</strong> above to update the scopes.
                 </div>
               )}
             </div>
@@ -473,7 +473,7 @@ export default function LoeDetails() {
                                   disabled={processingId === item.loe_item_id}
                                   style={styles.approveItemBtn}
                                 >
-                                  {processingId === item.loe_item_id ? 'Saving...' : '✓ Approve Deliverable'}
+                                  {processingId === item.loe_item_id ? 'Saving...' : 'Approve Deliverable'}
                                 </button>
                               )}
 
@@ -488,7 +488,7 @@ export default function LoeDetails() {
                                   }}
                                   style={styles.rejectItemBtn}
                                 >
-                                  ✕ Reject Deliverable
+                                  Reject Deliverable
                                 </button>
                               )}
                             </div>
@@ -539,27 +539,33 @@ export default function LoeDetails() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { maxWidth: '1050px', margin: '0 auto', padding: '30px 20px' },
-  headerBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' },
+  headerBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px', paddingRight: '90px' },
   backBtn: { padding: '8px 14px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', color: '#334155' },
   actionButtons: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
-  approveAllTopBtn: { padding: '8px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
-  editBtn: { padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
-  downloadBtn: { padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
-  deleteBtn: { padding: '8px 16px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
-  errorBanner: { background: '#fed7d7', color: '#c53030', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' },
-  successBanner: { background: '#d4edda', color: '#155724', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' },
-  loadingBox: { background: '#fff', padding: '40px', textAlign: 'center', borderRadius: '8px', color: '#64748b' },
+  approveAllTopBtn: { padding: '8px 16px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  editBtn: { padding: '8px 16px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  downloadBtn: { padding: '8px 16px', background: '#0891b2', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  deleteBtn: { padding: '8px 16px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  errorBanner: { background: '#fff1f2', color: '#e11d48', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', border: '1px solid #fecdd3' },
+  successBanner: { background: '#ecfdf5', color: '#059669', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', border: '1px solid #a7f3d0' },
+  loadingBox: { background: '#fff', padding: '40px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
   content: { display: 'flex', flexDirection: 'column', gap: '20px' },
-  card: { background: '#fff', padding: '22px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  card: { background: '#fff', padding: '22px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0' },
   badge: { padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' },
-  rejectedBanner: { marginTop: '14px', padding: '10px 14px', background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2', borderRadius: '6px', fontSize: '13px' },
+  rejectedBanner: { marginTop: '14px', padding: '10px 14px', background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3', borderRadius: '6px', fontSize: '13px' },
   gridTwoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
-  sectionHeader: { margin: '0 0 14px', fontSize: '16px', color: '#1e293b', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' },
+  sectionHeader: { margin: '0 0 14px', fontSize: '16px', color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', fontWeight: '700' },
   detailRow: { display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '13px', borderBottom: '1px dashed #f1f5f9' },
   detailLabel: { color: '#64748b', fontWeight: '600' },
-  detailValue: { color: '#1e293b', fontWeight: '500' },
+  detailValue: { color: '#0f172a', fontWeight: '500' },
   itemCard: { padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' },
   itemBadge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
   scopeBox: {
@@ -588,10 +594,10 @@ const styles = {
     marginBottom: '3px'
   },
   approvalActionRow: { marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' },
-  approveItemBtn: { padding: '6px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  rejectItemBtn: { padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  approveItemBtn: { padding: '6px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  rejectItemBtn: { padding: '6px 14px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   rejectFormRow: { display: 'flex', gap: '8px', marginTop: '10px' },
   rejectInput: { flex: 1, padding: '7px 10px', borderRadius: '5px', border: '1px solid #cbd5e1', fontSize: '13px' },
-  confirmRejectBtn: { padding: '7px 14px', background: '#991b1b', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  cancelRejectBtn: { padding: '7px 12px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }
+  confirmRejectBtn: { padding: '7px 14px', background: '#be123c', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  cancelRejectBtn: { padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }
 };

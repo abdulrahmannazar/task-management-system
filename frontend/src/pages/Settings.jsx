@@ -388,7 +388,7 @@ export default function Settings() {
         {/* Page Header */}
         <div style={styles.headerRow}>
           <div>
-            <h1 style={styles.pageTitle}>⚙️ Account Settings</h1>
+            <h1 style={styles.pageTitle}>Account Settings</h1>
             <p style={styles.subTitle}>
               Manage your personal profile details, login credentials, and user access permissions.
             </p>
@@ -410,7 +410,7 @@ export default function Settings() {
               </span>
             </div>
             <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: '#475569' }}>
-               {user.email} &nbsp;&bull;&nbsp; 🏢 {getDepartmentName(user.department_id)} &nbsp;&bull;&nbsp; ID: #{user.emp_id}
+               {user.email} &nbsp;&bull;&nbsp; {getDepartmentName(user.department_id)} &nbsp;&bull;&nbsp; ID: #{user.emp_id}
             </p>
           </div>
         </div>
@@ -496,7 +496,7 @@ export default function Settings() {
 
               <div style={{ marginTop: '8px' }}>
                 <button type="submit" disabled={saving} style={styles.saveBtn}>
-                  {saving ? 'Saving Changes...' : '💾 Save Profile Changes'}
+                  {saving ? 'Saving Changes...' : 'Save Profile Changes'}
                 </button>
               </div>
             </form>
@@ -575,7 +575,7 @@ export default function Settings() {
                   disabled={permSaving}
                   style={styles.savePermBtn}
                 >
-                  {permSaving ? 'Saving...' : '✓ Save Access Permissions'}
+                  {permSaving ? 'Saving...' : 'Save Access Permissions'}
                 </button>
               </div>
             </div>
@@ -646,7 +646,7 @@ export default function Settings() {
                             Object.keys(matrix.USERS[String(emp.emp_id)]).length > 0;
                           return (
                             <option key={emp.emp_id} value={emp.emp_id}>
-                              {emp.name} ({emp.email}) — [{emp.role}] {hasCustom ? '★ Custom Access' : ''}
+                              {emp.name} ({emp.email}) — [{emp.role}] {hasCustom ? '[Custom Access]' : ''}
                             </option>
                           );
                         })
@@ -681,11 +681,11 @@ export default function Settings() {
                               color: hasCustomOverridesForSelected ? '#92400e' : '#475569'
                             }}
                           >
-                            {hasCustomOverridesForSelected ? '★ Custom User Overrides Active' : 'Using Role Defaults'}
+                            {hasCustomOverridesForSelected ? 'Custom User Overrides Active' : 'Using Role Defaults'}
                           </span>
                         </div>
                         <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '4px' }}>
-                          ✉️ {selectedEmployee.email} &nbsp;&bull;&nbsp; 🏢{' '}
+                          {selectedEmployee.email} &nbsp;&bull;&nbsp;{' '}
                           {selectedEmployee.department?.name || getDepartmentName(selectedEmployee.department_id)}
                         </div>
                       </div>
@@ -831,11 +831,17 @@ export default function Settings() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { maxWidth: '1100px', margin: '0 auto', padding: '35px 40px' },
   headerRow: { marginBottom: '22px' },
-  pageTitle: { margin: 0, fontSize: '26px', color: '#1e293b' },
-  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#64748b' },
+  pageTitle: { margin: 0, fontSize: '26px', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.3px' },
+  subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#475569' },
   profileBanner: {
     display: 'flex',
     alignItems: 'center',
@@ -844,14 +850,14 @@ const styles = {
     padding: '20px 24px',
     borderRadius: '10px',
     border: '1px solid #e2e8f0',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
     marginBottom: '22px'
   },
   avatarCircle: {
     width: '56px',
     height: '56px',
     borderRadius: '50%',
-    background: '#1e293b',
+    background: '#0284c7',
     color: '#ffffff',
     display: 'flex',
     alignItems: 'center',
@@ -924,21 +930,22 @@ const styles = {
   infoLabel: { color: '#64748b', fontWeight: '600' },
   infoValue: { color: '#0f172a', fontWeight: 'bold' },
   logoutCard: {
-    background: '#fef2f2',
+    background: '#fff1f2',
     padding: '22px',
     borderRadius: '10px',
-    border: '1px solid #fecaca'
+    border: '1px solid #fecdd3'
   },
   logoutBtn: {
     width: '100%',
     padding: '11px 16px',
-    background: '#dc2626',
+    background: '#e11d48',
     color: '#ffffff',
     border: 'none',
     borderRadius: '6px',
     fontWeight: 'bold',
     fontSize: '14px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'background 0.15s ease'
   },
   permHeaderRow: {
     display: 'flex',
@@ -1056,21 +1063,21 @@ const styles = {
     accentColor: '#0284c7'
   },
   errorBanner: {
-    background: '#fee2e2',
-    color: '#b91c1c',
+    background: '#fff1f2',
+    color: '#e11d48',
     padding: '12px 16px',
     borderRadius: '8px',
     marginBottom: '18px',
-    border: '1px solid #fca5a5',
+    border: '1px solid #fecdd3',
     fontSize: '13px'
   },
   successBanner: {
-    background: '#dcfce7',
-    color: '#15803d',
+    background: '#ecfdf5',
+    color: '#059669',
     padding: '12px 16px',
     borderRadius: '8px',
     marginBottom: '18px',
-    border: '1px solid #86efac',
+    border: '1px solid #a7f3d0',
     fontSize: '13px',
     fontWeight: 'bold'
   }

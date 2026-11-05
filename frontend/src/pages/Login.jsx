@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import FrontierLogo from '../components/FrontierLogo';
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -54,8 +55,11 @@ export default function Login() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Task Management System</h2>
-        <h3 style={{ textAlign: 'center', color: '#555', marginBottom: '20px' }}>Login</h3>
+        <div style={styles.brandHeader}>
+          <FrontierLogo size={220} />
+        </div>
+
+        <h3 style={styles.formTitle}>Sign In to Account</h3>
         
         {error && <div style={styles.error}>{error}</div>}
 
@@ -87,12 +91,12 @@ export default function Login() {
           </div>
 
           <button type="submit" disabled={loading} style={styles.button}>
-            {loading ? 'Logging in...' : 'Sign In'}
+            {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', marginTop: '15px', fontSize: '13px' }}>
-          Don't have an account? <Link to="/register" style={{ color: '#007bff' }}>Register here</Link>
+        <p style={styles.footerText}>
+          Don't have an account? <Link to="/register" style={styles.registerLink}>Register here</Link>
         </p>
       </div>
     </div>
@@ -100,12 +104,106 @@ export default function Login() {
 }
 
 const styles = {
-  container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f4f6f8', fontFamily: 'system-ui' },
-  card: { background: '#fff', padding: '30px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', width: '100%', maxWidth: '380px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  field: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  label: { fontSize: '13px', fontWeight: 'bold', color: '#495057' },
-  input: { padding: '10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '14px' },
-  button: { padding: '11px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', marginTop: '5px' },
-  error: { padding: '10px', background: '#f8d7da', color: '#721c24', borderRadius: '4px', marginBottom: '15px', fontSize: '13px', textAlign: 'center' }
+  container: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    padding: '20px'
+  },
+  card: {
+    background: '#ffffff',
+    padding: '36px 32px',
+    borderRadius: '12px',
+    boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04)',
+    border: '1px solid #e2e8f0',
+    width: '100%',
+    maxWidth: '410px'
+  },
+  brandHeader: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginBottom: '22px'
+  },
+  brandTitle: {
+    fontSize: '20px',
+    fontWeight: '800',
+    color: '#0f172a',
+    margin: '10px 0 2px',
+    letterSpacing: '-0.3px'
+  },
+  brandSubtitle: {
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#0284c7',
+    letterSpacing: '0.2px'
+  },
+  formTitle: {
+    textAlign: 'center',
+    color: '#334155',
+    fontSize: '15px',
+    fontWeight: '600',
+    marginBottom: '20px',
+    borderBottom: '1px solid #f1f5f9',
+    paddingBottom: '12px'
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px'
+  },
+  label: {
+    fontSize: '12.5px',
+    fontWeight: 'bold',
+    color: '#334155'
+  },
+  input: {
+    padding: '10px 12px',
+    borderRadius: '6px',
+    border: '1px solid #cbd5e1',
+    fontSize: '14px',
+    background: '#ffffff',
+    color: '#0f172a'
+  },
+  button: {
+    padding: '11px',
+    background: '#0284c7',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: '700',
+    fontSize: '14px',
+    marginTop: '6px',
+    transition: 'background 0.15s ease'
+  },
+  error: {
+    padding: '10px 14px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    borderRadius: '6px',
+    marginBottom: '16px',
+    fontSize: '13px',
+    textAlign: 'center',
+    border: '1px solid #fecdd3'
+  },
+  footerText: {
+    textAlign: 'center',
+    marginTop: '20px',
+    fontSize: '13px',
+    color: '#64748b'
+  },
+  registerLink: {
+    color: '#0284c7',
+    fontWeight: '600',
+    textDecoration: 'none'
+  }
 };
