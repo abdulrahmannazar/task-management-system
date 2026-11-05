@@ -528,7 +528,7 @@ export default function ServiceManager() {
               {/* Full Scope of Work & Deliverables */}
               <div style={styles.modalScopeContainer}>
                 <h4 style={styles.modalScopeHeading}>
-                  📋 Full Default Scope of Work &amp; Deliverables
+                  Full Default Scope of Work &amp; Deliverables
                 </h4>
 
                 {parseScopePoints(selectedService.scope).length === 0 ? (
@@ -569,7 +569,7 @@ export default function ServiceManager() {
                     onClick={(e) => handleEdit(e, selectedService)}
                     style={styles.modalEditActionBtn}
                   >
-                    ✎ Edit Service &amp; Price
+                    Edit Service &amp; Price
                   </button>
                 )}
               </div>
@@ -583,19 +583,25 @@ export default function ServiceManager() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { display: 'flex', gap: '40px', padding: '40px' },
-  formSection: { flex: '1.1', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
+  formSection: { flex: '1.1', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0', height: 'fit-content' },
   listSection: { flex: '1.9' },
   form: { display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '15px' },
   formRow: { display: 'flex', gap: '12px' },
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  label: { fontSize: '12px', fontWeight: 'bold', color: '#4a5568' },
-  input: { padding: '9px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13.5px' },
+  label: { fontSize: '12.5px', fontWeight: 'bold', color: '#334155' },
+  input: { padding: '9px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13.5px' },
   priceInputWrapper: {
     display: 'flex',
     alignItems: 'center',
-    border: '1px solid #ced4da',
+    border: '1px solid #cbd5e1',
     borderRadius: '4px',
     background: '#fff',
     padding: '0 10px'
@@ -603,7 +609,7 @@ const styles = {
   currencyPrefix: {
     fontSize: '13.5px',
     fontWeight: 'bold',
-    color: '#4a5568',
+    color: '#334155',
     marginRight: '6px'
   },
   priceInput: {
@@ -613,19 +619,19 @@ const styles = {
     fontSize: '13.5px',
     width: '100%'
   },
-  lockedField: { padding: '9px 10px', borderRadius: '4px', background: '#e9ecef', border: '1px solid #ced4da', fontSize: '13.5px', display: 'flex', flexDirection: 'column' },
-  lockedNote: { fontSize: '11px', color: '#6c757d', marginTop: '2px' },
+  lockedField: { padding: '9px 10px', borderRadius: '4px', background: '#f8fafc', border: '1px solid #cbd5e1', fontSize: '13.5px', display: 'flex', flexDirection: 'column' },
+  lockedNote: { fontSize: '11px', color: '#64748b', marginTop: '2px' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
-  button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  errorBox: { padding: '10px 14px', background: '#fed7d7', color: '#c53030', borderRadius: '4px', fontSize: '13px', border: '1px solid #feb2b2' },
-  filterDropdown: { padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px', background: '#fff', fontWeight: 'bold' },
+  button: { flex: '1', padding: '10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  cancelButton: { flex: '1', padding: '10px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  errorBox: { padding: '10px 14px', background: '#fff1f2', color: '#e11d48', borderRadius: '4px', fontSize: '13px', border: '1px solid #fecdd3' },
+  filterDropdown: { padding: '8px 12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff', fontWeight: 'bold' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' },
   card: {
     background: '#fff',
     padding: '18px',
     borderRadius: '8px',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
     border: '1px solid #e2e8f0',
     display: 'flex',
     flexDirection: 'column',
@@ -642,19 +648,20 @@ const styles = {
   cardTitle: {
     margin: 0,
     fontSize: '16px',
-    color: '#1a202c',
-    lineHeight: '1.35'
+    color: '#0f172a',
+    lineHeight: '1.35',
+    fontWeight: '700'
   },
-  categoryBadge: { background: '#e2e8f0', color: '#4a5568', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: '500' },
-  deptBadge: { background: '#edf2f7', color: '#2b6cb0', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: '500' },
+  categoryBadge: { background: '#f1f5f9', color: '#475569', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: '500' },
+  deptBadge: { background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: '500' },
   priceBadge: {
-    background: '#e6fffa',
-    color: '#234e52',
+    background: '#ecfdf5',
+    color: '#059669',
     padding: '4px 9px',
     borderRadius: '5px',
     fontSize: '13px',
     fontWeight: 'bold',
-    border: '1px solid #b2f5ea',
+    border: '1px solid #a7f3d0',
     whiteSpace: 'nowrap',
     display: 'inline-block'
   },
@@ -663,7 +670,7 @@ const styles = {
     background: '#f8fafc',
     padding: '10px 12px',
     borderRadius: '6px',
-    border: '1px solid #edf2f7'
+    border: '1px solid #e2e8f0'
   },
   previewBulletList: {
     margin: '4px 0 0 0',
@@ -696,9 +703,9 @@ const styles = {
   },
   editBtn: {
     padding: '6px 12px',
-    background: '#f8f9fa',
-    color: '#007bff',
-    border: '1px solid #ced4da',
+    background: '#f0f9ff',
+    color: '#0284c7',
+    border: '1px solid #bae6fd',
     borderRadius: '4px',
     cursor: 'pointer',
     fontWeight: 'bold',
@@ -727,7 +734,8 @@ const styles = {
     maxHeight: '88vh',
     overflowY: 'auto',
     padding: '26px 28px',
-    boxShadow: '0 20px 35px -5px rgba(0, 0, 0, 0.2)'
+    boxShadow: '0 20px 35px -5px rgba(0, 0, 0, 0.2)',
+    border: '1px solid #e2e8f0'
   },
   modalHeader: {
     display: 'flex',
@@ -787,9 +795,10 @@ const styles = {
   modalScopeHeading: {
     margin: '0 0 12px 0',
     fontSize: '14px',
-    color: '#1e293b',
+    color: '#0f172a',
     borderBottom: '1px solid #e2e8f0',
-    paddingBottom: '8px'
+    paddingBottom: '8px',
+    fontWeight: '700'
   },
   modalScopeList: {
     margin: 0,
@@ -819,9 +828,9 @@ const styles = {
   },
   modalCloseActionBtn: {
     padding: '9px 18px',
-    background: '#e2e8f0',
+    background: '#f1f5f9',
     color: '#334155',
-    border: 'none',
+    border: '1px solid #cbd5e1',
     borderRadius: '6px',
     fontWeight: 'bold',
     fontSize: '13px',
@@ -829,7 +838,7 @@ const styles = {
   },
   modalEditActionBtn: {
     padding: '9px 18px',
-    background: '#007bff',
+    background: '#0284c7',
     color: '#ffffff',
     border: 'none',
     borderRadius: '6px',

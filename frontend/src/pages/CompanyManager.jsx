@@ -282,21 +282,27 @@ export default function CompanyManager() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { display: 'flex', gap: '40px', padding: '40px' },
-  formSection: { flex: '1', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
+  formSection: { flex: '1', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0', height: 'fit-content' },
   listSection: { flex: '2' },
   form: { display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '15px' },
   fieldGroup: { display: 'flex', flexDirection: 'column' },
-  label: { fontSize: '13px', fontWeight: 'bold', marginBottom: '4px', color: '#444' },
-  input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
-  badge: { background: '#007bff', color: '#fff', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
-  infoLine: { margin: '4px 0', fontSize: '14px' },
+  label: { fontSize: '12.5px', fontWeight: 'bold', marginBottom: '4px', color: '#334155' },
+  input: { padding: '10px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13.5px' },
+  badge: { background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', padding: '3px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' },
+  infoLine: { margin: '4px 0', fontSize: '13.5px', color: '#475569' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
-  button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  button: { flex: '1', padding: '10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
+  cancelButton: { flex: '1', padding: '10px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', marginTop: '15px' },
-  card: { background: '#fff', padding: '18px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-  editButton: { flex: '1', padding: '6px 12px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  deleteButton: { flex: '1', padding: '6px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
+  card: { background: '#fff', padding: '18px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0' },
+  editButton: { flex: '1', padding: '6px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  deleteButton: { flex: '1', padding: '6px 12px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }
 };

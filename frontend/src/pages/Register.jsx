@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import FrontierLogo from '../components/FrontierLogo';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -59,27 +60,59 @@ export default function Register() {
   return (
     <div style={styles.container}>
       <form onSubmit={handleSubmit} style={styles.form}>
-        <h2>Employee Registration</h2>
+        <div style={styles.brandHeader}>
+          <FrontierLogo size={200} />
+        </div>
+
         {error && <p style={styles.error}>{error}</p>}
 
         <div style={styles.field}>
-          <label>Full Name</label>
-          <input type="text" name="name" onChange={handleChange} required style={styles.input} />
+          <label style={styles.label}>Full Name</label>
+          <input 
+            type="text" 
+            name="name" 
+            value={formData.name}
+            onChange={handleChange} 
+            required 
+            placeholder="e.g. John Doe"
+            style={styles.input} 
+          />
         </div>
 
         <div style={styles.field}>
-          <label>Email Address</label>
-          <input type="email" name="email" onChange={handleChange} required style={styles.input} />
+          <label style={styles.label}>Email Address</label>
+          <input 
+            type="email" 
+            name="email" 
+            value={formData.email}
+            onChange={handleChange} 
+            required 
+            placeholder="john@frontieradvisory.com"
+            style={styles.input} 
+          />
         </div>
 
         <div style={styles.field}>
-          <label>Password</label>
-          <input type="password" name="password" onChange={handleChange} required style={styles.input} />
+          <label style={styles.label}>Password</label>
+          <input 
+            type="password" 
+            name="password" 
+            value={formData.password}
+            onChange={handleChange} 
+            required 
+            placeholder="••••••••"
+            style={styles.input} 
+          />
         </div>
 
         <div style={styles.field}>
-          <label>Department</label>
-          <select name="department_id" onChange={handleChange} style={styles.input}>
+          <label style={styles.label}>Department</label>
+          <select 
+            name="department_id" 
+            value={formData.department_id}
+            onChange={handleChange} 
+            style={styles.input}
+          >
             {departments.map((dept) => (
               <option key={dept.department_id} value={dept.department_id}>
                 {dept.name}
@@ -89,25 +122,118 @@ export default function Register() {
         </div>
 
         <div style={styles.field}>
-          <label>Role</label>
-          <select name="role" onChange={handleChange} style={styles.input}>
+          <label style={styles.label}>Role</label>
+          <select 
+            name="role" 
+            value={formData.role}
+            onChange={handleChange} 
+            style={styles.input}
+          >
             <option value="EMPLOYEE">Employee</option>
             <option value="MANAGER">Manager</option>
             <option value="ADMIN">Admin</option>
           </select>
         </div>
 
-        <button type="submit" style={styles.button}>Register</button>
+        <button type="submit" style={styles.button}>Register Account</button>
+
+        <p style={styles.footerText}>
+          Already registered? <Link to="/login" style={styles.link}>Sign in here</Link>
+        </p>
       </form>
     </div>
   );
 }
 
 const styles = {
-  container: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
-  form: { padding: '30px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '350px', background: '#fff' },
-  field: { marginBottom: '15px', display: 'flex', flexDirection: 'column' },
-  input: { padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc' },
-  button: { width: '100%', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  error: { color: 'red', marginBottom: '10px', fontSize: '14px' }
+  container: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    padding: '24px'
+  },
+  form: {
+    padding: '36px 32px',
+    borderRadius: '12px',
+    boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04)',
+    width: '100%',
+    maxWidth: '410px',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0'
+  },
+  brandHeader: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginBottom: '22px'
+  },
+  brandTitle: {
+    fontSize: '20px',
+    fontWeight: '800',
+    color: '#0f172a',
+    margin: '10px 0 2px',
+    letterSpacing: '-0.3px'
+  },
+  brandSubtitle: {
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#0284c7',
+    letterSpacing: '0.2px'
+  },
+  field: {
+    marginBottom: '15px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px'
+  },
+  label: {
+    fontSize: '12.5px',
+    fontWeight: 'bold',
+    color: '#334155'
+  },
+  input: {
+    padding: '10px 12px',
+    borderRadius: '6px',
+    border: '1px solid #cbd5e1',
+    fontSize: '14px',
+    background: '#ffffff',
+    color: '#0f172a'
+  },
+  button: {
+    width: '100%',
+    padding: '11px',
+    background: '#0284c7',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: '700',
+    fontSize: '14px',
+    marginTop: '8px',
+    transition: 'background 0.15s ease'
+  },
+  error: {
+    padding: '10px 14px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    borderRadius: '6px',
+    marginBottom: '16px',
+    fontSize: '13px',
+    textAlign: 'center',
+    border: '1px solid #fecdd3'
+  },
+  footerText: {
+    textAlign: 'center',
+    marginTop: '18px',
+    fontSize: '13px',
+    color: '#64748b'
+  },
+  link: {
+    color: '#0284c7',
+    fontWeight: '600',
+    textDecoration: 'none'
+  }
 };

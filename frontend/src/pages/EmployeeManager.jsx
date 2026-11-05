@@ -375,13 +375,13 @@ export default function EmployeeManager() {
                     </div>
 
                     <p style={{ margin: '8px 0 4px', fontSize: '13px', color: '#4a5568' }}>
-                      ✉️ {emp.email}
+                      {emp.email}
                     </p>
                     <p style={{ margin: '4px 0', fontSize: '13px', color: '#4a5568' }}>
-                      🏢 {emp.department?.name || getDepartmentName(emp.department_id)}
+                      {emp.department?.name || getDepartmentName(emp.department_id)}
                     </p>
                     <p style={{ margin: '4px 0 10px', fontSize: '12px' }}>
-                      Status: <strong style={{ color: emp.is_active ? '#28a745' : '#dc3545' }}>
+                      Status: <strong style={{ color: emp.is_active ? '#059669' : '#e11d48' }}>
                         {emp.is_active ? 'Active' : 'Deactivated'}
                       </strong>
                     </p>
@@ -414,24 +414,30 @@ export default function EmployeeManager() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { display: 'flex', gap: '40px', padding: '40px' },
-  formSection: { flex: '1.1', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
+  formSection: { flex: '1.1', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0', height: 'fit-content' },
   listSection: { flex: '1.9' },
   form: { display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '15px' },
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  label: { fontSize: '12px', fontWeight: 'bold', color: '#4a5568' },
-  input: { padding: '9px 10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '13.5px' },
-  lockedField: { padding: '9px 10px', borderRadius: '4px', background: '#e9ecef', border: '1px solid #ced4da', fontSize: '13.5px', display: 'flex', flexDirection: 'column' },
-  lockedNote: { fontSize: '11px', color: '#6c757d', marginTop: '2px' },
-  filterDropdown: { padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px', background: '#fff', fontWeight: 'bold' },
+  label: { fontSize: '12.5px', fontWeight: 'bold', color: '#334155' },
+  input: { padding: '9px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13.5px' },
+  lockedField: { padding: '9px 10px', borderRadius: '4px', background: '#f8fafc', border: '1px solid #cbd5e1', fontSize: '13.5px', display: 'flex', flexDirection: 'column' },
+  lockedNote: { fontSize: '11px', color: '#64748b', marginTop: '2px' },
+  filterDropdown: { padding: '8px 12px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff', fontWeight: 'bold' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
-  button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  errorBox: { padding: '10px 14px', background: '#fed7d7', color: '#c53030', borderRadius: '4px', fontSize: '13px', border: '1px solid #feb2b2' },
+  button: { flex: '1', padding: '10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  cancelButton: { flex: '1', padding: '10px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  errorBox: { padding: '10px 14px', background: '#fff1f2', color: '#e11d48', borderRadius: '4px', fontSize: '13px', border: '1px solid #fecdd3' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' },
-  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' },
+  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0' },
   badge: { padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 'bold' },
-  editBtn: { flex: 1, padding: '6px', background: '#f8f9fa', color: '#007bff', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  deleteBtn: { padding: '6px 10px', background: '#fff5f5', color: '#dc3545', border: '1px solid #feb2b2', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  editBtn: { flex: 1, padding: '6px', background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  deleteBtn: { padding: '6px 10px', background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };

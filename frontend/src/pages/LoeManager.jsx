@@ -479,10 +479,10 @@ export default function LoeManager() {
   };
 
   const getStatusBadgeStyle = (status) => {
-    if (status === 'Approved') return { background: '#28a745', color: '#fff' };
-    if (status === 'Rejected') return { background: '#dc3545', color: '#fff' };
-    if (status === 'Approval Pending') return { background: '#ffc107', color: '#000' };
-    return { background: '#6c757d', color: '#fff' };
+    if (status === 'Approved') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
+    if (status === 'Rejected') return { background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3' };
+    if (status === 'Approval Pending') return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
+    return { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' };
   };
 
   const resetFilters = () => {
@@ -571,7 +571,7 @@ export default function LoeManager() {
             
             {editingId && editingPreviousStatus === 'Rejected' && (
               <div style={styles.resubmitNotice}>
-                ⚠️ This LOE contains rejected services. Only the rejected services will reset to <strong>Pending</strong> upon resubmission. Previously approved services will stay <strong>Approved</strong>.
+                This LOE contains rejected services. Only the rejected services will reset to <strong>Pending</strong> upon resubmission. Previously approved services will stay <strong>Approved</strong>.
               </div>
             )}
 
@@ -685,12 +685,12 @@ export default function LoeManager() {
                     >
                       {isApproved && (
                         <div style={styles.approvedBanner}>
-                          ✅ Approved by department manager (Will remain approved)
+                          Approved by department manager (Will remain approved)
                         </div>
                       )}
                       {isRejected && (
                         <div style={styles.rejectedItemNotice}>
-                          ❌ <strong>Rejected by Manager:</strong> {srvBlock.rejection_reason || 'Revision required'}
+                          <strong>Rejected by Manager:</strong> {srvBlock.rejection_reason || 'Revision required'}
                           <div style={{ fontSize: '11px', marginTop: '2px' }}>
                             Adjust scopes below. On resubmit, only this service will be sent for re-approval.
                           </div>
@@ -1045,9 +1045,9 @@ export default function LoeManager() {
                             <span style={{
                               fontSize: '11px',
                               fontWeight: 'bold',
-                              color: item.status === 'Approved' ? '#28a745' : item.status === 'Rejected' ? '#dc3545' : '#856404'
+                              color: item.status === 'Approved' ? '#059669' : item.status === 'Rejected' ? '#e11d48' : '#d97706'
                             }}>
-                              {item.status === 'Approved' ? '✅' : item.status === 'Rejected' ? '❌' : '⏳'}
+                              {item.status || 'Pending'}
                             </span>
                           </div>
                         ))}
@@ -1101,11 +1101,17 @@ export default function LoeManager() {
 }
 
 const styles = {
-  pageContainer: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui' },
+  pageContainer: {
+    minHeight: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'system-ui',
+    marginLeft: 'var(--sidebar-width, 260px)',
+    transition: 'margin-left 300ms ease-in-out'
+  },
   container: { display: 'flex', gap: '30px', padding: '30px 40px' },
-  formSection: { flex: '1.15', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', height: 'fit-content' },
+  formSection: { flex: '1.15', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0', height: 'fit-content' },
   listSection: { flex: '1.85' },
-  countBadge: { background: '#1e293b', color: '#fff', padding: '4px 10px', borderRadius: '14px', fontSize: '12px', fontWeight: 'bold' },
+  countBadge: { background: '#0284c7', color: '#fff', padding: '4px 10px', borderRadius: '14px', fontSize: '12px', fontWeight: 'bold' },
   filterBar: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -1116,7 +1122,7 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid #e2e8f0',
     marginBottom: '18px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)'
   },
   filterField: { display: 'flex', flexDirection: 'column', gap: '4px', flex: '1', minWidth: '125px' },
   filterLabel: { fontSize: '11.5px', fontWeight: 'bold', color: '#475569' },
@@ -1124,8 +1130,8 @@ const styles = {
   filterSelect: { padding: '7px 9px', borderRadius: '5px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#fff' },
   clearFilterBtn: {
     padding: '7px 12px',
-    background: '#f1f5f9',
-    color: '#dc2626',
+    background: '#f8fafc',
+    color: '#e11d48',
     border: '1px solid #cbd5e1',
     borderRadius: '5px',
     fontWeight: 'bold',
@@ -1135,39 +1141,39 @@ const styles = {
   },
   emptyCard: { background: '#fff', padding: '30px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
-  input: { padding: '10px', borderRadius: '4px', border: '1px solid #ccc' },
-  itemsWrapper: { padding: '15px', background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px' },
-  serviceCard: { background: '#fff', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  input: { padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1' },
+  itemsWrapper: { padding: '15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' },
+  serviceCard: { background: '#fff', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0' },
   topSelectRow: { display: 'flex', gap: '8px', alignItems: 'center' },
-  dropdownInput: { flex: '1', padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '13px' },
-  priceInputWrapper: { display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', padding: '0 8px', minWidth: '115px' },
+  dropdownInput: { flex: '1', padding: '8px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' },
+  priceInputWrapper: { display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '0 8px', minWidth: '115px' },
   currencyPrefix: { fontSize: '13px', color: '#475569', fontWeight: 'bold', marginRight: '4px' },
   servicePriceInput: { border: 'none', outline: 'none', padding: '8px 4px', width: '100%', fontSize: '13px', fontWeight: 'bold' },
-  removeServiceBtn: { padding: '8px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  removeServiceBtn: { padding: '8px 12px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   scopeSelectionSection: { marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' },
   scopeToolbar: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' },
-  addScopeBtn: { padding: '8px 12px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  addCustomBtn: { padding: '8px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  addScopeBtn: { padding: '8px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
+  addCustomBtn: { padding: '8px 12px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   scopeListContainer: { display: 'flex', flexDirection: 'column', gap: '8px' },
   scopeItemRow: { display: 'flex', gap: '8px', alignItems: 'flex-start', background: '#f8fafc', padding: '8px', borderRadius: '4px', border: '1px solid #e2e8f0' },
   scopeIndexBadge: { background: '#cbd5e1', color: '#334155', fontWeight: 'bold', fontSize: '11px', padding: '4px 8px', borderRadius: '3px', marginTop: '4px' },
-  scopeTextarea: { flex: '1', padding: '6px 8px', borderRadius: '4px', border: '1px solid #ccc', fontFamily: 'inherit', fontSize: '13px', resize: 'vertical' },
-  removeScopeBtn: { padding: '4px 8px', background: '#e2e8f0', color: '#dc3545', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '4px' },
+  scopeTextarea: { flex: '1', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontFamily: 'inherit', fontSize: '13px', resize: 'vertical' },
+  removeScopeBtn: { padding: '4px 8px', background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '4px' },
   emptyNotice: { margin: 0, fontSize: '12px', color: '#64748b', fontStyle: 'italic', padding: '6px' },
-  addCardBtn: { width: '100%', padding: '10px', background: '#e9ecef', color: '#333', border: '1px dashed #adb5bd', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  addCardBtn: { width: '100%', padding: '10px', background: '#f8fafc', color: '#0369a1', border: '1px dashed #bae6fd', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
-  button: { flex: '1', padding: '10px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  cancelButton: { flex: '1', padding: '10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  resubmitNotice: { padding: '10px', background: '#fff3cd', border: '1px solid #ffeeba', color: '#856404', borderRadius: '4px', marginTop: '10px', fontSize: '13px' },
-  approvedBanner: { padding: '6px 10px', background: '#e6fffa', color: '#234e52', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #b2f5ea' },
-  rejectedItemNotice: { padding: '6px 10px', background: '#fff5f5', color: '#c53030', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #feb2b2' },
+  button: { flex: '1', padding: '10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  cancelButton: { flex: '1', padding: '10px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  resubmitNotice: { padding: '10px', background: '#fffbeb', border: '1px solid #fde68a', color: '#d97706', borderRadius: '4px', marginTop: '10px', fontSize: '13px' },
+  approvedBanner: { padding: '6px 10px', background: '#ecfdf5', color: '#059669', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #a7f3d0' },
+  rejectedItemNotice: { padding: '6px 10px', background: '#fff1f2', color: '#e11d48', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #fecdd3' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginTop: '15px' },
-  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease', border: '1px solid transparent' },
+  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease', border: '1px solid #e2e8f0' },
   badge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
-  cardItemsList: { margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '4px' },
+  cardItemsList: { margin: '10px 0', padding: '10px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #f1f5f9' },
   miniItemRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
   cardActions: { display: 'flex', gap: '6px', marginTop: '14px' },
-  editButton: { flex: '1', padding: '6px 8px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  downloadButton: { flex: '1', padding: '6px 8px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  deleteButton: { flex: '0.8', padding: '6px 8px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  editButton: { flex: '1', padding: '6px 8px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  downloadButton: { flex: '1', padding: '6px 8px', background: '#0891b2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
+  deleteButton: { flex: '0.8', padding: '6px 8px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
 };
