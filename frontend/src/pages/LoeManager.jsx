@@ -26,6 +26,7 @@ export default function LoeManager() {
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     company_id: '',
@@ -73,6 +74,16 @@ export default function LoeManager() {
       }
     }
   }, [location.state, loes, services]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        closeModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen]);
 
   const parseScopes = (scopeData) => {
     if (!scopeData) return [];
@@ -173,6 +184,36 @@ export default function LoeManager() {
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  const openCreateModal = () => {
+    setEditingId(null);
+    setEditingPreviousStatus(null);
+    setFormData({
+      company_id: '',
+      type: 'Adhoc',
+      billing_frequency: 'One-Time',
+      currency: 'LKR',
+      start_date: '',
+      loe_services: []
+    });
+    setFormError('');
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    setEditingPreviousStatus(null);
+    setFormData({
+      company_id: '',
+      type: 'Adhoc',
+      billing_frequency: 'One-Time',
+      currency: 'LKR',
+      start_date: '',
+      loe_services: []
+    });
+    setFormError('');
   };
 
   const addServiceCard = () => {
@@ -328,7 +369,8 @@ export default function LoeManager() {
       loe_services: grouped
     });
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setFormError('');
+    setIsModalOpen(true);
   };
 
   const handleDeleteLoe = async (e, loeId) => {
@@ -418,10 +460,7 @@ export default function LoeManager() {
       if (!response.ok) throw new Error(data.error || 'Failed to save LOE');
 
       await fetchLoes();
-      
-      setEditingId(null);
-      setEditingPreviousStatus(null);
-      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', currency: 'LKR', start_date: '', loe_services: [] });
+      closeModal();
     } catch (err) {
       setFormError(err.message);
     }
@@ -562,103 +601,384 @@ export default function LoeManager() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.container}>
+      <div style={styles.contentWrapper}>
         
-        {/* LOE Builder / Editor Form */}
-        {canEdit && (
-          <div style={styles.formSection}>
-            <h2>{editingId ? `Edit LOE #${editingId}` : 'Create New LOE'}</h2>
-            
+        {/* Top Header Row with Page Title, Stats, and Create Button */}
+        <div style={styles.headerRow}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h1 style={styles.pageTitle}>Letters of Engagement [LOE]</h1>
+              <span style={styles.countBadge}>
+                {displayedLoes.length} {displayedLoes.length === 1 ? 'Record' : 'Records'}
+              </span>
+            </div>
+            <p style={styles.pageSubtitle}>
+              Manage engagement proposals, multi-department services, pricing, and approvals.
+            </p>
+          </div>
+
+          {canEdit && (
+            <button onClick={openCreateModal} style={styles.primaryActionBtn}>
+              + Create LOE
+            </button>
+          )}
+        </div>
+
+        {/* Full-width Filter Bar */}
+        <div style={styles.filterBar}>
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Company</label>
+            <input
+              type="text"
+              list="loe-company-filter-list"
+              placeholder="Search company..."
+              value={filterCompany}
+              onChange={(e) => setFilterCompany(e.target.value)}
+              style={styles.filterInput}
+            />
+            <datalist id="loe-company-filter-list">
+              {companies.map((c) => (
+                <option key={c.company_id} value={c.name || c.company_name} />
+              ))}
+            </datalist>
+          </div>
+
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="Approval Pending">Approval Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Type</label>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Types</option>
+              <option value="Adhoc">Adhoc</option>
+              <option value="Retainer">Retainer</option>
+            </select>
+          </div>
+
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Billing Cycle</label>
+            <select
+              value={filterFrequency}
+              onChange={(e) => setFilterFrequency(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Cycles</option>
+              <option value="One-Time">One-Time</option>
+              <option value="Monthly">Monthly</option>
+              <option value="Quarterly">Quarterly</option>
+              <option value="Annually">Annually</option>
+            </select>
+          </div>
+
+          <div style={styles.filterField}>
+            <label style={styles.filterLabel}>Currency</label>
+            <select
+              value={filterCurrency}
+              onChange={(e) => setFilterCurrency(e.target.value)}
+              style={styles.filterSelect}
+            >
+              <option value="ALL">All Currencies</option>
+              <option value="LKR">LKR (Rs.)</option>
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="AED">AED</option>
+              <option value="SAR">SAR</option>
+              <option value="INR">INR (₹)</option>
+              <option value="AUD">AUD (A$)</option>
+              <option value="CAD">CAD (C$)</option>
+              <option value="SGD">SGD (S$)</option>
+            </select>
+          </div>
+
+          {isAdmin && (
+            <div style={styles.filterField}>
+              <label style={styles.filterLabel}>Department (Admin)</label>
+              <select
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="ALL">All Departments</option>
+                {departments.map((d) => (
+                  <option key={d.department_id} value={d.department_id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {hasActiveFilters && (
+            <button type="button" onClick={resetFilters} style={styles.clearFilterBtn}>
+              Reset Filters
+            </button>
+          )}
+        </div>
+
+        {actionError && (
+          <div style={styles.actionErrorBox}>
+            {actionError}
+          </div>
+        )}
+
+        {/* Existing LOEs Grid */}
+        <div style={styles.listSection}>
+          {displayedLoes.length === 0 ? (
+            <div style={styles.emptyCard}>No LOEs found matching your criteria.</div>
+          ) : (
+            <div style={styles.grid}>
+              {displayedLoes.map((loe) => {
+                const badgeStyle = getStatusBadgeStyle(loe.status);
+                const loeCurrency = loe.currency || 'LKR';
+                const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || (loeCurrency + ' ');
+
+                const relevantItems = isAdmin 
+                  ? (loe.loe_items || [])
+                  : (loe.loe_items || []).filter(item => item.service?.department_id === userDeptId);
+
+                const totalFee = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+
+                return (
+                  <div 
+                    key={loe.loe_id} 
+                    onClick={() => navigate(`/loes/${loe.loe_id}`)}
+                    style={styles.card}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>
+                        {loe.loe_code || `LOE #${loe.loe_id}`}
+                      </h3>
+                      <span style={{ ...styles.badge, ...badgeStyle }}>{loe.status}</span>
+                    </div>
+
+                    <p style={{ marginTop: '8px', marginBottom: '2px', fontSize: '13.5px', color: '#1e293b' }}>
+                      <strong>Company:</strong> {getCompanyName(loe.company_id)}
+                    </p>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', margin: '6px 0' }}>
+                      <span style={{ color: '#0284c7', fontWeight: 'bold' }}>
+                        Billing: {loe.billing_frequency || 'One-Time'}
+                      </span>
+                      <span style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>
+                        {loeCurrency}
+                      </span>
+                    </div>
+
+                    <p style={{ margin: '4px 0 10px', fontSize: '13.5px', color: '#0f172a', fontWeight: 'bold' }}>
+                      Total Engagement: <span style={{ color: '#0284c7' }}>{loeSymbol} {totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </p>
+
+                    <div style={styles.cardItemsList}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#64748b' }}>
+                        Services &amp; Pricing ({relevantItems.length}):
+                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                        {relevantItems.slice(0, 3).map((item) => (
+                          <div key={item.loe_item_id} style={styles.miniItemRow}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px', color: '#334155' }}>
+                              {item.service?.name}
+                            </span>
+                            <span style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '11.5px' }}>
+                              {loeSymbol} {Number(item.amount || 0).toFixed(2)}
+                            </span>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              color: item.status === 'Approved' ? '#059669' : item.status === 'Rejected' ? '#e11d48' : '#d97706'
+                            }}>
+                              {item.status || 'Pending'}
+                            </span>
+                          </div>
+                        ))}
+                        {relevantItems.length > 3 && (
+                          <span style={{ fontSize: '11.5px', color: '#0284c7', fontWeight: 'bold' }}>
+                            + {(relevantItems.length - 3)} more (click to view all)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={styles.cardActions}>
+                      {canEdit && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(loe);
+                          }} 
+                          style={styles.editButton}
+                        >
+                          {loe.status === 'Rejected' ? 'Edit & Resubmit' : 'Edit'}
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={(e) => handleDownloadPdf(e, loe.loe_id)} 
+                        disabled={downloadingId === loe.loe_id}
+                        style={styles.downloadButton}
+                      >
+                        {downloadingId === loe.loe_id ? 'PDF...' : 'PDF'}
+                      </button>
+
+                      {canDelete && (
+                        <button
+                          onClick={(e) => handleDeleteLoe(e, loe.loe_id)}
+                          style={styles.deleteButton}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* LOE Builder / Editor Modal Dialog */}
+      {isModalOpen && canEdit && (
+        <div style={styles.modalOverlay} onClick={closeModal}>
+          <div style={styles.builderModalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <div>
+                <h2 style={styles.modalTitle}>
+                  {editingId ? `Edit LOE #${editingId}` : 'Create New Letter of Engagement'}
+                </h2>
+                <p style={styles.modalSubtitle}>
+                  Configure client entity, engagement type, billing cycle, deliverables, and service scopes.
+                </p>
+              </div>
+              <button onClick={closeModal} style={styles.closeBtn} title="Close dialog">
+                ✕
+              </button>
+            </div>
+
             {editingId && editingPreviousStatus === 'Rejected' && (
               <div style={styles.resubmitNotice}>
                 This LOE contains rejected services. Only the rejected services will reset to <strong>Pending</strong> upon resubmission. Previously approved services will stay <strong>Approved</strong>.
               </div>
             )}
 
-            {formError && <p style={{ color: 'red', marginTop: '10px' }}>{formError}</p>}
-            
+            {formError && <div style={styles.errorBox}>{formError}</div>}
+
             <form onSubmit={handleSubmit} style={styles.form}>
-              <select 
-                name="company_id" 
-                value={formData.company_id} 
-                onChange={handleChange} 
-                required 
-                style={styles.input}
-              >
-                <option value="" disabled>Select Company</option>
-                {companies.map((comp) => (
-                  <option key={comp.company_id} value={comp.company_id}>
-                    {comp.name || comp.company_name || `Company #${comp.company_id}`}
-                  </option>
-                ))}
-              </select>
-
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <select
-                  name="type"
-                  value={formData.type}
-                  onChange={handleChange}
-                  required
-                  style={{ ...styles.input, flex: 1 }}
-                  title="Engagement Type"
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Select Client Company *</label>
+                <select 
+                  name="company_id" 
+                  value={formData.company_id} 
+                  onChange={handleChange} 
+                  required 
+                  style={styles.input}
                 >
-                  <option value="Adhoc">Adhoc</option>
-                  <option value="Retainer">Retainer</option>
-                </select>
-
-                <select
-                  name="billing_frequency"
-                  value={formData.billing_frequency}
-                  onChange={handleChange}
-                  required
-                  style={{ ...styles.input, flex: 1.2 }}
-                  title="Billing Frequency"
-                >
-                  {formData.type === 'Adhoc' ? (
-                    <option value="One-Time">One-Time Billing (Standard)</option>
-                  ) : (
-                    <>
-                      <option value="Monthly">Monthly Recurring Retainer</option>
-                      <option value="Quarterly">Quarterly Recurring</option>
-                      <option value="Annually">Annually Recurring</option>
-                    </>
-                  )}
-                </select>
-
-                <select
-                  name="currency"
-                  value={formData.currency}
-                  onChange={handleChange}
-                  required
-                  style={{ ...styles.input, flex: 1, fontWeight: 'bold' }}
-                  title="Payment Currency for Client"
-                >
-                  <option value="LKR">LKR (Rs.)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="AED">AED</option>
-                  <option value="SAR">SAR</option>
-                  <option value="INR">INR (₹)</option>
-                  <option value="AUD">AUD (A$)</option>
-                  <option value="CAD">CAD (C$)</option>
-                  <option value="SGD">SGD (S$)</option>
+                  <option value="" disabled>Select Company</option>
+                  {companies.map((comp) => (
+                    <option key={comp.company_id} value={comp.company_id}>
+                      {comp.name || comp.company_name || `Company #${comp.company_id}`}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <input 
-                type="date" 
-                name="start_date" 
-                value={formData.start_date} 
-                onChange={handleChange} 
-                required 
-                style={styles.input} 
-              />
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '140px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={styles.label}>Engagement Type *</label>
+                  <select
+                    name="type"
+                    value={formData.type}
+                    onChange={handleChange}
+                    required
+                    style={styles.input}
+                    title="Engagement Type"
+                  >
+                    <option value="Adhoc">Adhoc</option>
+                    <option value="Retainer">Retainer</option>
+                  </select>
+                </div>
 
+                <div style={{ flex: 1.2, minWidth: '180px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={styles.label}>Billing Frequency *</label>
+                  <select
+                    name="billing_frequency"
+                    value={formData.billing_frequency}
+                    onChange={handleChange}
+                    required
+                    style={styles.input}
+                    title="Billing Frequency"
+                  >
+                    {formData.type === 'Adhoc' ? (
+                      <option value="One-Time">One-Time Billing (Standard)</option>
+                    ) : (
+                      <>
+                        <option value="Monthly">Monthly Recurring Retainer</option>
+                        <option value="Quarterly">Quarterly Recurring</option>
+                        <option value="Annually">Annually Recurring</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div style={{ flex: 1, minWidth: '130px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={styles.label}>Currency *</label>
+                  <select
+                    name="currency"
+                    value={formData.currency}
+                    onChange={handleChange}
+                    required
+                    style={{ ...styles.input, fontWeight: 'bold' }}
+                    title="Payment Currency for Client"
+                  >
+                    <option value="LKR">LKR (Rs.)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="AED">AED</option>
+                    <option value="SAR">SAR</option>
+                    <option value="INR">INR (₹)</option>
+                    <option value="AUD">AUD (A$)</option>
+                    <option value="CAD">CAD (C$)</option>
+                    <option value="SGD">SGD (S$)</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={styles.label}>Engagement Start Date *</label>
+                  <input 
+                    type="date" 
+                    name="start_date" 
+                    value={formData.start_date} 
+                    onChange={handleChange} 
+                    required 
+                    style={styles.input} 
+                  />
+                </div>
+              </div>
+
+              {/* Multi-service Builder */}
               <div style={styles.itemsWrapper}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <h3 style={{ fontSize: '15px', margin: 0 }}>Services, Pricing &amp; Scope Requirements</h3>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#0284c7' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '15px', margin: 0, color: '#0f172a', fontWeight: '700' }}>
+                    Services, Pricing &amp; Scope Requirements
+                  </h3>
+                  <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#0284c7' }}>
                     Billing in: {formData.currency} ({activeSymbol})
                   </span>
                 </div>
@@ -680,7 +1000,7 @@ export default function LoeManager() {
                       key={srvIdx} 
                       style={{
                         ...styles.serviceCard,
-                        border: isRejected ? '1.5px solid #dc3545' : isApproved ? '1.5px solid #28a745' : '1px solid #ddd'
+                        border: isRejected ? '1.5px solid #e11d48' : isApproved ? '1.5px solid #059669' : '1px solid #e2e8f0'
                       }}
                     >
                       {isApproved && (
@@ -754,7 +1074,7 @@ export default function LoeManager() {
                           style={styles.removeServiceBtn}
                           title="Remove Service"
                         >
-                          X
+                          ✕
                         </button>
                       </div>
 
@@ -822,7 +1142,7 @@ export default function LoeManager() {
                                     style={styles.removeScopeBtn}
                                     title="Delete scope"
                                   >
-                                    X
+                                    ✕
                                   </button>
                                 </div>
                               ))
@@ -843,259 +1163,19 @@ export default function LoeManager() {
                 <button type="submit" style={styles.button}>
                   {editingId ? 'Resubmit for Approval' : 'Submit for Approval'}
                 </button>
-                {editingId && (
-                  <button 
-                    type="button" 
-                    onClick={() => { 
-                      setEditingId(null); 
-                      setEditingPreviousStatus(null);
-                      setFormData({ company_id: '', type: 'Adhoc', billing_frequency: 'One-Time', currency: 'LKR', start_date: '', loe_services: [] }); 
-                    }} 
-                    style={styles.cancelButton}
-                  >
-                    Cancel
-                  </button>
-                )}
+                <button 
+                  type="button" 
+                  onClick={closeModal} 
+                  style={styles.cancelButton}
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
-        )}
-
-        {/* Existing LOEs List */}
-        <div style={styles.listSection}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2>Available Letters of Engagement</h2>
-            <span style={styles.countBadge}>
-              {displayedLoes.length} {displayedLoes.length === 1 ? 'Record' : 'Records'}
-            </span>
-          </div>
-          <p style={{ margin: '-5px 0 15px', color: '#6c757d', fontSize: '13px' }}>
-            Click any card to view its full details and service scopes.
-          </p>
-
-          {/* Filter Bar */}
-          <div style={styles.filterBar}>
-            <div style={styles.filterField}>
-              <label style={styles.filterLabel}>Company</label>
-              <input
-                type="text"
-                list="loe-company-filter-list"
-                placeholder="Search company..."
-                value={filterCompany}
-                onChange={(e) => setFilterCompany(e.target.value)}
-                style={styles.filterInput}
-              />
-              <datalist id="loe-company-filter-list">
-                {companies.map((c) => (
-                  <option key={c.company_id} value={c.name || c.company_name} />
-                ))}
-              </datalist>
-            </div>
-
-            <div style={styles.filterField}>
-              <label style={styles.filterLabel}>Status</label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                style={styles.filterSelect}
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="Approval Pending">Approval Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-            </div>
-
-            <div style={styles.filterField}>
-              <label style={styles.filterLabel}>Type</label>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                style={styles.filterSelect}
-              >
-                <option value="ALL">All Types</option>
-                <option value="Adhoc">Adhoc</option>
-                <option value="Retainer">Retainer</option>
-              </select>
-            </div>
-
-            <div style={styles.filterField}>
-              <label style={styles.filterLabel}>Billing Cycle</label>
-              <select
-                value={filterFrequency}
-                onChange={(e) => setFilterFrequency(e.target.value)}
-                style={styles.filterSelect}
-              >
-                <option value="ALL">All Cycles</option>
-                <option value="One-Time">One-Time</option>
-                <option value="Monthly">Monthly</option>
-                <option value="Quarterly">Quarterly</option>
-                <option value="Annually">Annually</option>
-              </select>
-            </div>
-
-            <div style={styles.filterField}>
-              <label style={styles.filterLabel}>Currency</label>
-              <select
-                value={filterCurrency}
-                onChange={(e) => setFilterCurrency(e.target.value)}
-                style={styles.filterSelect}
-              >
-                <option value="ALL">All Currencies</option>
-                <option value="LKR">LKR (Rs.)</option>
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-                <option value="AED">AED</option>
-                <option value="SAR">SAR</option>
-                <option value="INR">INR (₹)</option>
-                <option value="AUD">AUD (A$)</option>
-                <option value="CAD">CAD (C$)</option>
-                <option value="SGD">SGD (S$)</option>
-              </select>
-            </div>
-
-            {isAdmin && (
-              <div style={styles.filterField}>
-                <label style={styles.filterLabel}>Department (Admin)</label>
-                <select
-                  value={filterDepartment}
-                  onChange={(e) => setFilterDepartment(e.target.value)}
-                  style={styles.filterSelect}
-                >
-                  <option value="ALL">All Departments</option>
-                  {departments.map((d) => (
-                    <option key={d.department_id} value={d.department_id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {hasActiveFilters && (
-              <button type="button" onClick={resetFilters} style={styles.clearFilterBtn}>
-                Reset Filters
-              </button>
-            )}
-          </div>
-
-          {actionError && (
-            <div style={{ background: '#fed7d7', color: '#c53030', padding: '10px 14px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #feb2b2', fontSize: '13px' }}>
-              {actionError}
-            </div>
-          )}
-
-          {displayedLoes.length === 0 ? (
-            <div style={styles.emptyCard}>No LOEs found matching your criteria.</div>
-          ) : (
-            <div style={styles.grid}>
-              {displayedLoes.map((loe) => {
-                const badgeStyle = getStatusBadgeStyle(loe.status);
-                const loeCurrency = loe.currency || 'LKR';
-                const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || (loeCurrency + ' ');
-
-                const relevantItems = isAdmin 
-                  ? (loe.loe_items || [])
-                  : (loe.loe_items || []).filter(item => item.service?.department_id === userDeptId);
-
-                const totalFee = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-
-                return (
-                  <div 
-                    key={loe.loe_id} 
-                    onClick={() => navigate(`/loes/${loe.loe_id}`)}
-                    style={styles.card}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: '17px' }}>{loe.loe_code || `LOE #${loe.loe_id}`}</h3>
-                      <span style={{ ...styles.badge, ...badgeStyle }}>{loe.status}</span>
-                    </div>
-
-                    <p style={{ marginTop: '8px', marginBottom: '2px' }}>
-                      <strong>Company:</strong> {getCompanyName(loe.company_id)}
-                    </p>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', margin: '4px 0' }}>
-                      <span style={{ color: '#6f42c1', fontWeight: 'bold' }}>
-                        Billing: {loe.billing_frequency || 'One-Time'}
-                      </span>
-                      <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>
-                        {loeCurrency}
-                      </span>
-                    </div>
-
-                    <p style={{ margin: '2px 0 8px', fontSize: '13px', color: '#2b6cb0', fontWeight: 'bold' }}>
-                      Total Engagement: {loeSymbol} {totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-
-                    <div style={styles.cardItemsList}>
-                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>
-                        Services &amp; Pricing ({relevantItems.length}):
-                      </span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                        {relevantItems.slice(0, 3).map((item) => (
-                          <div key={item.loe_item_id} style={styles.miniItemRow}>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                              {item.service?.name}
-                            </span>
-                            <span style={{ fontWeight: 'bold', color: '#2d3748', fontSize: '11px' }}>
-                              {loeSymbol} {Number(item.amount || 0).toFixed(2)}
-                            </span>
-                            <span style={{
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              color: item.status === 'Approved' ? '#059669' : item.status === 'Rejected' ? '#e11d48' : '#d97706'
-                            }}>
-                              {item.status || 'Pending'}
-                            </span>
-                          </div>
-                        ))}
-                        {relevantItems.length > 3 && (
-                          <span style={{ fontSize: '11px', color: '#007bff' }}>
-                            + {(relevantItems.length - 3)} more (click to view all)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={styles.cardActions}>
-                      {canEdit && (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(loe);
-                          }} 
-                          style={styles.editButton}
-                        >
-                          {loe.status === 'Rejected' ? 'Edit & Resubmit' : 'Edit'}
-                        </button>
-                      )}
-
-                      <button 
-                        onClick={(e) => handleDownloadPdf(e, loe.loe_id)} 
-                        disabled={downloadingId === loe.loe_id}
-                        style={styles.downloadButton}
-                      >
-                        {downloadingId === loe.loe_id ? 'PDF...' : 'PDF'}
-                      </button>
-
-                      {canDelete && (
-                        <button
-                          onClick={(e) => handleDeleteLoe(e, loe.loe_id)}
-                          style={styles.deleteButton}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
-      </div>
+      )}
+
     </div>
   );
 }
@@ -1108,72 +1188,500 @@ const styles = {
     marginLeft: 'var(--sidebar-width, 260px)',
     transition: 'margin-left 300ms ease-in-out'
   },
-  container: { display: 'flex', gap: '30px', padding: '30px 40px' },
-  formSection: { flex: '1.15', background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0', height: 'fit-content' },
-  listSection: { flex: '1.85' },
-  countBadge: { background: '#0284c7', color: '#fff', padding: '4px 10px', borderRadius: '14px', fontSize: '12px', fontWeight: 'bold' },
+  contentWrapper: {
+    maxWidth: '1280px',
+    margin: '0 auto',
+    padding: '35px 40px'
+  },
+  headerRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    gap: '16px'
+  },
+  pageTitle: {
+    margin: 0,
+    fontSize: '24px',
+    fontWeight: '700',
+    color: '#0f172a'
+  },
+  pageSubtitle: {
+    margin: '4px 0 0 0',
+    color: '#64748b',
+    fontSize: '14px'
+  },
+  countBadge: {
+    background: '#e0f2fe',
+    color: '#0369a1',
+    border: '1px solid #bae6fd',
+    padding: '3px 10px',
+    borderRadius: '14px',
+    fontSize: '12px',
+    fontWeight: 'bold'
+  },
+  primaryActionBtn: {
+    padding: '10px 20px',
+    background: '#0284c7',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13.5px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+    transition: 'background 0.15s ease'
+  },
   filterBar: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: '10px',
     alignItems: 'flex-end',
     background: '#ffffff',
-    padding: '14px',
+    padding: '16px',
     borderRadius: '8px',
     border: '1px solid #e2e8f0',
-    marginBottom: '18px',
+    marginBottom: '22px',
     boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)'
   },
-  filterField: { display: 'flex', flexDirection: 'column', gap: '4px', flex: '1', minWidth: '125px' },
-  filterLabel: { fontSize: '11.5px', fontWeight: 'bold', color: '#475569' },
-  filterInput: { padding: '7px 9px', borderRadius: '5px', border: '1px solid #cbd5e1', fontSize: '12px' },
-  filterSelect: { padding: '7px 9px', borderRadius: '5px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#fff' },
-  clearFilterBtn: {
-    padding: '7px 12px',
-    background: '#f8fafc',
-    color: '#e11d48',
+  filterField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    flex: '1',
+    minWidth: '130px'
+  },
+  filterLabel: {
+    fontSize: '11.5px',
+    fontWeight: 'bold',
+    color: '#475569'
+  },
+  filterInput: {
+    padding: '8px 10px',
+    borderRadius: '5px',
     border: '1px solid #cbd5e1',
+    fontSize: '12.5px',
+    background: '#ffffff',
+    color: '#0f172a'
+  },
+  filterSelect: {
+    padding: '8px 10px',
+    borderRadius: '5px',
+    border: '1px solid #cbd5e1',
+    fontSize: '12.5px',
+    background: '#ffffff',
+    color: '#0f172a'
+  },
+  clearFilterBtn: {
+    padding: '8px 14px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    border: '1px solid #fecdd3',
     borderRadius: '5px',
     fontWeight: 'bold',
-    fontSize: '11.5px',
+    fontSize: '12px',
     cursor: 'pointer',
-    height: '31px'
+    height: '35px'
   },
-  emptyCard: { background: '#fff', padding: '30px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
-  form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
-  input: { padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1' },
-  itemsWrapper: { padding: '15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' },
-  serviceCard: { background: '#fff', borderRadius: '6px', padding: '14px', marginBottom: '14px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0' },
-  topSelectRow: { display: 'flex', gap: '8px', alignItems: 'center' },
-  dropdownInput: { flex: '1', padding: '8px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' },
-  priceInputWrapper: { display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '0 8px', minWidth: '115px' },
-  currencyPrefix: { fontSize: '13px', color: '#475569', fontWeight: 'bold', marginRight: '4px' },
-  servicePriceInput: { border: 'none', outline: 'none', padding: '8px 4px', width: '100%', fontSize: '13px', fontWeight: 'bold' },
-  removeServiceBtn: { padding: '8px 12px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  scopeSelectionSection: { marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' },
-  scopeToolbar: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' },
-  addScopeBtn: { padding: '8px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  addCustomBtn: { padding: '8px 12px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
-  scopeListContainer: { display: 'flex', flexDirection: 'column', gap: '8px' },
-  scopeItemRow: { display: 'flex', gap: '8px', alignItems: 'flex-start', background: '#f8fafc', padding: '8px', borderRadius: '4px', border: '1px solid #e2e8f0' },
-  scopeIndexBadge: { background: '#cbd5e1', color: '#334155', fontWeight: 'bold', fontSize: '11px', padding: '4px 8px', borderRadius: '3px', marginTop: '4px' },
-  scopeTextarea: { flex: '1', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontFamily: 'inherit', fontSize: '13px', resize: 'vertical' },
-  removeScopeBtn: { padding: '4px 8px', background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '4px' },
-  emptyNotice: { margin: 0, fontSize: '12px', color: '#64748b', fontStyle: 'italic', padding: '6px' },
-  addCardBtn: { width: '100%', padding: '10px', background: '#f8fafc', color: '#0369a1', border: '1px dashed #bae6fd', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  buttonGroup: { display: 'flex', gap: '10px', marginTop: '10px' },
-  button: { flex: '1', padding: '10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  cancelButton: { flex: '1', padding: '10px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  resubmitNotice: { padding: '10px', background: '#fffbeb', border: '1px solid #fde68a', color: '#d97706', borderRadius: '4px', marginTop: '10px', fontSize: '13px' },
-  approvedBanner: { padding: '6px 10px', background: '#ecfdf5', color: '#059669', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #a7f3d0' },
-  rejectedItemNotice: { padding: '6px 10px', background: '#fff1f2', color: '#e11d48', borderRadius: '4px', fontSize: '12px', marginBottom: '10px', border: '1px solid #fecdd3' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginTop: '15px' },
-  card: { background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease', border: '1px solid #e2e8f0' },
-  badge: { padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' },
-  cardItemsList: { margin: '10px 0', padding: '10px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #f1f5f9' },
-  miniItemRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' },
-  cardActions: { display: 'flex', gap: '6px', marginTop: '14px' },
-  editButton: { flex: '1', padding: '6px 8px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  downloadButton: { flex: '1', padding: '6px 8px', background: '#0891b2', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' },
-  deleteButton: { flex: '0.8', padding: '6px 8px', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }
+  actionErrorBox: {
+    background: '#fff1f2',
+    color: '#e11d48',
+    padding: '12px 16px',
+    borderRadius: '6px',
+    marginBottom: '18px',
+    border: '1px solid #fecdd3',
+    fontSize: '13.5px'
+  },
+  listSection: {
+    width: '100%'
+  },
+  emptyCard: {
+    background: '#ffffff',
+    padding: '40px',
+    textAlign: 'center',
+    borderRadius: '8px',
+    color: '#64748b',
+    border: '1px solid #e2e8f0',
+    fontSize: '14px'
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+    gap: '20px'
+  },
+  card: {
+    background: '#fff',
+    padding: '18px',
+    borderRadius: '8px',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+    cursor: 'pointer',
+    transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+    border: '1px solid #e2e8f0'
+  },
+  badge: {
+    padding: '3px 8px',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: 'bold'
+  },
+  cardItemsList: {
+    margin: '10px 0',
+    padding: '10px',
+    background: '#f8fafc',
+    borderRadius: '6px',
+    border: '1px solid #f1f5f9'
+  },
+  miniItemRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '12px'
+  },
+  cardActions: {
+    display: 'flex',
+    gap: '6px',
+    marginTop: '14px',
+    paddingTop: '12px',
+    borderTop: '1px solid #f1f5f9'
+  },
+  editButton: {
+    flex: '1',
+    padding: '7px 10px',
+    background: '#f0f9ff',
+    color: '#0284c7',
+    border: '1px solid #bae6fd',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px'
+  },
+  downloadButton: {
+    flex: '1',
+    padding: '7px 10px',
+    background: '#0891b2',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px'
+  },
+  deleteButton: {
+    flex: '0.8',
+    padding: '7px 10px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    border: '1px solid #fecdd3',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px'
+  },
+
+  // Builder Modal Dialog Styles
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(15, 23, 42, 0.55)',
+    backdropFilter: 'blur(2px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10000,
+    padding: '20px'
+  },
+  builderModalContent: {
+    background: '#ffffff',
+    borderRadius: '10px',
+    width: '100%',
+    maxWidth: '880px',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    padding: '28px',
+    boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.25)',
+    border: '1px solid #e2e8f0'
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottom: '1px solid #e2e8f0',
+    paddingBottom: '16px',
+    marginBottom: '18px'
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#0f172a'
+  },
+  modalSubtitle: {
+    margin: '4px 0 0',
+    fontSize: '13px',
+    color: '#64748b'
+  },
+  closeBtn: {
+    background: '#f1f5f9',
+    border: 'none',
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    fontSize: '15px',
+    cursor: 'pointer',
+    color: '#475569',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px'
+  },
+  label: {
+    fontSize: '12.5px',
+    fontWeight: 'bold',
+    color: '#334155'
+  },
+  input: {
+    padding: '10px 12px',
+    borderRadius: '5px',
+    border: '1px solid #cbd5e1',
+    fontSize: '13.5px',
+    background: '#ffffff',
+    color: '#0f172a'
+  },
+  itemsWrapper: {
+    padding: '18px',
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px'
+  },
+  serviceCard: {
+    background: '#fff',
+    borderRadius: '6px',
+    padding: '14px',
+    marginBottom: '14px',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
+  },
+  topSelectRow: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  },
+  dropdownInput: {
+    flex: '1',
+    minWidth: '160px',
+    padding: '9px 10px',
+    borderRadius: '4px',
+    border: '1px solid #cbd5e1',
+    fontSize: '13px',
+    background: '#ffffff'
+  },
+  priceInputWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    background: '#fff',
+    border: '1px solid #cbd5e1',
+    borderRadius: '4px',
+    padding: '0 8px',
+    minWidth: '120px'
+  },
+  currencyPrefix: {
+    fontSize: '13px',
+    color: '#475569',
+    fontWeight: 'bold',
+    marginRight: '4px'
+  },
+  servicePriceInput: {
+    border: 'none',
+    outline: 'none',
+    padding: '9px 4px',
+    width: '100%',
+    fontSize: '13px',
+    fontWeight: 'bold',
+    color: '#0f172a'
+  },
+  removeServiceBtn: {
+    padding: '9px 12px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    border: '1px solid #fecdd3',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  },
+  scopeSelectionSection: {
+    marginTop: '12px',
+    borderTop: '1px dashed #e2e8f0',
+    paddingTop: '12px'
+  },
+  scopeToolbar: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+    marginBottom: '10px',
+    flexWrap: 'wrap'
+  },
+  addScopeBtn: {
+    padding: '8px 12px',
+    background: '#0284c7',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 'bold'
+  },
+  addCustomBtn: {
+    padding: '8px 12px',
+    background: '#f1f5f9',
+    color: '#334155',
+    border: '1px solid #cbd5e1',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 'bold'
+  },
+  scopeListContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  scopeItemRow: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'flex-start',
+    background: '#f8fafc',
+    padding: '8px',
+    borderRadius: '4px',
+    border: '1px solid #e2e8f0'
+  },
+  scopeIndexBadge: {
+    background: '#e2e8f0',
+    color: '#334155',
+    fontWeight: 'bold',
+    fontSize: '11px',
+    padding: '4px 8px',
+    borderRadius: '3px',
+    marginTop: '4px'
+  },
+  scopeTextarea: {
+    flex: '1',
+    padding: '8px',
+    borderRadius: '4px',
+    border: '1px solid #cbd5e1',
+    fontFamily: 'inherit',
+    fontSize: '13px',
+    resize: 'vertical',
+    color: '#0f172a'
+  },
+  removeScopeBtn: {
+    padding: '6px 10px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    border: '1px solid #fecdd3',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    marginTop: '4px'
+  },
+  emptyNotice: {
+    margin: 0,
+    fontSize: '12.5px',
+    color: '#64748b',
+    fontStyle: 'italic',
+    padding: '6px'
+  },
+  addCardBtn: {
+    width: '100%',
+    padding: '11px',
+    background: '#f8fafc',
+    color: '#0284c7',
+    border: '1px dashed #bae6fd',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13px'
+  },
+  buttonGroup: {
+    display: 'flex',
+    gap: '10px',
+    marginTop: '10px',
+    paddingTop: '14px',
+    borderTop: '1px solid #f1f5f9'
+  },
+  button: {
+    flex: '1',
+    padding: '11px',
+    background: '#0284c7',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13.5px'
+  },
+  cancelButton: {
+    flex: '1',
+    padding: '11px',
+    background: '#f1f5f9',
+    color: '#475569',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13.5px'
+  },
+  resubmitNotice: {
+    padding: '12px 14px',
+    background: '#fffbeb',
+    border: '1px solid #fde68a',
+    color: '#d97706',
+    borderRadius: '6px',
+    fontSize: '13px',
+    marginBottom: '14px'
+  },
+  approvedBanner: {
+    padding: '6px 10px',
+    background: '#ecfdf5',
+    color: '#059669',
+    borderRadius: '4px',
+    fontSize: '12px',
+    marginBottom: '10px',
+    border: '1px solid #a7f3d0',
+    fontWeight: 'bold'
+  },
+  rejectedItemNotice: {
+    padding: '8px 12px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    borderRadius: '4px',
+    fontSize: '12px',
+    marginBottom: '10px',
+    border: '1px solid #fecdd3'
+  },
+  errorBox: {
+    padding: '10px 14px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    borderRadius: '6px',
+    fontSize: '13px',
+    border: '1px solid #fecdd3',
+    marginBottom: '14px'
+  }
 };
