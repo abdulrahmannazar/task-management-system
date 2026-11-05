@@ -333,6 +333,14 @@ export default function Navbar() {
     return location.pathname === targetPath;
   };
 
+  const getPageTitle = (pathname) => {
+    if (pathname.startsWith('/loes/')) return 'LOE Details';
+    const found = navItems.find((item) => item.path === pathname);
+    if (found) return found.label;
+    if (pathname === '/settings') return 'Settings';
+    return 'Task Management';
+  };
+
   return (
     <>
       <style>{`
@@ -503,114 +511,124 @@ export default function Navbar() {
         </div>
       </aside>
 
-      {/* TOP-RIGHT CORNER UTILITY BAR: Notifications & Settings */}
-      <div style={styles.topRightUtilityBar} aria-label="Quick Actions">
-        {/* Notification Bell Button */}
-        <div style={{ position: 'relative' }} ref={notifDropdownRef}>
-          <button
-            type="button"
-            onClick={() => setShowNotifs((prev) => !prev)}
+      {/* STICKY TOP HEADER BAR: Pins to top of content area, never scrolls away, reserves 56px height to prevent any content overlap */}
+      <header style={styles.topHeaderBar} aria-label="Top Navigation Bar">
+        {/* Left Side: Breadcrumb / Current Section */}
+        <div style={styles.topHeaderLeft}>
+          <span style={styles.topHeaderBrand}>Frontier Advisory</span>
+          <span style={styles.topHeaderDivider}>/</span>
+          <span style={styles.topHeaderTitle}>{getPageTitle(location.pathname)}</span>
+        </div>
+
+        {/* Right Side: Notification Bell & Settings Gear */}
+        <div style={styles.topHeaderRight}>
+          {/* Notification Bell Button */}
+          <div style={{ position: 'relative' }} ref={notifDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowNotifs((prev) => !prev)}
+              className="top-utility-btn"
+              title="Notifications"
+              aria-label="View notifications"
+              style={{
+                ...styles.topUtilityBtn,
+                ...(showNotifs ? styles.topUtilityBtnActive : {})
+              }}
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {unreadCount > 0 && (
+                <span style={styles.topNotifBadge}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Top-Right Notifications Dropdown Panel */}
+            {showNotifs && (
+              <div style={styles.topNotifDropdown}>
+                <div style={styles.notifHeader}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h4 style={{ margin: 0, fontSize: '13.5px', color: '#0f172a', fontWeight: '700' }}>
+                      Notifications
+                    </h4>
+                    {unreadCount > 0 && (
+                      <span style={styles.unreadCountPill}>{unreadCount} new</span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button onClick={handleMarkAllRead} style={styles.markAllBtn}>
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                {browserPermission !== 'granted' && (
+                  <div style={styles.permissionPrompt}>
+                    <span style={{ fontSize: '11px', color: '#0369a1' }}>Desktop popups?</span>
+                    <button onClick={requestBrowserPermission} style={styles.enableBtn}>
+                      Allow
+                    </button>
+                  </div>
+                )}
+
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
+                    No notifications yet
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
+                    {notifications.map((n) => (
+                      <div
+                        key={n.notification_id}
+                        onClick={() => !n.is_read && handleMarkAsRead(n.notification_id)}
+                        style={{
+                          padding: '9px 11px',
+                          borderRadius: '7px',
+                          background: n.is_read ? '#f8fafc' : '#f0f9ff',
+                          border: `1px solid ${n.is_read ? '#e2e8f0' : '#bae6fd'}`,
+                          cursor: n.is_read ? 'default' : 'pointer',
+                          transition: 'background 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                          <strong style={{ fontSize: '12px', color: '#0f172a', fontWeight: '600' }}>{n.title}</strong>
+                          {!n.is_read && <span style={styles.unreadDot}>●</span>}
+                        </div>
+                        <span style={{ fontSize: '11.5px', color: '#334155', marginTop: '2px', display: 'block', lineHeight: '1.4' }}>
+                          {n.message}
+                        </span>
+                        <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                          {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; {new Date(n.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Settings Gear Link Button */}
+          <Link
+            to="/settings"
             className="top-utility-btn"
-            title="Notifications"
-            aria-label="View notifications"
+            title="Account Settings"
+            aria-label="Account Settings"
             style={{
               ...styles.topUtilityBtn,
-              ...(showNotifs ? styles.topUtilityBtnActive : {})
+              ...(location.pathname === '/settings' ? styles.topUtilityBtnActive : {})
             }}
           >
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
-            {unreadCount > 0 && (
-              <span style={styles.topNotifBadge}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {/* Top-Right Notifications Dropdown Panel */}
-          {showNotifs && (
-            <div style={styles.topNotifDropdown}>
-              <div style={styles.notifHeader}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '13.5px', color: '#0f172a', fontWeight: '700' }}>
-                    Notifications
-                  </h4>
-                  {unreadCount > 0 && (
-                    <span style={styles.unreadCountPill}>{unreadCount} new</span>
-                  )}
-                </div>
-                {unreadCount > 0 && (
-                  <button onClick={handleMarkAllRead} style={styles.markAllBtn}>
-                    Mark all read
-                  </button>
-                )}
-              </div>
-
-              {browserPermission !== 'granted' && (
-                <div style={styles.permissionPrompt}>
-                  <span style={{ fontSize: '11px', color: '#0369a1' }}>Desktop popups?</span>
-                  <button onClick={requestBrowserPermission} style={styles.enableBtn}>
-                    Allow
-                  </button>
-                </div>
-              )}
-
-              {notifications.length === 0 ? (
-                <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
-                  No notifications yet
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
-                  {notifications.map((n) => (
-                    <div
-                      key={n.notification_id}
-                      onClick={() => !n.is_read && handleMarkAsRead(n.notification_id)}
-                      style={{
-                        padding: '9px 11px',
-                        borderRadius: '7px',
-                        background: n.is_read ? '#f8fafc' : '#f0f9ff',
-                        border: `1px solid ${n.is_read ? '#e2e8f0' : '#bae6fd'}`,
-                        cursor: n.is_read ? 'default' : 'pointer',
-                        transition: 'background 0.15s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                        <strong style={{ fontSize: '12px', color: '#0f172a', fontWeight: '600' }}>{n.title}</strong>
-                        {!n.is_read && <span style={styles.unreadDot}>●</span>}
-                      </div>
-                      <span style={{ fontSize: '11.5px', color: '#334155', marginTop: '2px', display: 'block', lineHeight: '1.4' }}>
-                        {n.message}
-                      </span>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                        {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; {new Date(n.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          </Link>
         </div>
-
-        {/* Settings Gear Link Button */}
-        <Link
-          to="/settings"
-          className="top-utility-btn"
-          title="Account Settings"
-          aria-label="Account Settings"
-          style={{
-            ...styles.topUtilityBtn,
-            ...(location.pathname === '/settings' ? styles.topUtilityBtnActive : {})
-          }}
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </Link>
-      </div>
+      </header>
 
       {/* SUPPORT HELP MODAL */}
       {showSupportModal && (
@@ -820,15 +838,45 @@ const styles = {
     transition: 'all 0.15s ease'
   },
 
-  /* TOP-RIGHT FLOATING ACTION BAR */
-  topRightUtilityBar: {
-    position: 'fixed',
-    top: '20px',
-    right: '28px',
-    zIndex: 9998,
+  /* STICKY TOP HEADER BAR (PINS TO TOP, NO SCROLLING, RESERVES SPACE) */
+  topHeaderBar: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 990,
+    width: '100%',
+    height: '56px',
+    backgroundColor: '#ffffff',
+    borderBottom: '1px solid #e2e8f0',
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
+    justifyContent: 'space-between',
+    padding: '0 40px',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+    boxSizing: 'border-box'
+  },
+  topHeaderLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  topHeaderBrand: {
+    fontSize: '12.5px',
+    fontWeight: '500',
+    color: '#64748b'
+  },
+  topHeaderDivider: {
+    fontSize: '12px',
+    color: '#cbd5e1'
+  },
+  topHeaderTitle: {
+    fontSize: '13.5px',
+    fontWeight: '600',
+    color: '#0f172a'
+  },
+  topHeaderRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
   },
   topUtilityBtn: {
     width: '38px',
