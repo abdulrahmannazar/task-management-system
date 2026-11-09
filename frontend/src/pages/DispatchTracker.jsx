@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
@@ -56,12 +57,12 @@ export default function DispatchTracker() {
       setError('');
 
       const loeUrl = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/loes?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
+        ? `${API_BASE}/api/loes?role=ADMIN`
+        : `${API_BASE}/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
 
       const invUrl = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/invoices?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/invoices?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
+        ? `${API_BASE}/api/invoices?role=ADMIN`
+        : `${API_BASE}/api/invoices?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
 
       const [loeRes, invRes] = await Promise.all([
         fetch(loeUrl, { headers: { Authorization: `Bearer ${token}` } }),

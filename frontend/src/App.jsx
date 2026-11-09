@@ -13,6 +13,7 @@ import EmployeeManager from './pages/EmployeeManager';
 import InvoiceManager from './pages/InvoiceManager';
 import DispatchTracker from './pages/DispatchTracker';
 import Settings from './pages/Settings';
+import PettyCashManager from './pages/PettyCashManager';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
         <Route path="/loes/:id" element={<LoeDetails />} />
         <Route path="/approvals" element={<ManagerDashboard />} />
         <Route path="/tasks" element={<TaskAllocation />} />
+        <Route path="/petty-cash" element={<PettyCashManager />} />
         <Route path="/invoices" element={<InvoiceManager />} />
         <Route path="/employees" element={<EmployeeManager />} />
         <Route path="/services" element={<ServiceManager />} />

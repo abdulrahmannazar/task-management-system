@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -81,11 +82,11 @@ export default function TaskAllocation() {
 
   const fetchTasks = async () => {
     try {
-      let url = `https://task-management-system-6ifq.onrender.com/api/tasks?emp_id=${user?.emp_id}&role=EMPLOYEE`;
+      let url = `${API_BASE}/api/tasks?emp_id=${user?.emp_id}&role=EMPLOYEE`;
       if (isAdmin) {
-        url = `https://task-management-system-6ifq.onrender.com/api/tasks?role=ADMIN`;
+        url = `${API_BASE}/api/tasks?role=ADMIN`;
       } else if (isManager) {
-        url = `https://task-management-system-6ifq.onrender.com/api/tasks?department_id=${userDeptId}&role=MANAGER`;
+        url = `${API_BASE}/api/tasks?department_id=${userDeptId}&role=MANAGER`;
       }
 
       const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -96,7 +97,7 @@ export default function TaskAllocation() {
 
   const fetchLoes = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/loes', { headers: { 'Authorization': `Bearer ${token}` } });
+      const response = await fetch(`${API_BASE}/api/loes`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
       if (response.ok) setLoes(Array.isArray(data) ? data : []);
     } catch (err) {}
@@ -104,7 +105,7 @@ export default function TaskAllocation() {
 
   const fetchEmployees = async () => {
     try {
-      const url = isAdmin ? 'https://task-management-system-6ifq.onrender.com/api/employees' : `https://task-management-system-6ifq.onrender.com/api/employees?department_id=${userDeptId}`;
+      const url = isAdmin ? `${API_BASE}/api/employees` : `${API_BASE}/api/employees?department_id=${userDeptId}`;
       const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
       if (response.ok) setEmployees(Array.isArray(data) ? data : []);
@@ -113,7 +114,7 @@ export default function TaskAllocation() {
 
   const fetchCompanies = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', { headers: { 'Authorization': `Bearer ${token}` } });
+      const response = await fetch(`${API_BASE}/api/companies`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
       if (response.ok) setCompanies(Array.isArray(data) ? data : data.companies || []);
     } catch (err) {}
@@ -121,7 +122,7 @@ export default function TaskAllocation() {
 
   const fetchServices = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/services', { headers: { 'Authorization': `Bearer ${token}` } });
+      const response = await fetch(`${API_BASE}/api/services`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await response.json();
       if (response.ok) setServices(Array.isArray(data) ? data : []);
     } catch (err) {}
@@ -129,7 +130,7 @@ export default function TaskAllocation() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const response = await fetch(`${API_BASE}/api/auth/departments`);
       const data = await response.json();
       if (response.ok && Array.isArray(data)) setDepartments(data);
     } catch (err) {}
@@ -218,7 +219,7 @@ export default function TaskAllocation() {
           status: scopeItem.status
         };
 
-        const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/tasks/${scopeItem.task_id}`, {
+        const response = await fetch(`${API_BASE}/api/tasks/${scopeItem.task_id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(payload)
@@ -245,7 +246,7 @@ export default function TaskAllocation() {
     setError('');
 
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/tasks', {
+      const response = await fetch(`${API_BASE}/api/tasks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

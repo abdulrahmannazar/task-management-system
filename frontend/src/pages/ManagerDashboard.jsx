@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -70,8 +71,8 @@ export default function ManagerDashboard() {
       if (!token) throw new Error('Authentication token missing.');
 
       const url = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/loes/pending?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/loes/pending?department_id=${userDeptId}&role=${user.role || 'MANAGER'}`;
+        ? `${API_BASE}/api/loes/pending?role=ADMIN`
+        : `${API_BASE}/api/loes/pending?department_id=${userDeptId}&role=${user.role || 'MANAGER'}`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -89,7 +90,7 @@ export default function ManagerDashboard() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const response = await fetch(`${API_BASE}/api/auth/departments`);
       const data = await response.json();
       if (response.ok && Array.isArray(data)) {
         setDepartments(data);
@@ -102,7 +103,7 @@ export default function ManagerDashboard() {
   const fetchCompanies = async () => {
     try {
       if (!token) return;
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', {
+      const response = await fetch(`${API_BASE}/api/companies`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
@@ -119,7 +120,7 @@ export default function ManagerDashboard() {
     try {
       setError('');
       const response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/approve`,
+        `${API_BASE}/api/loes/${loeId}/items/${itemId}/approve`,
         {
           method: 'PUT',
           headers: {
@@ -146,7 +147,7 @@ export default function ManagerDashboard() {
     try {
       setError('');
       const response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/items/${itemId}/reject`,
+        `${API_BASE}/api/loes/${loeId}/items/${itemId}/reject`,
         {
           method: 'PUT',
           headers: {
@@ -171,7 +172,7 @@ export default function ManagerDashboard() {
     try {
       setError('');
       const response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/approve-all`,
+        `${API_BASE}/api/loes/${loeId}/approve-all`,
         {
           method: 'PUT',
           headers: {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -60,7 +61,7 @@ export default function LoeDetails() {
       setLoading(true);
       if (!token) throw new Error('Authentication token missing.');
 
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}`, {
+      const response = await fetch(`${API_BASE}/api/loes/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
@@ -80,7 +81,7 @@ export default function LoeDetails() {
       setSuccessMsg('');
 
       const response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/loes/${id}/items/${itemId}/approve`,
+        `${API_BASE}/api/loes/${id}/items/${itemId}/approve`,
         {
           method: 'PUT',
           headers: {
@@ -115,7 +116,7 @@ export default function LoeDetails() {
       setSuccessMsg('');
 
       const response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/loes/${id}/items/${itemId}/reject`,
+        `${API_BASE}/api/loes/${id}/items/${itemId}/reject`,
         {
           method: 'PUT',
           headers: {
@@ -147,7 +148,7 @@ export default function LoeDetails() {
       setSuccessMsg('');
 
       const response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/loes/${id}/approve-all`,
+        `${API_BASE}/api/loes/${id}/approve-all`,
         {
           method: 'PUT',
           headers: {
@@ -174,7 +175,7 @@ export default function LoeDetails() {
     if (!window.confirm(`Are you sure you want to permanently delete LOE #${id}?`)) return;
     try {
       setError('');
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}`, {
+      const response = await fetch(`${API_BASE}/api/loes/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -209,7 +210,7 @@ export default function LoeDetails() {
       }
 
       if (!response || !response.ok) {
-        response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${id}/pdf${cacheBuster}`, {
+        response = await fetch(`${API_BASE}/api/loes/${id}/pdf${cacheBuster}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }

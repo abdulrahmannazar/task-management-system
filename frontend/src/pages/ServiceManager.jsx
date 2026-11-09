@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -77,8 +78,8 @@ export default function ServiceManager() {
   const fetchServices = async () => {
     try {
       const url = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/services?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/services?department_id=${userDeptId}&role=MANAGER`;
+        ? `${API_BASE}/api/services?role=ADMIN`
+        : `${API_BASE}/api/services?department_id=${userDeptId}&role=MANAGER`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -92,7 +93,7 @@ export default function ServiceManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const response = await fetch(`${API_BASE}/api/auth/departments`);
       const data = await response.json();
       if (response.ok && Array.isArray(data)) setDepartments(data);
     } catch (err) {
@@ -159,8 +160,8 @@ export default function ServiceManager() {
     setSaving(true);
 
     const url = editingId
-      ? `https://task-management-system-6ifq.onrender.com/api/services/${editingId}`
-      : 'https://task-management-system-6ifq.onrender.com/api/services';
+      ? `${API_BASE}/api/services/${editingId}`
+      : `${API_BASE}/api/services`;
 
     const method = editingId ? 'PUT' : 'POST';
 

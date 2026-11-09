@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '../utils/api';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { usePermissions } from '../utils/permissionHelper';
 import FrontierLogo from './FrontierLogo';
@@ -133,7 +134,7 @@ export default function Navbar() {
   const fetchNotifications = async () => {
     if (!token) return;
     try {
-      const res = await fetch('https://task-management-system-6ifq.onrender.com/api/notifications', {
+      const res = await fetch(`${API_BASE}/api/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -163,8 +164,10 @@ export default function Navbar() {
   useEffect(() => {
     if (token) {
       fetchNotifications();
-      const interval = setInterval(fetchNotifications, 4000);
-      return () => clearInterval(interval);
+      const interval = setInterval(() => { if (typeof document !== 'undefined' && !document.hidden) { fetchNotifications(); } }, 8000);
+      const onFocus = () => fetchNotifications();
+      window.addEventListener('focus', onFocus);
+      return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
     }
   }, [token]);
 
@@ -176,7 +179,7 @@ export default function Navbar() {
 
   const handleMarkAsRead = async (id) => {
     try {
-      await fetch(`https://task-management-system-6ifq.onrender.com/api/notifications/${id}/read`, {
+      await fetch(`${API_BASE}/api/notifications/${id}/read`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -189,7 +192,7 @@ export default function Navbar() {
 
   const handleMarkAllRead = async () => {
     try {
-      await fetch(`https://task-management-system-6ifq.onrender.com/api/notifications/read-all`, {
+      await fetch(`${API_BASE}/api/notifications/read-all`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -253,6 +256,19 @@ export default function Navbar() {
         </svg>
       )
     },
+    {
+      label: 'Petty Cash',
+      path: '/petty-cash',
+      permission: 'VIEW_PETTY_CASH',
+      icon: (active) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#0284c7' : '#475569'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="20" height="14" x="2" y="5" rx="2" />
+          <line x1="2" x2="22" y1="10" y2="10" />
+          <circle cx="12" cy="15" r="2" />
+        </svg>
+      )
+    },
+
     {
       label: 'Employees',
       path: '/employees',

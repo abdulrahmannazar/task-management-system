@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -53,8 +54,8 @@ export default function EmployeeManager() {
   const fetchEmployees = async () => {
     try {
       const url = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/employees?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/employees?department_id=${userDeptId}&role=MANAGER`;
+        ? `${API_BASE}/api/employees?role=ADMIN`
+        : `${API_BASE}/api/employees?department_id=${userDeptId}&role=MANAGER`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -68,7 +69,7 @@ export default function EmployeeManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const response = await fetch(`${API_BASE}/api/auth/departments`);
       const data = await response.json();
       if (response.ok && Array.isArray(data)) setDepartments(data);
     } catch (err) {
@@ -127,7 +128,7 @@ export default function EmployeeManager() {
     if (!window.confirm(`Are you sure you want to delete employee "${empName}"?`)) return;
     try {
       setError('');
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/employees/${empId}`, {
+      const response = await fetch(`${API_BASE}/api/employees/${empId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -147,8 +148,8 @@ export default function EmployeeManager() {
     setSaving(true);
 
     const url = editingId
-      ? `https://task-management-system-6ifq.onrender.com/api/employees/${editingId}`
-      : 'https://task-management-system-6ifq.onrender.com/api/employees';
+      ? `${API_BASE}/api/employees/${editingId}`
+      : `${API_BASE}/api/employees`;
 
     const method = editingId ? 'PUT' : 'POST';
 

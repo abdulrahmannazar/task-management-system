@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -44,7 +45,7 @@ export default function CompanyManager() {
 
   const fetchCompanies = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', {
+      const response = await fetch(`${API_BASE}/api/companies`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -94,8 +95,8 @@ export default function CompanyManager() {
     setError('');
 
     const url = editingId
-      ? `https://task-management-system-6ifq.onrender.com/api/companies/${editingId}`
-      : 'https://task-management-system-6ifq.onrender.com/api/companies';
+      ? `${API_BASE}/api/companies/${editingId}`
+      : `${API_BASE}/api/companies`;
 
     const method = editingId ? 'PUT' : 'POST';
 
@@ -123,7 +124,7 @@ export default function CompanyManager() {
     if (!window.confirm('Are you sure you want to delete this company?')) return;
 
     try {
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/companies/${companyId}`, {
+      const response = await fetch(`${API_BASE}/api/companies/${companyId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -105,8 +106,8 @@ export default function LoeManager() {
       }
       
       const url = isAdmin 
-        ? 'https://task-management-system-6ifq.onrender.com/api/loes?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
+        ? `${API_BASE}/api/loes?role=ADMIN`
+        : `${API_BASE}/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
 
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -126,7 +127,7 @@ export default function LoeManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const response = await fetch(`${API_BASE}/api/auth/departments`);
       const data = await response.json();
       if (response.ok && Array.isArray(data)) setDepartments(data);
     } catch (err) {
@@ -137,7 +138,7 @@ export default function LoeManager() {
   const fetchServices = async () => {
     try {
       if (!token) return;
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/services', {
+      const response = await fetch(`${API_BASE}/api/services`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -150,7 +151,7 @@ export default function LoeManager() {
   const fetchCompanies = async () => {
     try {
       if (!token) return;
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', {
+      const response = await fetch(`${API_BASE}/api/companies`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -379,7 +380,7 @@ export default function LoeManager() {
 
     try {
       setActionError('');
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}`, {
+      const response = await fetch(`${API_BASE}/api/loes/${loeId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -401,8 +402,8 @@ export default function LoeManager() {
     setActionError('');
 
     const url = editingId 
-      ? `https://task-management-system-6ifq.onrender.com/api/loes/${editingId}`
-      : 'https://task-management-system-6ifq.onrender.com/api/loes';
+      ? `${API_BASE}/api/loes/${editingId}`
+      : `${API_BASE}/api/loes`;
       
     const method = editingId ? 'PUT' : 'POST';
 
@@ -486,7 +487,7 @@ export default function LoeManager() {
       }
 
       if (!response || !response.ok) {
-        response = await fetch(`https://task-management-system-6ifq.onrender.com/api/loes/${loeId}/pdf${cacheBuster}`, {
+        response = await fetch(`${API_BASE}/api/loes/${loeId}/pdf${cacheBuster}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
       }
