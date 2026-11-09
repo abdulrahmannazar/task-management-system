@@ -1,3 +1,6 @@
+const invoiceCache = new Map();
+const INVOICE_CACHE_TTL = 8000;
+const clearInvoiceCache = () => invoiceCache.clear();
 const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateInvoicePdf } = require('../services/pdfService');
@@ -5,6 +8,11 @@ const { sendInvoiceReminderEmail } = require('../services/emailService');
 
 // GET /api/invoices
 exports.getAll = asyncHandler(async (req, res) => {
+  const cacheKey = `${req.query.role}_${req.query.department_id}`;
+  const cached = invoiceCache.get(cacheKey);
+  if (cached && (Date.now() - cached.time < INVOICE_CACHE_TTL)) {
+    return res.json(cached.data);
+  }
   const role = req.query.role;
   const deptId = parseInt(req.query.department_id);
 
@@ -47,6 +55,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const invoices = await prisma.invoice.findMany(query);
+  invoiceCache.set(cacheKey, { data: invoices, time: Date.now() });
   res.json(invoices);
 });
 
@@ -83,6 +92,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // PUT /api/invoices/:id
 exports.update = asyncHandler(async (req, res) => {
+  clearInvoiceCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
 
@@ -217,6 +227,7 @@ exports.generatePdf = asyncHandler(async (req, res) => {
 
 // DELETE /api/invoices/:id
 const deleteInvoice = asyncHandler(async (req, res) => {
+  clearInvoiceCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
 

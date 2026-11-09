@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
@@ -49,14 +50,14 @@ export default function Dashboard() {
       setError('');
 
       const loeUrl = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/loes?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
+        ? `${API_BASE}/api/loes?role=ADMIN`
+        : `${API_BASE}/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
 
       const taskUrl = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/tasks?role=ADMIN'
+        ? `${API_BASE}/api/tasks?role=ADMIN`
         : isManager
-          ? `https://task-management-system-6ifq.onrender.com/api/tasks?role=MANAGER&department_id=${userDeptId}`
-          : `https://task-management-system-6ifq.onrender.com/api/tasks?emp_id=${user.emp_id}`;
+          ? `${API_BASE}/api/tasks?role=MANAGER&department_id=${userDeptId}`
+          : `${API_BASE}/api/tasks?emp_id=${user.emp_id}`;
 
       const [loeRes, taskRes] = await Promise.all([
         fetch(loeUrl, { headers: { Authorization: `Bearer ${token}` } }),

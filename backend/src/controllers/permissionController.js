@@ -11,6 +11,7 @@ const DEFAULT_PERMISSIONS = {
     VIEW_EMPLOYEES: true,
     VIEW_SERVICES: true,
     VIEW_COMPANIES: true,
+    VIEW_PETTY_CASH: true,
     CREATE_LOE: true,
     APPROVE_LOE: true,
     DELETE_LOE: true,
@@ -19,7 +20,8 @@ const DEFAULT_PERMISSIONS = {
     MANAGE_TASKS: true,
     MANAGE_INVOICES: true,
     MANAGE_SERVICES: true,
-    MANAGE_COMPANIES: true
+    MANAGE_COMPANIES: true,
+    MANAGE_PETTY_CASH: true
   },
   MANAGER: {
     VIEW_DISPATCH: true,
@@ -30,6 +32,7 @@ const DEFAULT_PERMISSIONS = {
     VIEW_EMPLOYEES: true,
     VIEW_SERVICES: true,
     VIEW_COMPANIES: true,
+    VIEW_PETTY_CASH: true,
     CREATE_LOE: true,
     APPROVE_LOE: true,
     DELETE_LOE: true,
@@ -38,7 +41,8 @@ const DEFAULT_PERMISSIONS = {
     MANAGE_TASKS: true,
     MANAGE_INVOICES: true,
     MANAGE_SERVICES: true,
-    MANAGE_COMPANIES: true
+    MANAGE_COMPANIES: true,
+    MANAGE_PETTY_CASH: true
   },
   EMPLOYEE: {
     VIEW_DISPATCH: true,
@@ -49,6 +53,7 @@ const DEFAULT_PERMISSIONS = {
     VIEW_EMPLOYEES: false,
     VIEW_SERVICES: false,
     VIEW_COMPANIES: false,
+    VIEW_PETTY_CASH: true,
     CREATE_LOE: false,
     APPROVE_LOE: false,
     DELETE_LOE: false,
@@ -57,12 +62,20 @@ const DEFAULT_PERMISSIONS = {
     MANAGE_TASKS: false,
     MANAGE_INVOICES: false,
     MANAGE_SERVICES: false,
-    MANAGE_COMPANIES: false
+    MANAGE_COMPANIES: false,
+    MANAGE_PETTY_CASH: false
   },
   USERS: {}
 };
 
+// In-memory cache for ultra-fast, 0ms permission checks
+let cachedPermissions = null;
+let lastCacheTime = 0;
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+
+let tableChecked = false;
 async function ensureTableExists() {
+  if (tableChecked) return;
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS role_permissions (
       role VARCHAR(30) PRIMARY KEY,
@@ -70,10 +83,16 @@ async function ensureTableExists() {
       updated_at TIMESTAMP DEFAULT NOW()
     );
   `);
+  tableChecked = true;
 }
 
 // GET /api/permissions
 exports.getPermissions = asyncHandler(async (req, res) => {
+  const now = Date.now();
+  if (cachedPermissions && (now - lastCacheTime < CACHE_TTL_MS)) {
+    return res.json(cachedPermissions);
+  }
+
   try {
     await ensureTableExists();
     const rows = await prisma.$queryRawUnsafe(`SELECT role, permissions FROM role_permissions`);
@@ -96,6 +115,8 @@ exports.getPermissions = asyncHandler(async (req, res) => {
       });
     }
 
+    cachedPermissions = result;
+    lastCacheTime = now;
     res.json(result);
   } catch (err) {
     console.error('Error loading permissions, returning defaults:', err.message);
@@ -139,6 +160,10 @@ exports.updatePermissions = asyncHandler(async (req, res) => {
      SET permissions = EXCLUDED.permissions, updated_at = NOW()`,
     JSON.stringify(updatedMatrix.USERS)
   );
+
+  // Invalidate and update in-memory cache
+  cachedPermissions = updatedMatrix;
+  lastCacheTime = Date.now();
 
   res.json(updatedMatrix);
 });

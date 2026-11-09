@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import { useNavigate, Link } from 'react-router-dom';
 import FrontierLogo from '../components/FrontierLogo';
 
@@ -15,7 +16,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments')
+    fetch(`${API_BASE}/api/auth/departments`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -37,7 +38,7 @@ export default function Register() {
     setError('');
 
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/register', {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from './api';
 
 const STORAGE_KEY = 'role_permissions_matrix';
-const API_BASE = 'https://task-management-system-6ifq.onrender.com';
 
 export const DEFAULT_PERMISSIONS = {
   ADMIN: {
@@ -13,6 +13,7 @@ export const DEFAULT_PERMISSIONS = {
     VIEW_EMPLOYEES: true,
     VIEW_SERVICES: true,
     VIEW_COMPANIES: true,
+    VIEW_PETTY_CASH: true,
     CREATE_LOE: true,
     APPROVE_LOE: true,
     DELETE_LOE: true,
@@ -21,7 +22,8 @@ export const DEFAULT_PERMISSIONS = {
     MANAGE_TASKS: true,
     MANAGE_INVOICES: true,
     MANAGE_SERVICES: true,
-    MANAGE_COMPANIES: true
+    MANAGE_COMPANIES: true,
+    MANAGE_PETTY_CASH: true
   },
   MANAGER: {
     VIEW_DISPATCH: true,
@@ -32,6 +34,7 @@ export const DEFAULT_PERMISSIONS = {
     VIEW_EMPLOYEES: true,
     VIEW_SERVICES: true,
     VIEW_COMPANIES: true,
+    VIEW_PETTY_CASH: true,
     CREATE_LOE: true,
     APPROVE_LOE: true,
     DELETE_LOE: true,
@@ -40,7 +43,8 @@ export const DEFAULT_PERMISSIONS = {
     MANAGE_TASKS: true,
     MANAGE_INVOICES: true,
     MANAGE_SERVICES: true,
-    MANAGE_COMPANIES: true
+    MANAGE_COMPANIES: true,
+    MANAGE_PETTY_CASH: true
   },
   EMPLOYEE: {
     VIEW_DISPATCH: true,
@@ -51,6 +55,7 @@ export const DEFAULT_PERMISSIONS = {
     VIEW_EMPLOYEES: false,
     VIEW_SERVICES: false,
     VIEW_COMPANIES: false,
+    VIEW_PETTY_CASH: true,
     CREATE_LOE: false,
     APPROVE_LOE: false,
     DELETE_LOE: false,
@@ -59,7 +64,8 @@ export const DEFAULT_PERMISSIONS = {
     MANAGE_TASKS: false,
     MANAGE_INVOICES: false,
     MANAGE_SERVICES: false,
-    MANAGE_COMPANIES: false
+    MANAGE_COMPANIES: false,
+    MANAGE_PETTY_CASH: false
   },
   // Stores person-specific permission overrides keyed by emp_id
   USERS: {}
@@ -76,7 +82,8 @@ export const PERMISSION_GROUPS = [
       { key: 'VIEW_INVOICES', label: 'View Invoices Page' },
       { key: 'VIEW_EMPLOYEES', label: 'View Employees Directory Page' },
       { key: 'VIEW_SERVICES', label: 'View Standard Services Page' },
-      { key: 'VIEW_COMPANIES', label: 'View Companies Page' }
+      { key: 'VIEW_COMPANIES', label: 'View Companies Page' },
+      { key: 'VIEW_PETTY_CASH', label: 'View Petty Cash Page' }
     ]
   },
   {
@@ -90,7 +97,8 @@ export const PERMISSION_GROUPS = [
       { key: 'MANAGE_TASKS', label: 'Allocate Tasks, Deadlines & Create Custom Tasks' },
       { key: 'MANAGE_INVOICES', label: 'Mark Invoices Paid/Unpaid & Send Reminders' },
       { key: 'MANAGE_SERVICES', label: 'Create & Edit Services' },
-      { key: 'MANAGE_COMPANIES', label: 'Create, Edit & Delete Companies' }
+      { key: 'MANAGE_COMPANIES', label: 'Create, Edit & Delete Companies' },
+      { key: 'MANAGE_PETTY_CASH', label: 'Approve, Reject & Disburse Petty Cash' }
     ]
   }
 ];
@@ -146,21 +154,9 @@ export function hasPermission(user, permKey, matrixOverride = null) {
 export async function fetchPermissionsFromServer() {
   const token = localStorage.getItem('token');
   try {
-    let res = null;
-    if (window.location.hostname === 'localhost') {
-      try {
-        res = await fetch('http://localhost:3000/api/permissions', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-      } catch {
-        res = null;
-      }
-    }
-    if (!res || !res.ok) {
-      res = await fetch(`${API_BASE}/api/permissions`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-    }
+    const res = await fetch(`${API_BASE}/api/permissions`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
     if (res && res.ok) {
       const data = await res.json();
       if (data && (data.ADMIN || data.MANAGER || data.EMPLOYEE || data.USERS)) {
@@ -178,31 +174,14 @@ export async function savePermissionsToServer(matrix) {
   const merged = setLocalPermissionsMatrix(matrix);
 
   try {
-    let res = null;
-    if (window.location.hostname === 'localhost') {
-      try {
-        res = await fetch('http://localhost:3000/api/permissions', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify(merged)
-        });
-      } catch {
-        res = null;
-      }
-    }
-    if (!res || !res.ok) {
-      await fetch(`${API_BASE}/api/permissions`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(merged)
-      });
-    }
+    await fetch(`${API_BASE}/api/permissions`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(merged)
+    });
   } catch {
     // Saved locally even if remote server is offline
   }

@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const createCrudRouter = require('./routes/crudRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const permissionRoutes = require('./routes/permissionRoutes');
+const pettyCashRoutes = require('./routes/pettyCashRoutes');
 
 // Import Controllers
 const companyController = require('./controllers/companyController');
@@ -40,6 +41,7 @@ app.use('/api/tasks', createCrudRouter(taskController));
 app.use('/api/invoices', createCrudRouter(invoiceController));
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/petty-cash', pettyCashRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

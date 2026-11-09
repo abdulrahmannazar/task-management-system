@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -55,8 +56,8 @@ export default function InvoiceManager() {
       setError('');
 
       const url = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/invoices?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/invoices?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
+        ? `${API_BASE}/api/invoices?role=ADMIN`
+        : `${API_BASE}/api/invoices?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -75,7 +76,7 @@ export default function InvoiceManager() {
   const fetchCompanies = async () => {
     try {
       if (!token) return;
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/companies', {
+      const response = await fetch(`${API_BASE}/api/companies`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
@@ -89,7 +90,7 @@ export default function InvoiceManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const response = await fetch(`${API_BASE}/api/auth/departments`);
       const data = await response.json();
       if (response.ok && Array.isArray(data)) {
         setDepartments(data);
@@ -103,7 +104,7 @@ export default function InvoiceManager() {
     const newStatus = invoice.status === 'Paid' ? 'Not Paid' : 'Paid';
     try {
       setError('');
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/invoices/${invoice.invoice_id}`, {
+      const response = await fetch(`${API_BASE}/api/invoices/${invoice.invoice_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +126,7 @@ export default function InvoiceManager() {
       setError('');
       setSuccessMsg('');
 
-      const response = await fetch(`https://task-management-system-6ifq.onrender.com/api/invoices/${invoiceId}/remind`, {
+      const response = await fetch(`${API_BASE}/api/invoices/${invoiceId}/remind`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -160,7 +161,7 @@ export default function InvoiceManager() {
       }
 
       if (!response || !response.ok) {
-        response = await fetch(`https://task-management-system-6ifq.onrender.com/api/invoices/${invoiceId}/pdf${cacheBuster}`, {
+        response = await fetch(`${API_BASE}/api/invoices/${invoiceId}/pdf${cacheBuster}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }

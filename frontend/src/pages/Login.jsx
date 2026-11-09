@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FrontierLogo from '../components/FrontierLogo';
+import { apiFetch } from '../utils/api';
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -18,7 +19,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/login', {
+      const response = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -110,45 +111,28 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     background: '#f8fafc',
-    fontFamily: 'system-ui',
     padding: '20px'
   },
   card: {
     background: '#ffffff',
-    padding: '36px 32px',
     borderRadius: '12px',
-    boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04)',
-    border: '1px solid #e2e8f0',
+    padding: '40px',
     width: '100%',
-    maxWidth: '410px'
+    maxWidth: '440px',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+    border: '1px solid #e2e8f0'
   },
   brandHeader: {
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    marginBottom: '22px'
-  },
-  brandTitle: {
-    fontSize: '20px',
-    fontWeight: '800',
-    color: '#0f172a',
-    margin: '10px 0 2px',
-    letterSpacing: '-0.3px'
-  },
-  brandSubtitle: {
-    fontSize: '13px',
-    fontWeight: '600',
-    color: '#0284c7',
-    letterSpacing: '0.2px'
+    justifyContent: 'center',
+    marginBottom: '24px'
   },
   formTitle: {
-    textAlign: 'center',
-    color: '#334155',
-    fontSize: '15px',
-    fontWeight: '600',
-    marginBottom: '20px',
-    borderBottom: '1px solid #f1f5f9',
-    paddingBottom: '12px'
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#0f172a',
+    margin: '0 0 20px 0',
+    textAlign: 'center'
   },
   form: {
     display: 'flex',
@@ -161,49 +145,49 @@ const styles = {
     gap: '6px'
   },
   label: {
-    fontSize: '12.5px',
-    fontWeight: 'bold',
+    fontSize: '13px',
+    fontWeight: '600',
     color: '#334155'
   },
   input: {
-    padding: '10px 12px',
+    padding: '10px 14px',
     borderRadius: '6px',
     border: '1px solid #cbd5e1',
     fontSize: '14px',
-    background: '#ffffff',
-    color: '#0f172a'
+    outline: 'none',
+    transition: 'border-color 0.2s',
+    boxSizing: 'border-box',
+    width: '100%'
   },
   button: {
-    padding: '11px',
+    marginTop: '8px',
+    padding: '12px',
     background: '#0284c7',
     color: '#ffffff',
     border: 'none',
     borderRadius: '6px',
-    cursor: 'pointer',
-    fontWeight: '700',
     fontSize: '14px',
-    marginTop: '6px',
-    transition: 'background 0.15s ease'
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'background 0.2s'
   },
   error: {
-    padding: '10px 14px',
-    background: '#fff1f2',
-    color: '#e11d48',
+    padding: '10px',
+    background: '#fee2e2',
+    color: '#dc2626',
     borderRadius: '6px',
-    marginBottom: '16px',
     fontSize: '13px',
-    textAlign: 'center',
-    border: '1px solid #fecdd3'
+    marginBottom: '16px'
   },
   footerText: {
+    margin: '24px 0 0 0',
     textAlign: 'center',
-    marginTop: '20px',
     fontSize: '13px',
     color: '#64748b'
   },
   registerLink: {
     color: '#0284c7',
-    fontWeight: '600',
-    textDecoration: 'none'
+    textDecoration: 'none',
+    fontWeight: '600'
   }
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import {
@@ -57,7 +58,7 @@ export default function Settings() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('https://task-management-system-6ifq.onrender.com/api/auth/departments');
+      const response = await fetch(`${API_BASE}/api/auth/departments`);
       const data = await response.json();
       if (response.ok && Array.isArray(data)) {
         setDepartments(data);
@@ -70,8 +71,8 @@ export default function Settings() {
   const fetchEmployeesList = async () => {
     try {
       const url = isAdmin
-        ? 'https://task-management-system-6ifq.onrender.com/api/employees?role=ADMIN'
-        : `https://task-management-system-6ifq.onrender.com/api/employees?department_id=${userDeptId}&role=MANAGER`;
+        ? `${API_BASE}/api/employees?role=ADMIN`
+        : `${API_BASE}/api/employees?department_id=${userDeptId}&role=MANAGER`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -91,7 +92,7 @@ export default function Settings() {
   const fetchLatestProfile = async () => {
     try {
       const response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/employees/${user.emp_id}`,
+        `${API_BASE}/api/employees/${user.emp_id}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.ok) {
@@ -154,7 +155,7 @@ export default function Settings() {
       }
 
       let response = await fetch(
-        `https://task-management-system-6ifq.onrender.com/api/employees/${user.emp_id}`,
+        `${API_BASE}/api/employees/${user.emp_id}`,
         {
           method: 'PUT',
           headers: {
@@ -167,7 +168,7 @@ export default function Settings() {
 
       if (response.status === 403) {
         response = await fetch(
-          `https://task-management-system-6ifq.onrender.com/api/employees/${user.emp_id}`,
+          `${API_BASE}/api/employees/${user.emp_id}`,
           {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },

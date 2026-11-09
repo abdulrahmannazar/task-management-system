@@ -1,3 +1,6 @@
+const loeCache = new Map();
+const LOE_CACHE_TTL = 8000;
+const clearLoeCache = () => loeCache.clear();
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateLoePdf } = require('../services/pdfService');
@@ -114,6 +117,11 @@ async function processApprovedLoe(loeId, managerEmpId) {
 
 // GET /api/loes
 exports.getAll = asyncHandler(async (req, res) => {
+  const cacheKey = `${req.query.role}_${req.query.department_id}`;
+  const cached = loeCache.get(cacheKey);
+  if (cached && (Date.now() - cached.time < LOE_CACHE_TTL)) {
+    return res.json(cached.data);
+  }
   const role = req.query.role;
   const deptId = parseInt(req.query.department_id);
 
@@ -132,7 +140,9 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const loes = await prisma.loe.findMany(query);
-  res.json(loes.map(enrichLoeWithCode));
+  const mapped = loes.map(enrichLoeWithCode);
+  loeCache.set(cacheKey, { data: mapped, time: Date.now() });
+  res.json(mapped);
 });
 
 // GET /api/loes/:id
@@ -156,6 +166,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
+  clearLoeCache();
   const { company_id, created_by, type, billing_frequency, currency, start_date, end_date, loe_items } = req.body;
   const totalAmount = (loe_items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const selectedCurrency = currency || 'LKR';
@@ -205,6 +216,7 @@ exports.create = asyncHandler(async (req, res) => {
 
 // PUT /api/loes/:id
 exports.update = asyncHandler(async (req, res) => {
+  clearLoeCache();
   const { company_id, type, billing_frequency, currency, start_date, end_date, loe_items } = req.body;
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
@@ -250,6 +262,7 @@ exports.update = asyncHandler(async (req, res) => {
 });
 
 const deleteLoe = asyncHandler(async (req, res) => {
+  clearLoeCache();
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
   await prisma.loe.delete({ where: { loe_id: loeId } });
@@ -280,6 +293,7 @@ exports.getPending = asyncHandler(async (req, res) => {
 });
 
 exports.approveItem = asyncHandler(async (req, res) => {
+  clearLoeCache();
   const loeId = parseInt(req.params.id);
   const itemId = parseInt(req.params.itemId);
   const { emp_id } = req.body;
@@ -311,6 +325,7 @@ exports.approveItem = asyncHandler(async (req, res) => {
 });
 
 exports.rejectItem = asyncHandler(async (req, res) => {
+  clearLoeCache();
   const loeId = parseInt(req.params.id);
   const itemId = parseInt(req.params.itemId);
   const { reason } = req.body;
@@ -333,6 +348,7 @@ exports.rejectItem = asyncHandler(async (req, res) => {
 });
 
 exports.approveAll = asyncHandler(async (req, res) => {
+  clearLoeCache();
   const loeId = parseInt(req.params.id);
   const { emp_id } = req.body;
 
