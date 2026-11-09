@@ -4,6 +4,10 @@ const asyncHandler = require('../middlewares/asyncHandler');
 const { generateTaskCode } = require('../utils/taskCodeHelper');
 const { sendTaskReminderEmail, sendTaskCompletedEmail } = require('../services/emailService');
 
+const taskCache = new Map();
+const TASK_CACHE_TTL = 8000;
+const clearTaskCache = () => taskCache.clear();
+
 const getEmpId = (req) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -17,6 +21,11 @@ const getEmpId = (req) => {
 
 // GET /api/tasks
 exports.getAll = asyncHandler(async (req, res) => {
+  const cacheKey = `${req.query.role}_${req.query.department_id}_${req.query.emp_id}`;
+  const cached = taskCache.get(cacheKey);
+  if (cached && (Date.now() - cached.time < TASK_CACHE_TTL)) {
+    return res.json(cached.data);
+  }
   const role = req.query.role;
   const deptId = parseInt(req.query.department_id);
   const empId = parseInt(req.query.emp_id);
@@ -62,6 +71,7 @@ exports.getAll = asyncHandler(async (req, res) => {
     };
   });
 
+  taskCache.set(cacheKey, { data: enriched, time: Date.now() });
   res.json(enriched);
 });
 
@@ -96,6 +106,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // POST /api/tasks
 exports.create = asyncHandler(async (req, res) => {
+  clearTaskCache();
   const { job_id, loe_id, service_id, assignee_ids, status, deadline, duration_days, service_deadline, scope } = req.body;
 
   let targetJobId = job_id ? parseInt(job_id) : null;
@@ -155,6 +166,7 @@ exports.create = asyncHandler(async (req, res) => {
 
 // PUT /api/tasks/:id
 exports.update = asyncHandler(async (req, res) => {
+  clearTaskCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });
 
@@ -263,6 +275,7 @@ exports.remind = asyncHandler(async (req, res) => {
 
 // DELETE /api/tasks/:id
 const deleteTask = asyncHandler(async (req, res) => {
+  clearTaskCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });
 

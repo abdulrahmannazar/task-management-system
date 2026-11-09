@@ -119,10 +119,21 @@ exports.login = asyncHandler(async (req, res) => {
   });
 });
 
+// In-memory cache for fast departments response
+let cachedDepartments = null;
+let lastDeptFetch = 0;
+const DEPT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 // GET /api/auth/departments
 exports.getDepartments = asyncHandler(async (req, res) => {
+  const now = Date.now();
+  if (cachedDepartments && (now - lastDeptFetch < DEPT_CACHE_TTL)) {
+    return res.json(cachedDepartments);
+  }
   const departments = await prisma.department.findMany({
     orderBy: { department_id: 'asc' }
   });
+  cachedDepartments = departments;
+  lastDeptFetch = now;
   res.json(departments);
 });
