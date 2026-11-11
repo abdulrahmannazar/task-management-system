@@ -2,32 +2,27 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Automatically locates logo.jpg from common project directories
- * and converts it into a Base64 Data URI for Puppeteer PDF rendering.
+ * Locates the official company banner (frontier_logo_banner.png)
+ * and converts it into a Base64 Data URI for reliable PDF rendering.
  */
-function getLogoDataUri() {
+function getLogoBannerDataUri() {
   const candidatePaths = [
-    path.join(__dirname, 'logo.jpg'),
-    path.join(__dirname, 'logo.jpeg'),
-    path.join(__dirname, 'logo.png'),
-    path.join(__dirname, '..', 'assets', 'logo.jpg'),
-    path.join(__dirname, '..', '..', 'logo.jpg'),
-    path.join(__dirname, '..', '..', 'public', 'logo.jpg'),
-    path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'logo.jpg'),
-    path.join(__dirname, '..', '..', '..', 'frontend', 'src', 'assets', 'logo.jpg')
+    path.join(__dirname, 'frontier_logo_banner.png'),
+    path.join(__dirname, 'logo_banner.png'),
+    path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'frontier_logo_banner.png'),
+    'C:/Users/User/.gemini/antigravity/brain/f79569a1-caf8-44b3-9bc0-bfb06754954c/.user_uploaded/media_1794398640085_e80fae76.png',
+    path.join(__dirname, 'logo.png')
   ];
 
   for (const filePath of candidatePaths) {
     try {
-      if (fs.existsSync(filePath)) {
+      if (filePath && fs.existsSync(filePath)) {
         const ext = path.extname(filePath).toLowerCase();
         const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
         const base64 = fs.readFileSync(filePath).toString('base64');
         return `data:${mime};base64,${base64}`;
       }
-    } catch (err) {
-      // Continue checking next path
-    }
+    } catch (err) {}
   }
   return null;
 }
@@ -57,7 +52,7 @@ function formatOrdinalDate(dateStr) {
 }
 
 /**
- * Parses raw scope strings into structured items (numbered points, sub-bullets 'o', or headings)
+ * Parses raw scope strings into structured items (numbered points, sub-bullets, headings)
  */
 function parseStructuredScopes(scopesArray) {
   const lines = [];
@@ -72,11 +67,11 @@ function parseStructuredScopes(scopesArray) {
       .filter(Boolean);
 
     splitParts.forEach((part) => {
-      // Check if sub-bullet (starts with 'o ' or 'O ')
-      if (/^[oO]\s+/.test(part)) {
+      // Check if sub-bullet (starts with 'o' or bullet symbol + tab/space)
+      if (/^[oO][\s\t]+/.test(part)) {
         lines.push({
           type: 'sub',
-          text: part.replace(/^[oO]\s+/, '').trim()
+          text: part.replace(/^[oO][\s\t]+/, '').trim()
         });
       } else if (/^\d+\.\d+\s+/.test(part)) {
         // Sub-heading like "2.1 Tax Return Preparation"
@@ -85,8 +80,8 @@ function parseStructuredScopes(scopesArray) {
           text: part
         });
       } else {
-        // Main numbered scope item
-        const cleaned = part.replace(/^[-*•●▪♦\d.\s]+/, '').trim();
+        // Main scope item
+        const cleaned = part.replace(/^[-*•●▪♦\d.\s\t]+/, '').trim();
         if (cleaned) {
           lines.push({
             type: 'main',
@@ -106,7 +101,7 @@ function parseStructuredScopes(scopesArray) {
 
 module.exports = function generateLoeTemplate({ loe, company }) {
   const currencyCode = loe?.currency || 'LKR';
-  const logoDataUri = getLogoDataUri();
+  const logoBannerDataUri = getLogoBannerDataUri();
 
   const formatFeeAmount = (val) => {
     const num = Number(val || 0);
@@ -123,12 +118,14 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   (loe?.loe_items || []).forEach((item) => {
     const sId = item.service_id;
     if (!serviceMap.has(sId)) {
+      const billingType = item.service?.billing_type || loe?.billing_frequency || loe?.type || 'Monthly';
       serviceMap.set(sId, {
         serviceId: sId,
         name: item.service?.name || `Service #${sId}`,
         department: item.service?.department?.name || 'General',
         subCategory: item.service?.sub_category || '',
-        billingType: item.service?.billing_type || 'Fixed',
+        billingType: billingType,
+        billingRoutine: billingType,
         amount: Number(item.amount || item.service?.price || 0),
         scopes: []
       });
@@ -146,16 +143,17 @@ module.exports = function generateLoeTemplate({ loe, company }) {
     : `#${String(loe?.loe_id || 1).padStart(7, '0')}`;
 
   const clientName = company?.name || company?.company_name || 'The Client';
+  const statusStr = String(loe?.status || '').toLowerCase().trim();
+  const isApproved = statusStr === 'approved';
 
-  // Dynamic section numbering after the service phases
+  // Dynamic section numbering
   const infoSectionNum = serviceList.length + 1;
   const feesSectionNum = serviceList.length + 2;
   const paymentSectionNum = serviceList.length + 3;
   const limitationsSectionNum = serviceList.length + 4;
   const basisSectionNum = serviceList.length + 5;
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -163,91 +161,42 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   <style>
     @page {
       size: A4;
-      margin: 14mm 15mm 22mm 15mm;
+      margin-top: 20mm;
+      margin-bottom: 22mm;
+      margin-left: 18mm;
+      margin-right: 18mm;
     }
 
+    * {
+      box-sizing: border-box;
+    }
+
+    /* Universal typography: Same font and same font size throughout */
     body {
       font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
       color: #000000;
+      line-height: 1.45;
       margin: 0;
       padding: 0;
-      font-size: 12pt;
-      line-height: 1.45;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
-    /* Fixed Footer on Every Page */
-    .page-footer {
-      position: fixed;
-      bottom: -14mm;
-      left: 0;
-      right: 0;
-      height: 16mm;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 38px;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 8.5pt;
-      color: #231e20;
-      background: #ffffff;
-      padding-top: 4px;
+    /* Top Letterhead Banner - Centered, matching the uploaded design */
+    .top-banner-container {
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 4px;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
-    .footer-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .footer-icon {
-      width: 22px;
-      height: 22px;
-      flex-shrink: 0;
-    }
-
-    .footer-text {
-      line-height: 1.25;
-    }
-
-    /* Top Letterhead Banner (Page 1) */
-    .letterhead-banner {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      margin-bottom: 18px;
-      padding-bottom: 6px;
-    }
-
-    .brand-logo {
-      width: 54px;
-      height: 54px;
-      object-fit: contain;
-    }
-
-    .brand-text-wrap {
-      text-align: left;
-    }
-
-    .brand-title {
-      font-family: 'Times New Roman', Times, serif;
-      font-size: 21pt;
-      font-weight: bold;
-      color: #056492;
-      letter-spacing: 1.5px;
-      margin: 0;
-      line-height: 1.1;
-      text-transform: uppercase;
-    }
-
-    .brand-subtitle {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 9.5pt;
-      color: #5f5f5f;
-      letter-spacing: 1.1px;
-      margin: 3px 0 0 0;
+    .brand-banner-img {
+      width: 380px;
+      max-width: 90%;
+      height: auto;
+      display: inline-block;
     }
 
     /* Date & Reference Row */
@@ -255,175 +204,237 @@ module.exports = function generateLoeTemplate({ loe, company }) {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .ref-code {
       font-weight: bold;
+      font-family: 'Times New Roman', Times, serif;
       font-size: 11pt;
     }
 
     .recipient-block {
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       line-height: 1.4;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .subject-line {
       font-weight: bold;
       text-decoration: underline;
       margin-bottom: 14px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     p {
-      margin: 0 0 12px 0;
+      margin: 0 0 10px 0;
       text-align: justify;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      orphans: 3;
+      widows: 3;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .underlined-heading {
       font-weight: bold;
       text-decoration: underline;
-      margin: 16px 0 10px 0;
+      margin: 14px 0 8px 0;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-after: avoid;
+      page-break-after: avoid;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .section-heading {
       font-weight: bold;
-      margin: 18px 0 8px 0;
+      margin: 16px 0 6px 0;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-after: avoid;
       page-break-after: avoid;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .sub-section-heading {
       font-weight: bold;
-      margin: 12px 0 6px 0;
+      margin: 10px 0 4px 0;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-after: avoid;
       page-break-after: avoid;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
-    /* Scope Lists */
+    /* Scope Lists - Prevents splitting lines across pages */
     .scope-ordered-list {
-      margin: 6px 0 12px 0;
+      margin: 4px 0 10px 0;
       padding-left: 24px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
     }
 
     .scope-ordered-list li {
-      margin-bottom: 6px;
+      margin-bottom: 5px;
       text-align: justify;
       padding-left: 4px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .scope-sub-list {
       list-style-type: none;
-      margin: 4px 0 8px 22px;
+      margin: 3px 0 6px 20px;
       padding: 0;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 10.5pt;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .scope-sub-list li {
       margin-bottom: 4px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     .scope-sub-list li::before {
       content: "o  ";
+      font-weight: bold;
     }
 
-    /* Standard Bullet List (Section 6) */
     .exclusion-list {
-      margin: 6px 0 12px 24px;
+      margin: 4px 0 10px 24px;
       padding: 0;
       list-style-type: disc;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
     }
 
     .exclusion-list li {
-      margin-bottom: 5px;
+      margin-bottom: 4px;
       padding-left: 4px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
-    /* Classic Double-Bordered Professional Fees Table */
+    /* Professional Fees Table with Billing Routine Column */
     .fees-table {
       width: 100%;
-      border-collapse: separate;
-      border-spacing: 2px;
+      border-collapse: collapse;
       border: 1.5px solid #000000;
-      margin: 10px 0 16px 0;
-      page-break-inside: auto;
-    }
-
-    .fees-table tr {
+      margin: 10px 0 12px 0;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      break-inside: avoid;
       page-break-inside: avoid;
     }
 
     .fees-table th,
     .fees-table td {
       border: 1px solid #000000;
-      padding: 6px 8px;
-      font-weight: bold;
-      font-size: 11.5pt;
-      vertical-align: top;
+      padding: 6px 10px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      vertical-align: middle;
     }
 
     .fees-table th {
+      background-color: #f8fafc;
+      font-weight: bold;
       text-align: left;
+    }
+
+    .fees-table td.center {
+      text-align: center;
+    }
+
+    .fees-table td.right {
+      text-align: right;
+    }
+
+    .fees-table tr.total-row td {
+      font-weight: bold;
+      background-color: #fafafa;
+    }
+
+    /* Fee Out-of-Pocket Expenses Note */
+    .fee-note {
+      font-style: italic;
+      margin: 10px 0 14px 0;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
 
     /* Signature Section */
     .signature-section {
-      margin-top: 22px;
+      margin-top: 20px;
+      break-inside: avoid;
       page-break-inside: avoid;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 11pt;
+    }
+
+    /* Dynamic Semi-Transparent Watermark for Non-Approved LOEs */
+    .watermark {
+      position: fixed;
+      top: 45%;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 58pt;
+      font-family: 'Times New Roman', Times, serif;
+      font-weight: bold;
+      color: rgba(225, 29, 72, 0.12);
+      transform: rotate(-45deg);
+      pointer-events: none;
+      z-index: 99999;
+      letter-spacing: 6px;
+      text-transform: uppercase;
     }
 
     .dotted-line {
-      margin-top: 36px;
+      margin-top: 32px;
       margin-bottom: 4px;
       letter-spacing: 1px;
     }
   </style>
 </head>
 <body>
+  ${!isApproved ? '<div class="watermark">PENDING APPROVAL</div>' : ''}
 
-  <!-- Running Contact Footer (Appears at the bottom of every page) -->
-  <div class="page-footer">
-    <div class="footer-item">
-      <svg class="footer-icon" viewBox="0 0 24 24" fill="#167faa">
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-      </svg>
-      <div class="footer-text">
-        15/1D, Joseph's Lane,<br/>
-        Colombo 04
-      </div>
-    </div>
-
-    <div class="footer-item">
-      <svg class="footer-icon" viewBox="0 0 24 24" fill="#167faa">
-        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-      </svg>
-      <div class="footer-text">
-        +94 115 925 233<br/>
-        +94 112 500 117
-      </div>
-    </div>
-
-    <div class="footer-item">
-      <svg class="footer-icon" viewBox="0 0 24 24" fill="#167faa">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-      </svg>
-      <div class="footer-text">
-        www.frontierlk.com<br/>
-        info@frontierlk.com
-      </div>
-    </div>
-  </div>
-
-  <!-- Top Letterhead Banner -->
-  <div class="letterhead-banner">
-    ${
-      logoDataUri
-        ? `<img src="${logoDataUri}" class="brand-logo" alt="Frontier Advisory Logo" />`
-        : ''
-    }
-    <div class="brand-text-wrap">
-      <div class="brand-title">FRONTIER ADVISORY</div>
-      <div class="brand-subtitle">Credible Solutions for Business Growth</div>
-    </div>
-  </div>
+  <!-- Top Letterhead Banner (Exact design from uploaded image) -->
+  ${
+    logoBannerDataUri
+      ? `<div class="top-banner-container">
+           <img src="${logoBannerDataUri}" class="brand-banner-img" alt="Frontier Advisory" />
+         </div>`
+      : ''
+  }
 
   <!-- Date and Reference Code -->
   <div class="date-ref-row">
@@ -469,7 +480,6 @@ module.exports = function generateLoeTemplate({ loe, company }) {
     .map((srv, idx) => {
       const parsedItems = parseStructuredScopes(srv.scopes);
 
-      // Group items into ordered lists and sub-lists
       let htmlBlocks = '';
       let inOrderedList = false;
       let inSubList = false;
@@ -535,7 +545,7 @@ module.exports = function generateLoeTemplate({ loe, company }) {
     documents provided to us.
   </p>
 
-  <!-- Professional Fees -->
+  <!-- Professional Fees with Billing Routine Column -->
   <div class="section-heading">
     ${feesSectionNum}. Professional Fees
   </div>
@@ -546,8 +556,9 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   <table class="fees-table">
     <thead>
       <tr>
-        <th style="width: 72%;">Service</th>
-        <th style="width: 28%;">Professional Fee</th>
+        <th style="width: 52%;">Service</th>
+        <th style="width: 24%; text-align: center;">Billing Routine</th>
+        <th style="width: 24%; text-align: right;">Professional Fee</th>
       </tr>
     </thead>
     <tbody>
@@ -556,7 +567,8 @@ module.exports = function generateLoeTemplate({ loe, company }) {
           (srv) => `
         <tr>
           <td>${srv.name}${srv.subCategory ? ` (${srv.subCategory})` : ''}</td>
-          <td>${formatFeeAmount(srv.amount)}</td>
+          <td class="center">${srv.billingRoutine}</td>
+          <td class="right">${formatFeeAmount(srv.amount)}</td>
         </tr>
       `
         )
@@ -564,15 +576,20 @@ module.exports = function generateLoeTemplate({ loe, company }) {
       ${
         serviceList.length > 1
           ? `
-        <tr>
-          <td>Total Agreed Professional Fee</td>
-          <td>${formatFeeAmount(totalAmount)}</td>
+        <tr class="total-row">
+          <td colspan="2"><strong>Total Agreed Professional Fee</strong></td>
+          <td class="right"><strong>${formatFeeAmount(totalAmount)}</strong></td>
         </tr>
       `
           : ''
       }
     </tbody>
   </table>
+
+  <!-- Mandatory Out-of-pocket Expenses Note -->
+  <p class="fee-note">
+    <strong>Note:</strong> The professional fees listed above exclude travel and other out-of-pocket expenses, which will be billed separately at actual cost upon client authorization.
+  </p>
 
   <p>
     Any additional work arising from complex assessments, extensive IRD investigations, appeals, objections
@@ -584,7 +601,7 @@ module.exports = function generateLoeTemplate({ loe, company }) {
     directly by the Company.
   </p>
   <p>
-    Travel and other out-of-pocket expenses, if any, will be charged separately at cost.
+    Travel and other out-of-pocket expenses, if any, will be charged separately at cost upon client authorization.
   </p>
 
   <!-- Payment Terms -->
@@ -647,16 +664,17 @@ module.exports = function generateLoeTemplate({ loe, company }) {
     <p style="margin-top: 14px;">Yours Sincerely,</p>
 
     <div class="dotted-line">……………………………</div>
-    <div>Frontier Advisory (Private) Limited</div>
+    <div style="font-weight: bold;">Frontier Advisory (Private) Limited</div>
 
     <p style="margin-top: 28px;">We hereby agree to this Letter of Engagement</p>
 
-    <div class="dotted-line">……………………………</div>
-    <div>Authorized Signatory on behalf of: ${clientName}</div>
-    <div style="margin-top: 4px;">Date:</div>
+    <div class="dotted-line">${loe?.client_signatory_name ? 'Digitally Signed & Accepted' : '……………………………'}</div>
+    <div>Authorized Signatory on behalf of: <strong>${clientName}</strong></div>
+    ${loe?.client_signatory_name ? `<div style="margin-top: 2px;">Name: <strong>${loe.client_signatory_name}</strong></div>` : ''}
+    ${loe?.client_signatory_title ? `<div style="margin-top: 2px;">Designation: <strong>${loe.client_signatory_title}</strong></div>` : ''}
+    <div style="margin-top: 4px;">Date: ${loe?.client_accepted_at ? formatOrdinalDate(loe.client_accepted_at) : '……………………………'}</div>
   </div>
 
 </body>
-</html>
-  `;
+</html>`;
 };

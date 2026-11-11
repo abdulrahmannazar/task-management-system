@@ -24,6 +24,8 @@ export default function DispatchTracker() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [toastMsg, setToastMsg] = useState('');
+  const [sendingId, setSendingId] = useState(null);
 
   const [dispatchMap, setDispatchMap] = useState(() => {
     try {
@@ -86,19 +88,59 @@ export default function DispatchTracker() {
     }
   };
 
-  const isItemSent = (type, item) => {
+    const isItemSent = (type, item) => {
+    if (type === 'loe' && item.is_dispatched) return true;
     const id = type === 'loe' ? item.loe_id : item.invoice_id;
     const key = `${type}_${id}`;
     if (dispatchMap[key] !== undefined) {
       return Boolean(dispatchMap[key]?.sent);
     }
-    return Boolean(item.is_sent);
+    return Boolean(item.is_sent || item.is_dispatched);
   };
 
   const getSentTimestamp = (type, item) => {
+    if (type === 'loe' && item.last_dispatched_at) return item.last_dispatched_at;
     const id = type === 'loe' ? item.loe_id : item.invoice_id;
     const key = `${type}_${id}`;
-    return dispatchMap[key]?.sent_at || item.sent_at || null;
+    return dispatchMap[key]?.sent_at || item.sent_at || item.last_dispatched_at || null;
+  };
+
+  const handleSendLoe = async (loe) => {
+    try {
+      setSendingId(loe.loe_id);
+      setError('');
+      setToastMsg('');
+
+      const response = await fetch(`${API_BASE}/api/loes/${loe.loe_id}/send-to-client`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to dispatch LOE to client');
+
+      // Update in memory
+      setLoes(prev => prev.map(l => l.loe_id === loe.loe_id ? (data.loe || { ...l, is_dispatched: true, last_dispatched_at: data.sent_at || new Date().toISOString() }) : l));
+
+      // Update localStorage sync
+      const key = `loe_${loe.loe_id}`;
+      const updatedMap = {
+        ...dispatchMap,
+        [key]: { sent: true, sent_at: data.sent_at || new Date().toISOString() }
+      };
+      setDispatchMap(updatedMap);
+      localStorage.setItem('client_dispatch_records', JSON.stringify(updatedMap));
+
+      setToastMsg(data.message || `LOE successfully dispatched to client.`);
+      setTimeout(() => setToastMsg(''), 7000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSendingId(null);
+    }
   };
 
   const handleToggleSent = async (type, item) => {
@@ -144,6 +186,7 @@ export default function DispatchTracker() {
   const getLoeBadge = (status) => {
     if (status === 'Approved') return { background: '#d4edda', color: '#155724' };
     if (status === 'Rejected') return { background: '#f8d7da', color: '#721c24' };
+    if (status === 'Discontinued') return { background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' };
     return { background: '#fff3cd', color: '#856404' };
   };
 
@@ -190,6 +233,7 @@ export default function DispatchTracker() {
         </div>
 
         {error && <div style={styles.errorBanner}>{error}</div>}
+        {toastMsg && <div style={styles.successBanner}>{toastMsg}</div>}
 
         <div style={styles.insightsContainer}>
           <div style={styles.insightsHeader}>
@@ -478,5 +522,10 @@ const styles = {
   markUnsentBtn: { padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
   loadingState: { padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '15px' },
   emptyText: { color: '#64748b', fontStyle: 'italic', fontSize: '14px' },
+  successBanner: { background: '#ecfdf5', color: '#059669', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #a7f3d0', fontSize: '13px', fontWeight: 'bold' },
+  primarySendBtn: { padding: '7px 14px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)' },
+  resendBtn: { padding: '7px 14px', background: '#f8fafc', color: '#0284c7', border: '1.5px solid #0284c7', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
+  disabledBtn: { opacity: 0.6, cursor: 'not-allowed' },
+  textToggleBtn: { background: 'none', border: 'none', color: '#64748b', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', padding: '2px 0' },
   errorBanner: { background: '#fff1f2', color: '#e11d48', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #fecdd3', fontSize: '13px' }
 };

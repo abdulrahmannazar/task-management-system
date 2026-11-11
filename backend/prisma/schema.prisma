@@ -69,6 +69,9 @@ model Company {
   tin_number   String? @db.VarChar(50)
   email        String? @db.VarChar(150)
   phone_number String? @db.VarChar(25)
+  primary_contact_name  String? @db.VarChar(100)
+  primary_contact_email String? @db.VarChar(150)
+  primary_contact_phone String? @db.VarChar(25)
 
   loes         Loe[]
 
@@ -104,6 +107,12 @@ model Loe {
   currency             String                  @default("LKR") @db.VarChar(10)
   start_date           DateTime                @db.Date
   end_date             DateTime?               @db.Date
+  is_client_accepted    Boolean?                @default(false)
+  client_accepted_at    DateTime?               @db.Timestamp()
+  client_signatory_name String?                 @db.VarChar(150)
+  client_signatory_title String?                @db.VarChar(100)
+  is_dispatched         Boolean?                @default(false)
+  last_dispatched_at    DateTime?               @db.Timestamp()
   // Relations
   company              Company                 @relation(fields: [company_id], references: [company_id])
   creator              Employee                @relation("LoeCreator", fields: [created_by], references: [emp_id])

@@ -5,7 +5,65 @@ const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateLoePdf } = require('../services/pdfService');
 const { generateTaskCode, enrichLoeWithCode } = require('../utils/taskCodeHelper');
-const { sendLoeCreatedEmail, sendInvoiceCreatedEmail } = require('../services/emailService');
+const { sendLoeCreatedEmail, sendInvoiceCreatedEmail, sendLoeRejectedEmail, sendLoeDispatchToClientEmail } = require('../services/emailService');
+
+
+async function notifyManagersOfLoeRejection(loe, reason, reviewerId) {
+  try {
+    const enriched = enrichLoeWithCode(loe);
+    let reviewerName = 'Reviewing Authority';
+    if (reviewerId) {
+      const reviewer = await prisma.employee.findUnique({
+        where: { emp_id: parseInt(reviewerId) },
+        select: { name: true }
+      });
+      if (reviewer?.name) reviewerName = reviewer.name;
+    }
+
+    const deptIds = [...new Set(
+      (loe.loe_items || [])
+        .map(i => i.service?.department_id)
+        .filter(Boolean)
+    )];
+
+    const managers = await prisma.employee.findMany({
+      where: {
+        OR: [
+          { role: 'MANAGER', department_id: { in: deptIds } },
+          { role: 'ADMIN' },
+          { emp_id: loe.created_by }
+        ],
+        is_active: true
+      },
+      select: { emp_id: true, name: true, email: true }
+    });
+
+    const uniqueRecipients = new Map();
+    managers.forEach(m => uniqueRecipients.set(m.emp_id, m));
+
+    for (const recipient of uniqueRecipients.values()) {
+      await sendLoeRejectedEmail({
+        toEmail: recipient.email,
+        recipientName: recipient.name,
+        companyName: loe.company?.name || 'Client',
+        loeId: loe.loe_id,
+        loeCode: enriched.loe_code,
+        reason: reason || 'Revision required',
+        reviewerName: reviewerName
+      });
+
+      await prisma.notification.create({
+        data: {
+          emp_id: recipient.emp_id,
+          title: 'LOE Rejection Notification',
+          message: `${enriched.loe_code} for ${loe.company?.name} was rejected by ${reviewerName}. Reason: ${reason || 'Revision required'}`
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error in notifyManagersOfLoeRejection:', err.message);
+  }
+}
 
 async function getManagersAndAdmins() {
   return prisma.employee.findMany({
@@ -164,11 +222,57 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(enrichLoeWithCode(loe));
 });
 
+
+async function resolveLoeItems(loeItems, defaultBillingType = 'One-Time') {
+  if (!Array.isArray(loeItems)) return [];
+
+  const resolved = [];
+  for (const item of loeItems) {
+    let serviceId = Number(item.service_id);
+
+    // If custom service name provided and no valid positive service_id
+    if ((isNaN(serviceId) || !serviceId || item.is_custom || item.service_id === 'CUSTOM') && item.custom_service_name) {
+      const deptId = parseInt(item.department_id) || 1;
+      const srvName = String(item.custom_service_name).trim();
+
+      // Check if service with same name & dept already exists
+      let srv = await prisma.service.findFirst({
+        where: {
+          department_id: deptId,
+          name: { equals: srvName, mode: 'insensitive' }
+        }
+      });
+
+      if (!srv) {
+        srv = await prisma.service.create({
+          data: {
+            department_id: deptId,
+            name: srvName,
+            sub_category: 'Client Specific',
+            billing_type: defaultBillingType,
+            price: Number(item.amount || 0),
+            scope: item.custom_scope || null,
+            is_active: true
+          }
+        });
+      }
+      serviceId = srv.service_id;
+    }
+
+    resolved.push({
+      ...item,
+      service_id: serviceId
+    });
+  }
+  return resolved;
+}
+
 // POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
   clearLoeCache();
   const { company_id, created_by, type, billing_frequency, currency, start_date, end_date, loe_items } = req.body;
-  const totalAmount = (loe_items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const resolvedItems = await resolveLoeItems(loe_items, billing_frequency || type);
+  const totalAmount = resolvedItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const selectedCurrency = currency || 'LKR';
 
   const newLoe = await prisma.loe.create({
@@ -182,7 +286,7 @@ exports.create = asyncHandler(async (req, res) => {
       start_date: new Date(start_date),
       end_date: end_date ? new Date(end_date) : undefined,
       loe_items: { 
-        create: (loe_items || []).map(item => ({
+        create: resolvedItems.map(item => ({
           service_id: Number(item.service_id),
           custom_scope: item.custom_scope || null,
           amount: Number(item.amount || 0),
@@ -231,7 +335,8 @@ exports.update = asyncHandler(async (req, res) => {
 
   let allApproved = false;
   if (Array.isArray(loe_items)) {
-    const itemsToCreate = loe_items.map(item => {
+    const resolvedItems = await resolveLoeItems(loe_items, billing_frequency || type);
+    const itemsToCreate = resolvedItems.map(item => {
       const isApproved = item.status === 'Approved';
       return {
         service_id: Number(item.service_id),
@@ -328,7 +433,7 @@ exports.rejectItem = asyncHandler(async (req, res) => {
   clearLoeCache();
   const loeId = parseInt(req.params.id);
   const itemId = parseInt(req.params.itemId);
-  const { reason } = req.body;
+  const { reason, emp_id } = req.body;
 
   await prisma.loeItem.update({
     where: { loe_item_id: itemId },
@@ -340,10 +445,36 @@ exports.rejectItem = asyncHandler(async (req, res) => {
     data: { status: 'Rejected' },
     include: { 
       company: true, 
+      creator: { select: { emp_id: true, name: true, email: true } },
       loe_items: { include: { service: { include: { department: true } } } } 
     }
   });
 
+  await notifyManagersOfLoeRejection(updatedLoe, reason, emp_id);
+  res.json(enrichLoeWithCode(updatedLoe));
+});
+
+exports.reject = asyncHandler(async (req, res) => {
+  clearLoeCache();
+  const loeId = parseInt(req.params.id);
+  const { reason, emp_id } = req.body;
+
+  await prisma.loeItem.updateMany({
+    where: { loe_id: loeId },
+    data: { status: 'Rejected', rejection_reason: reason || 'Revision required' }
+  });
+
+  const updatedLoe = await prisma.loe.update({
+    where: { loe_id: loeId },
+    data: { status: 'Rejected' },
+    include: { 
+      company: true, 
+      creator: { select: { emp_id: true, name: true, email: true } },
+      loe_items: { include: { service: { include: { department: true } } } } 
+    }
+  });
+
+  await notifyManagersOfLoeRejection(updatedLoe, reason, emp_id);
   res.json(enrichLoeWithCode(updatedLoe));
 });
 
@@ -390,4 +521,187 @@ exports.generatePdf = asyncHandler(async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename=${enriched.loe_code.replace(/\s+/g, '_')}.pdf`);
   res.setHeader('Content-Length', pdfBuffer.length);
   res.end(pdfBuffer);
+});
+
+// POST /api/loes/:id/send-to-client
+exports.sendToClient = asyncHandler(async (req, res) => {
+  clearLoeCache();
+  const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
+
+  const loe = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: {
+      company: true,
+      creator: { select: { emp_id: true, name: true, email: true } },
+      approver: { select: { emp_id: true, name: true, email: true } },
+      loe_items: { include: { service: { include: { department: true } } } }
+    }
+  });
+
+  if (!loe) return res.status(404).json({ error: 'LOE record not found' });
+
+  const targetEmail = loe.company?.primary_contact_email || loe.company?.email;
+  if (!targetEmail || !targetEmail.trim()) {
+    return res.status(400).json({
+      error: `Cannot dispatch LOE: No email address found on file for ${loe.company?.name || 'client'}. Please update company contact email first.`
+    });
+  }
+
+  const enriched = enrichLoeWithCode(loe);
+  const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const currency = loe.currency || 'LKR';
+
+  // Dispatch email to client
+  await sendLoeDispatchToClientEmail({
+    toEmail: targetEmail.trim(),
+    recipientName: loe.company?.primary_contact_name || loe.company?.name,
+    companyName: loe.company?.name,
+    loeId: loe.loe_id,
+    loeCode: enriched.loe_code,
+    totalAmount,
+    currency
+  });
+
+  const now = new Date();
+  const updatedLoe = await prisma.loe.update({
+    where: { loe_id: loeId },
+    data: {
+      is_dispatched: true,
+      last_dispatched_at: now
+    },
+    include: {
+      company: true,
+      creator: { select: { emp_id: true, name: true, email: true } },
+      approver: { select: { emp_id: true, name: true, email: true } },
+      loe_items: { include: { service: { include: { department: true } } } }
+    }
+  });
+
+  res.json({
+    message: `LOE ${enriched.loe_code} successfully dispatched to client at ${targetEmail}.`,
+    loe: enrichLoeWithCode(updatedLoe),
+    sent_at: now.toISOString()
+  });
+});
+
+// POST /api/loes/:id/client-acceptance
+exports.clientAcceptance = asyncHandler(async (req, res) => {
+  clearLoeCache();
+  const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
+
+  const { signatory_name, signatory_title, acceptance_date } = req.body;
+  if (!signatory_name || !signatory_name.trim()) {
+    return res.status(400).json({ error: 'Signatory full name is required for client acceptance.' });
+  }
+
+  const existing = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: { company: true }
+  });
+  if (!existing) return res.status(404).json({ error: 'LOE record not found' });
+
+  const acceptedDate = acceptance_date ? new Date(acceptance_date) : new Date();
+
+  const updatedLoe = await prisma.loe.update({
+    where: { loe_id: loeId },
+    data: {
+      is_client_accepted: true,
+      client_signatory_name: signatory_name.trim(),
+      client_signatory_title: (signatory_title || 'Authorized Signatory').trim(),
+      client_accepted_at: acceptedDate
+    },
+    include: {
+      company: true,
+      creator: { select: { emp_id: true, name: true, email: true } },
+      approver: { select: { emp_id: true, name: true, email: true } },
+      loe_items: { include: { service: { include: { department: true } } } }
+    }
+  });
+
+  const enriched = enrichLoeWithCode(updatedLoe);
+
+  // Notify leaders of client acceptance
+  const leaders = await getManagersAndAdmins();
+  for (const leader of leaders) {
+    await prisma.notification.create({
+      data: {
+        emp_id: leader.emp_id,
+        title: 'Client LOE Acceptance Confirmed',
+        message: `${enriched.loe_code} for ${enriched.company?.name} has been officially approved and accepted by ${signatory_name.trim()}. Tasks can now be allocated.`
+      }
+    });
+  }
+
+  res.json({
+    message: `Client acceptance officially recorded for ${enriched.loe_code}. Tasks can now be allocated.`,
+    loe: enriched
+  });
+});
+
+// PUT /api/loes/:id/discontinue
+exports.discontinue = asyncHandler(async (req, res) => {
+  clearLoeCache();
+  const loeId = parseInt(req.params.id);
+  if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
+
+  const { reason, emp_id } = req.body;
+
+  const existing = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: { company: true }
+  });
+  if (!existing) return res.status(404).json({ error: 'LOE record not found' });
+
+  const updatedLoe = await prisma.loe.update({
+    where: { loe_id: loeId },
+    data: {
+      status: 'Discontinued'
+    },
+    include: {
+      company: true,
+      creator: { select: { emp_id: true, name: true, email: true } },
+      approver: { select: { emp_id: true, name: true, email: true } },
+      loe_items: { include: { service: { include: { department: true } } } }
+    }
+  });
+
+  // Flag all uncompleted child tasks under related Job as Discontinued
+  const job = await prisma.job.findUnique({ where: { loe_id: loeId } });
+  if (job) {
+    await prisma.task.updateMany({
+      where: {
+        job_id: job.job_id,
+        status: { not: 'Completed' }
+      },
+      data: {
+        status: 'Discontinued'
+      }
+    });
+
+    await prisma.job.update({
+      where: { job_id: job.job_id },
+      data: { status: 'Discontinued' }
+    });
+  }
+
+  const enriched = enrichLoeWithCode(updatedLoe);
+
+  // Notify leaders
+  const leaders = await getManagersAndAdmins();
+  for (const leader of leaders) {
+    await prisma.notification.create({
+      data: {
+        emp_id: leader.emp_id,
+        title: 'Engagement Discontinued',
+        message: `${enriched.loe_code} for ${enriched.company?.name} has been discontinued midway. Child tasks have been flagged as Discontinued.`
+      }
+    });
+  }
+
+  res.json({
+    message: `LOE ${enriched.loe_code} has been marked as Discontinued.`,
+    loe: enriched
+  });
 });

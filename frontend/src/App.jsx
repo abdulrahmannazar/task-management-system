@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import LoeManager from './pages/LoeManager';
 import LoeDetails from './pages/LoeDetails';
+import ClientLoeApproval from './pages/ClientLoeApproval';
 import ManagerDashboard from './pages/ManagerDashboard';
 import ServiceManager from './pages/ServiceManager';
 import CompanyManager from './pages/CompanyManager';
@@ -25,6 +26,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/loes" element={<LoeManager />} />
         <Route path="/loes/:id" element={<LoeDetails />} />
+        <Route path="/loes/:id/client-approval" element={<ClientLoeApproval />} />
         <Route path="/approvals" element={<ManagerDashboard />} />
         <Route path="/tasks" element={<TaskAllocation />} />
         <Route path="/petty-cash" element={<PettyCashManager />} />

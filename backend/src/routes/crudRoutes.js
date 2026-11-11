@@ -34,6 +34,25 @@ const createCrudRouter = (controller) => {
   if (typeof controller.approve === 'function') {
     router.put('/:id/approve', controller.approve);
   }
+
+  // Client Dispatch endpoints
+  if (typeof controller.sendToClient === 'function') {
+    router.post('/:id/send-to-client', controller.sendToClient);
+    router.post('/:id/dispatch', controller.sendToClient);
+  }
+
+  // Client Acceptance & Approval endpoints
+  if (typeof controller.clientAcceptance === 'function') {
+    router.post('/:id/client-acceptance', controller.clientAcceptance);
+    router.put('/:id/client-acceptance', controller.clientAcceptance);
+  }
+
+  // Midway Discontinue engagement endpoint
+  if (typeof controller.discontinue === 'function') {
+    router.put('/:id/discontinue', controller.discontinue);
+    router.post('/:id/discontinue', controller.discontinue);
+  }
+
   if (typeof controller.reject === 'function') {
     router.put('/:id/reject', controller.reject);
   }

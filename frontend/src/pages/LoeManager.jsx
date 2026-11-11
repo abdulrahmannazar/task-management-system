@@ -225,6 +225,8 @@ export default function LoeManager() {
         { 
           department_id: '', 
           service_id: '', 
+          custom_service_name: '',
+          is_custom: false,
           amount: '',
           status: 'Pending',
           rejection_reason: null,
@@ -258,13 +260,61 @@ export default function LoeManager() {
     });
   };
 
+
+  const handleSwitchToCustom = (serviceIndex) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const current = updated[serviceIndex];
+      updated[serviceIndex] = {
+        ...current,
+        is_custom: true,
+        service_id: 'CUSTOM',
+        custom_service_name: current.custom_service_name || '',
+        scopes: current.scopes.length > 0 ? current.scopes : ['']
+      };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  const handleSwitchToStandard = (serviceIndex) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const current = updated[serviceIndex];
+      updated[serviceIndex] = {
+        ...current,
+        is_custom: false,
+        service_id: '',
+        custom_service_name: '',
+        scopes: []
+      };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  const handleCustomNameChange = (serviceIndex, name) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      updated[serviceIndex] = {
+        ...updated[serviceIndex],
+        custom_service_name: name
+      };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
   const handleServiceChange = (serviceIndex, serviceId) => {
+    if (serviceId === '__CUSTOM__' || serviceId === 'CUSTOM') {
+      handleSwitchToCustom(serviceIndex);
+      return;
+    }
     const selectedSrv = services.find(s => s.service_id === Number(serviceId));
     setFormData(prev => {
       const updated = [...prev.loe_services];
       updated[serviceIndex] = {
         ...updated[serviceIndex],
         service_id: serviceId,
+        is_custom: false,
+        custom_service_name: '',
         amount: selectedSrv?.price ? Number(selectedSrv.price) : 0,
         selectedScopeChoice: '',
         scopes: []
@@ -345,8 +395,10 @@ export default function LoeManager() {
       if (!map.has(sId)) {
         const matched = services.find(s => s.service_id === sId);
         const newBlock = {
-          department_id: matched ? matched.department_id : '',
+          department_id: matched ? matched.department_id : (item.service?.department_id || ''),
           service_id: sId,
+          custom_service_name: matched ? matched.name : (item.service?.name || ''),
+          is_custom: !matched && Boolean(item.service?.name),
           amount: item.amount !== undefined && item.amount !== null ? Number(item.amount) : (matched?.price || 0),
           status: item.status,
           rejection_reason: item.rejection_reason,
@@ -409,26 +461,32 @@ export default function LoeManager() {
 
     const flattenedItems = [];
     formData.loe_services.forEach(srvBlock => {
-      if (!srvBlock.service_id) return;
+      if (!srvBlock.service_id && !srvBlock.is_custom) return;
+      if (srvBlock.is_custom && !srvBlock.custom_service_name?.trim()) return;
 
       const validScopes = srvBlock.scopes.filter(s => s.trim().length > 0);
       const isApproved = srvBlock.status === 'Approved';
       const itemAmount = Number(srvBlock.amount || 0);
 
+      const baseItem = {
+        amount: itemAmount,
+        status: isApproved ? 'Approved' : 'Pending',
+        is_custom: Boolean(srvBlock.is_custom),
+        custom_service_name: srvBlock.is_custom ? srvBlock.custom_service_name.trim() : undefined,
+        department_id: srvBlock.department_id ? Number(srvBlock.department_id) : undefined,
+        service_id: srvBlock.is_custom ? 'CUSTOM' : Number(srvBlock.service_id)
+      };
+
       if (validScopes.length === 0) {
         flattenedItems.push({
-          service_id: Number(srvBlock.service_id),
-          custom_scope: 'Standard Service Scope',
-          amount: itemAmount,
-          status: isApproved ? 'Approved' : 'Pending'
+          ...baseItem,
+          custom_scope: srvBlock.is_custom ? `${srvBlock.custom_service_name.trim()} - Scope as agreed` : 'Standard Service Scope'
         });
       } else {
         validScopes.forEach(sc => {
           flattenedItems.push({
-            service_id: Number(srvBlock.service_id),
-            custom_scope: sc,
-            amount: itemAmount,
-            status: isApproved ? 'Approved' : 'Pending'
+            ...baseItem,
+            custom_scope: sc
           });
         });
       }
@@ -521,6 +579,7 @@ export default function LoeManager() {
   const getStatusBadgeStyle = (status) => {
     if (status === 'Approved') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
     if (status === 'Rejected') return { background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3' };
+    if (status === 'Discontinued') return { background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' };
     if (status === 'Approval Pending') return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
     return { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' };
   };
@@ -1033,26 +1092,62 @@ export default function LoeManager() {
                           ))}
                         </select>
 
-                        <select 
-                          value={srvBlock.service_id || ''} 
-                          onChange={(e) => handleServiceChange(srvIdx, e.target.value)}
-                          style={styles.dropdownInput} 
-                          disabled={!srvBlock.department_id}
-                          required
-                        >
-                          <option value="" disabled>
-                            {!srvBlock.department_id 
-                              ? 'Select Dept First' 
-                              : departmentServices.length === 0 
-                                ? 'No services found' 
-                                : 'Select Service'}
-                          </option>
-                          {departmentServices.map(srv => (
-                            <option key={srv.service_id} value={srv.service_id}>
-                              {srv.name} (Base: {activeSymbol}{Number(srv.price || 0).toFixed(2)})
-                            </option>
-                          ))}
-                        </select>
+                        {srvBlock.is_custom ? (
+                          <div style={{ display: 'flex', flex: 1, gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              placeholder="Type Custom Service Name (e.g. Specialized Advisory)"
+                              value={srvBlock.custom_service_name || ''}
+                              onChange={(e) => handleCustomNameChange(srvIdx, e.target.value)}
+                              required
+                              style={{ ...styles.dropdownInput, borderColor: '#0284c7', background: '#f0f9ff' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSwitchToStandard(srvIdx)}
+                              style={styles.switchModeBtn}
+                              title="Switch back to predefined standard services"
+                            >
+                              Standard ↻
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flex: 1, gap: '6px', alignItems: 'center' }}>
+                            <select 
+                              value={srvBlock.service_id || ''} 
+                              onChange={(e) => handleServiceChange(srvIdx, e.target.value)}
+                              style={{ ...styles.dropdownInput, flex: 1 }} 
+                              disabled={!srvBlock.department_id}
+                              required
+                            >
+                              <option value="" disabled>
+                                {!srvBlock.department_id 
+                                  ? 'Select Dept First' 
+                                  : departmentServices.length === 0 
+                                    ? 'No standard services found' 
+                                    : 'Select Service'}
+                              </option>
+                              {departmentServices.map(srv => (
+                                <option key={srv.service_id} value={srv.service_id}>
+                                  {srv.name} (Base: {activeSymbol}{Number(srv.price || 0).toFixed(2)})
+                                </option>
+                              ))}
+                              <option value="__CUSTOM__" style={{ fontWeight: 'bold', color: '#0284c7' }}>
+                                ✨ + Create Custom Service (Client Specific)
+                              </option>
+                            </select>
+                            {srvBlock.department_id && (
+                              <button
+                                type="button"
+                                onClick={() => handleSwitchToCustom(srvIdx)}
+                                style={styles.customPillBtn}
+                                title="Type a custom service name for this client"
+                              >
+                                + Custom
+                              </button>
+                            )}
+                          </div>
+                        )}
 
                         <div style={styles.priceInputWrapper}>
                           <span style={styles.currencyPrefix}>{activeSymbol}</span>
@@ -1079,51 +1174,68 @@ export default function LoeManager() {
                         </button>
                       </div>
 
-                      {selectedService && (
+                      {(selectedService || srvBlock.is_custom) && (
                         <div style={styles.scopeSelectionSection}>
-                          <div style={styles.scopeToolbar}>
-                            <select
-                              value={srvBlock.selectedScopeChoice || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setFormData(prev => {
-                                  const updated = [...prev.loe_services];
-                                  updated[srvIdx].selectedScopeChoice = val;
-                                  return { ...prev, loe_services: updated };
-                                });
-                              }}
-                              style={styles.dropdownInput}
-                            >
-                              <option value="" disabled>Select Scope Template...</option>
-                              {templateScopes.map((sc, i) => (
-                                <option key={i} value={sc}>
-                                  {sc}
-                                </option>
-                              ))}
-                            </select>
+                          {srvBlock.is_custom ? (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#0369a1' }}>
+                                 Custom Scope Deliverables for Client:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => addCustomScope(srvIdx)}
+                                style={styles.addCustomBtn}
+                              >
+                                + Add Custom Scope
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={styles.scopeToolbar}>
+                              <select
+                                value={srvBlock.selectedScopeChoice || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setFormData(prev => {
+                                    const updated = [...prev.loe_services];
+                                    updated[srvIdx].selectedScopeChoice = val;
+                                    return { ...prev, loe_services: updated };
+                                  });
+                                }}
+                                style={styles.dropdownInput}
+                              >
+                                <option value="" disabled>Select Scope Template...</option>
+                                {templateScopes.map((sc, i) => (
+                                  <option key={i} value={sc}>
+                                    {sc}
+                                  </option>
+                                ))}
+                              </select>
 
-                            <button
-                              type="button"
-                              onClick={() => addSelectedScope(srvIdx)}
-                              disabled={!srvBlock.selectedScopeChoice}
-                              style={styles.addScopeBtn}
-                            >
-                              + Add Selected Scope
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => addSelectedScope(srvIdx)}
+                                disabled={!srvBlock.selectedScopeChoice}
+                                style={styles.addScopeBtn}
+                              >
+                                + Add Selected Scope
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => addCustomScope(srvIdx)}
-                              style={styles.addCustomBtn}
-                            >
-                              + Custom Scope
-                            </button>
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() => addCustomScope(srvIdx)}
+                                style={styles.addCustomBtn}
+                              >
+                                + Custom Scope
+                              </button>
+                            </div>
+                          )}
 
                           <div style={styles.scopeListContainer}>
                             {srvBlock.scopes.length === 0 ? (
                               <p style={styles.emptyNotice}>
-                                No scopes added yet. Select a scope from the dropdown above or click "+ Custom Scope".
+                                {srvBlock.is_custom
+                                  ? 'No custom scopes added yet. Click "+ Add Custom Scope" to type client deliverables.'
+                                  : 'No scopes added yet. Select a scope from the dropdown above or click "+ Custom Scope".'}
                               </p>
                             ) : (
                               srvBlock.scopes.map((scopeText, scIdx) => (
@@ -1131,7 +1243,7 @@ export default function LoeManager() {
                                   <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
                                   <textarea
                                     rows="2"
-                                    placeholder="Enter or customize scope details for this engagement..."
+                                    placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
                                     value={scopeText}
                                     onChange={(e) => handleScopeTextChange(srvIdx, scIdx, e.target.value)}
                                     style={styles.scopeTextarea}
@@ -1517,6 +1629,8 @@ const styles = {
     fontWeight: 'bold',
     color: '#0f172a'
   },
+  customPillBtn: { padding: '8px 12px', background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  switchModeBtn: { padding: '8px 12px', background: '#f8fafc', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', fontSize: '11.5px', cursor: 'pointer', whiteSpace: 'nowrap' },
   removeServiceBtn: {
     padding: '9px 12px',
     background: '#fff1f2',

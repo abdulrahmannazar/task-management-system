@@ -210,6 +210,71 @@ async function sendTaskCompletedEmail(toEmail, empName, taskCode, scope, isManag
   await dispatchEmail({ toEmail, subject, textContent });
 }
 
+
+// 5. Alert Department Managers & LOE Creator when an LOE is rejected
+async function sendLoeRejectedEmail({ toEmail, recipientName, companyName, loeId, loeCode, reason, reviewerName }) {
+  const code = loeCode || `LOE-${String(loeId).padStart(5, '0')}`;
+  const appUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const revisionUrl = `${appUrl}/loes/${loeId}`;
+
+  const textContent = 
+`Hello ${recipientName || 'Manager'},
+
+Letter of Engagement ${code} for ${companyName} has been rejected during review.
+
+Review Summary:
+- Reference: ${code}
+- Company: ${companyName}
+- Reviewed By: ${reviewerName || 'Reviewing Manager'}
+- Rejection Reason: ${reason || 'Revision required'}
+
+Direct Link to Revise LOE:
+${revisionUrl}
+
+Please update the deliverables and submit for re-approval.`;
+
+  await dispatchEmail({
+    toEmail,
+    subject: `LOE Rejection Notification - ${code}`,
+    textContent
+  });
+}
+
+// 6. Direct Client Dispatch Email with LOE PDF & Client Acceptance Portal link
+async function sendLoeDispatchToClientEmail({ toEmail, recipientName, companyName, loeId, loeCode, totalAmount, currency = 'LKR' }) {
+  const code = loeCode || `LOE-${String(loeId).padStart(5, '0')}`;
+  const appUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const approvalUrl = `${appUrl}/loes/${loeId}/client-approval`;
+  const pdfUrl = `${BASE_URL}/api/loes/${loeId}/pdf`;
+
+  const textContent = 
+`Dear ${recipientName || companyName},
+
+Frontier Advisory (Private) Limited has issued Letter of Engagement ${code} for your review and formal acceptance.
+
+Engagement Summary:
+- Engagement Reference: ${code}
+- Client: ${companyName}
+- Agreed Professional Fee: ${formatMoney(totalAmount, currency)}
+
+Download LOE Document (PDF):
+${pdfUrl}
+
+Client Acceptance & Digital Signature Portal:
+${approvalUrl}
+
+Please review the deliverables and complete the client acceptance sign-off.
+
+Sincerely,
+Frontier Advisory Operations Team`;
+
+  await dispatchEmail({
+    toEmail,
+    subject: `Letter of Engagement ${code} - Frontier Advisory (${companyName})`,
+    textContent
+  });
+}
+
 async function verifyAndSendTestEmail(targetEmail) {
   const dest = targetEmail || 'rahmannazar000@gmail.com';
   await sendViaEmailJS({
@@ -227,5 +292,7 @@ module.exports = {
   sendInvoiceCreatedEmail,
   sendInvoiceReminderEmail, 
   sendTaskReminderEmail, 
-  sendTaskCompletedEmail 
+  sendTaskCompletedEmail,
+  sendLoeRejectedEmail,
+  sendLoeDispatchToClientEmail
 };
