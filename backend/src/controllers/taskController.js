@@ -136,6 +136,17 @@ exports.create = asyncHandler(async (req, res) => {
     where: { job_id: targetJobId },
     include: { loe: { include: { company: true } } }
   });
+  if (jobWithCompany?.loe) {
+    if (jobWithCompany.loe.status === 'Discontinued') {
+      return res.status(400).json({ error: 'Cannot create tasks: Engagement is marked as Discontinued.' });
+    }
+    if (!jobWithCompany.loe.is_client_accepted && jobWithCompany.loe.status !== 'Approved') {
+      return res.status(400).json({
+        error: 'Tasks cannot be created or allocated until the client has officially accepted/approved the Letter of Engagement.'
+      });
+    }
+  }
+
   const compName = jobWithCompany?.loe?.company?.name || 'CMP';
   const existingCount = await prisma.task.count({ where: { job_id: targetJobId } });
   const taskCode = generateTaskCode(compName, scope, existingCount + 1);
@@ -174,8 +185,24 @@ exports.update = asyncHandler(async (req, res) => {
 
   const prevTask = await prisma.task.findUnique({
     where: { task_id: id },
-    include: { assignees: true, job: { include: { manager: true } } }
+    include: { assignees: true, job: { include: { manager: true, loe: true } } }
   });
+
+  if (!prevTask) return res.status(404).json({ error: 'Task not found' });
+
+  const taskLoe = prevTask.job?.loe;
+  if (taskLoe) {
+    if (taskLoe.status === 'Discontinued' || prevTask.status === 'Discontinued') {
+      return res.status(400).json({
+        error: 'This engagement is Discontinued. Task allocation and modifications are locked.'
+      });
+    }
+    if (assignee_ids && assignee_ids.length > 0 && !taskLoe.is_client_accepted && taskLoe.status !== 'Approved') {
+      return res.status(400).json({
+        error: 'Tasks cannot be allocated to team members until the client has officially accepted/approved the Letter of Engagement.'
+      });
+    }
+  }
 
   const data = {};
   if (assignee_ids !== undefined) data.assignees = { set: assignee_ids.map(emp_id => ({ emp_id: parseInt(emp_id) })) };

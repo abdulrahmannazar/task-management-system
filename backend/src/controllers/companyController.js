@@ -21,7 +21,7 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  const { name, client_type, reg_number, tin_number, email, phone_number } = req.body;
+  const { name, client_type, reg_number, tin_number, email, phone_number, primary_contact_name, primary_contact_email, primary_contact_phone } = req.body;
 
   const data = {
     name,
@@ -29,7 +29,10 @@ exports.create = asyncHandler(async (req, res) => {
     reg_number: reg_number && reg_number.trim() ? reg_number.trim() : null,
     tin_number: tin_number && tin_number.trim() ? tin_number.trim() : null,
     email: email && email.trim() ? email.trim() : null,
-    phone_number: phone_number && phone_number.trim() ? phone_number.trim() : null
+    phone_number: phone_number && phone_number.trim() ? phone_number.trim() : null,
+    primary_contact_name: primary_contact_name && primary_contact_name.trim() ? primary_contact_name.trim() : null,
+    primary_contact_email: primary_contact_email && primary_contact_email.trim() ? primary_contact_email.trim() : null,
+    primary_contact_phone: primary_contact_phone && primary_contact_phone.trim() ? primary_contact_phone.trim() : null
   };
 
   const company = await prisma.company.create({ data });
@@ -40,7 +43,7 @@ exports.update = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
-  const { name, client_type, reg_number, tin_number, email, phone_number } = req.body;
+  const { name, client_type, reg_number, tin_number, email, phone_number, primary_contact_name, primary_contact_email, primary_contact_phone } = req.body;
 
   const data = {};
   if (name !== undefined) data.name = name;
@@ -49,6 +52,9 @@ exports.update = asyncHandler(async (req, res) => {
   if (tin_number !== undefined) data.tin_number = tin_number && tin_number.trim() ? tin_number.trim() : null;
   if (email !== undefined) data.email = email && email.trim() ? email.trim() : null;
   if (phone_number !== undefined) data.phone_number = phone_number && phone_number.trim() ? phone_number.trim() : null;
+  if (primary_contact_name !== undefined) data.primary_contact_name = primary_contact_name && primary_contact_name.trim() ? primary_contact_name.trim() : null;
+  if (primary_contact_email !== undefined) data.primary_contact_email = primary_contact_email && primary_contact_email.trim() ? primary_contact_email.trim() : null;
+  if (primary_contact_phone !== undefined) data.primary_contact_phone = primary_contact_phone && primary_contact_phone.trim() ? primary_contact_phone.trim() : null;
 
   const company = await prisma.company.update({
     where: { company_id: id },
