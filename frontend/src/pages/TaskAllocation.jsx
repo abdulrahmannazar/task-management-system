@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
 export default function TaskAllocation() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermissions();
 
   const [tasks, setTasks] = useState([]);

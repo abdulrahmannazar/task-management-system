@@ -41,6 +41,9 @@ export default function LoeDetails() {
   const [processingId, setProcessingId] = useState(null);
   const [rejectingItemId, setRejectingItemId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [staffSignatoryName, setStaffSignatoryName] = useState('');
+  const [staffSignatoryTitle, setStaffSignatoryTitle] = useState('');
+  const [staffAcceptanceDate, setStaffAcceptanceDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -171,6 +174,65 @@ export default function LoeDetails() {
     }
   };
 
+  
+  const handleDiscontinueLoe = async () => {
+    if (!window.confirm('Are you sure you want to mark this Letter of Engagement as Discontinued? All uncompleted child tasks will be discontinued and further billing locked.')) return;
+    try {
+      setProcessingId('DISCONTINUE');
+      setError('');
+      setSuccessMsg('');
+      const response = await fetch(`${API_BASE}/api/loes/${id}/discontinue`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ emp_id: user.emp_id })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to discontinue LOE');
+      setLoe(data.loe || { ...loe, status: 'Discontinued' });
+      setSuccessMsg('Letter of Engagement officially marked as Discontinued. Associated child tasks have been discontinued.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleStaffRecordClientAcceptance = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!staffSignatoryName.trim()) {
+      setError('Please enter the authorized signatory name before saving.');
+      return;
+    }
+    try {
+      setProcessingId('CLIENT_ACCEPT');
+      setError('');
+      setSuccessMsg('');
+      const response = await fetch(`${API_BASE}/api/loes/${id}/client-acceptance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          signatory_name: staffSignatoryName.trim(),
+          signatory_title: staffSignatoryTitle.trim() || 'Authorized Representative',
+          acceptance_date: staffAcceptanceDate || new Date().toISOString().split('T')[0]
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to record client acceptance');
+      setLoe(data.loe || { ...loe, is_client_accepted: true, client_signatory_name: staffSignatoryName, client_signatory_title: staffSignatoryTitle, client_accepted_at: new Date(staffAcceptanceDate) });
+      setSuccessMsg('Client acceptance officially recorded! Tasks can now be allocated.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleDeleteLoe = async () => {
     if (!window.confirm(`Are you sure you want to permanently delete LOE #${id}?`)) return;
     try {
@@ -240,6 +302,7 @@ export default function LoeDetails() {
     if (status === 'Approved') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
     if (status === 'Rejected') return { background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3' };
     if (status === 'Approval Pending') return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
+    if (status === 'Discontinued') return { background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' };
     return { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' };
   };
 
@@ -274,8 +337,15 @@ export default function LoeDetails() {
             </button>
           </div>
           
-          <div style={styles.actionButtons}>
-            {canApprove && hasPendingItems && (
+                    <div style={styles.actionButtons}>
+            <button
+              onClick={() => navigate(`/loes/${id}/client-approval`)}
+              style={styles.clientPortalBtn}
+            >
+              Client Approval Portal ↗
+            </button>
+
+            {canApprove && hasPendingItems && loe?.status !== 'Discontinued' && (
               <button
                 onClick={handleApproveAll}
                 disabled={processingId === 'ALL'}
@@ -285,7 +355,7 @@ export default function LoeDetails() {
               </button>
             )}
 
-            {canEdit && (
+            {canEdit && loe?.status !== 'Discontinued' && (
               <button 
                 onClick={() => navigate('/loes', { state: { editLoeId: Number(id) } })}
                 style={styles.editBtn}
@@ -301,6 +371,17 @@ export default function LoeDetails() {
             >
               {downloading ? 'Generating PDF...' : 'Download LOE PDF'}
             </button>
+
+            {(isAdmin || user?.role === 'MANAGER') && loe?.status !== 'Discontinued' && (
+              <button
+                onClick={handleDiscontinueLoe}
+                disabled={processingId === 'DISCONTINUE'}
+                style={styles.discontinueBtn}
+                title="Mark engagement as Discontinued midway"
+              >
+                {processingId === 'DISCONTINUE' ? 'Discontinuing...' : 'Discontinue'}
+              </button>
+            )}
 
             {canDelete && (
               <button
@@ -371,6 +452,25 @@ export default function LoeDetails() {
                   <span style={styles.detailLabel}>Phone Number</span>
                   <span style={styles.detailValue}>{loe.company?.phone || loe.company?.phone_number || 'N/A'}</span>
                 </div>
+
+                {/* Dedicated Primary Contact Subsection */}
+                <div style={{ marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#0284c7', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.4px' }}>
+                    Primary Contact Details (Employee)
+                  </div>
+                  <div style={styles.detailRow}>
+                    <span style={styles.detailLabel}>Contact Name</span>
+                    <span style={styles.detailValue}>{loe.company?.primary_contact_name || 'Not specified'}</span>
+                  </div>
+                  <div style={styles.detailRow}>
+                    <span style={styles.detailLabel}>Contact Email</span>
+                    <span style={styles.detailValue}>{loe.company?.primary_contact_email || 'Not specified'}</span>
+                  </div>
+                  <div style={styles.detailRow}>
+                    <span style={styles.detailLabel}>Contact Phone</span>
+                    <span style={styles.detailValue}>{loe.company?.primary_contact_phone || 'Not specified'}</span>
+                  </div>
+                </div>
               </div>
 
               {/* Engagement Info */}
@@ -401,6 +501,105 @@ export default function LoeDetails() {
                   <span style={styles.detailValue}>{loe.creator?.name || `Employee #${loe.created_by}`}</span>
                 </div>
               </div>
+            </div>
+
+            
+            {/* Client Acceptance & Approval Card */}
+            <div style={styles.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>
+                    Client Acceptance &amp; Approval Status
+                  </h3>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    Tasks cannot be allocated to team members until client approval is officially recorded
+                  </p>
+                </div>
+                {loe.is_client_accepted ? (
+                  <span style={styles.clientApprovedBadge}>✓ Client Approved &amp; Accepted</span>
+                ) : (
+                  <span style={styles.clientPendingBadge}>⚠️ Client Acceptance Pending</span>
+                )}
+              </div>
+
+              {loe.is_client_accepted ? (
+                <div style={styles.acceptanceDetailsGrid}>
+                  <div style={styles.acceptanceField}>
+                    <span style={styles.accLabel}>Signatory Name:</span>
+                    <strong style={styles.accVal}>{loe.client_signatory_name || 'N/A'}</strong>
+                  </div>
+                  <div style={styles.acceptanceField}>
+                    <span style={styles.accLabel}>Title / Designation:</span>
+                    <strong style={styles.accVal}>{loe.client_signatory_title || 'Authorized Signatory'}</strong>
+                  </div>
+                  <div style={styles.acceptanceField}>
+                    <span style={styles.accLabel}>Accepted Date:</span>
+                    <strong style={styles.accVal}>{loe.client_accepted_at ? new Date(loe.client_accepted_at).toLocaleDateString() : 'N/A'}</strong>
+                  </div>
+                  <div style={styles.acceptanceField}>
+                    <span style={styles.accLabel}>Task Allocation Status:</span>
+                    <span style={{ color: '#059669', fontWeight: 'bold' }}>Unlocked (Tasks Can Be Allocated)</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={styles.acceptanceWarning}>
+                    <strong>Task Allocation Gate Active:</strong> Tasks under this engagement are currently locked. Staff can record the client acceptance below, or the client can accept via the Client Approval Portal.
+                  </div>
+
+                  <form onSubmit={handleStaffRecordClientAcceptance} style={styles.staffAcceptForm}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                      <div>
+                        <label style={styles.formInputLabel}>Signatory Full Name *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. John Doe"
+                          value={staffSignatoryName}
+                          onChange={(e) => setStaffSignatoryName(e.target.value)}
+                          style={styles.textInput}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.formInputLabel}>Designation / Title</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Managing Director"
+                          value={staffSignatoryTitle}
+                          onChange={(e) => setStaffSignatoryTitle(e.target.value)}
+                          style={styles.textInput}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.formInputLabel}>Acceptance Date</label>
+                        <input
+                          type="date"
+                          value={staffAcceptanceDate}
+                          onChange={(e) => setStaffAcceptanceDate(e.target.value)}
+                          style={styles.textInput}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        type="submit"
+                        disabled={processingId === 'CLIENT_ACCEPT' || !staffSignatoryName.trim()}
+                        style={styles.recordAcceptBtn}
+                      >
+                        {processingId === 'CLIENT_ACCEPT' ? 'Recording...' : 'Record Client Acceptance & Unlock Tasks'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/loes/${id}/client-approval`)}
+                        style={styles.openPortalLinkBtn}
+                      >
+                        Open Client-Facing Acceptance View →
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
             </div>
 
             {/* Deliverables, Scopes & Inside Approval Section */}
@@ -540,6 +739,23 @@ export default function LoeDetails() {
 }
 
 const styles = {
+
+  clientPortalBtn: { padding: '8px 14px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' },
+  discontinueBtn: { padding: '8px 14px', background: '#f1f5f9', color: '#64748b', border: '1.5px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' },
+  discontinuedBanner: { marginTop: '12px', padding: '12px 16px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13.5px' },
+  clientApprovedBadge: { padding: '4px 12px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: '14px', fontWeight: 'bold', fontSize: '12px' },
+  clientPendingBadge: { padding: '4px 12px', background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', borderRadius: '14px', fontWeight: 'bold', fontSize: '12px' },
+  acceptanceDetailsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' },
+  acceptanceField: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  accLabel: { fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' },
+  accVal: { fontSize: '13.5px', color: '#0f172a' },
+  acceptanceWarning: { background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px' },
+  staffAcceptForm: { background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' },
+  formInputLabel: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#334155', marginBottom: '4px' },
+  textInput: { width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' },
+  recordAcceptBtn: { padding: '9px 18px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' },
+  openPortalLinkBtn: { background: 'none', border: 'none', color: '#0284c7', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' },
+
   pageContainer: {
     minHeight: '100vh',
     background: '#f8fafc',

@@ -24,7 +24,10 @@ export default function CompanyManager() {
     reg_number: '',
     tin_number: '',
     email: '',
-    phone_number: ''
+    phone_number: '',
+    primary_contact_name: '',
+    primary_contact_email: '',
+    primary_contact_phone: ''
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -84,7 +87,10 @@ export default function CompanyManager() {
       reg_number: company.reg_number || '',
       tin_number: company.tin_number || '',
       email: company.email || '',
-      phone_number: company.phone_number || ''
+      phone_number: company.phone_number || '',
+      primary_contact_name: company.primary_contact_name || '',
+      primary_contact_email: company.primary_contact_email || '',
+      primary_contact_phone: company.primary_contact_phone || ''
     });
     setError('');
     setIsModalOpen(true);
@@ -209,6 +215,21 @@ export default function CompanyManager() {
                     <p style={styles.infoLine}><strong>Phone:</strong> {comp.phone_number}</p>
                   )}
 
+                  {(comp.primary_contact_name || comp.primary_contact_email || comp.primary_contact_phone) && (
+                    <div style={styles.primaryContactBox}>
+                      <div style={styles.primaryContactHeader}>Primary Contact Details:</div>
+                      {comp.primary_contact_name && (
+                        <p style={styles.infoLine}><strong>Name:</strong> {comp.primary_contact_name}</p>
+                      )}
+                      {comp.primary_contact_email && (
+                        <p style={styles.infoLine}><strong>Email:</strong> {comp.primary_contact_email}</p>
+                      )}
+                      {comp.primary_contact_phone && (
+                        <p style={styles.infoLine}><strong>Phone:</strong> {comp.primary_contact_phone}</p>
+                      )}
+                    </div>
+                  )}
+
                   {canEdit && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
                       <button onClick={() => handleEdit(comp)} style={styles.editButton}>
@@ -324,6 +345,55 @@ export default function CompanyManager() {
                   placeholder="e.g. +1 555-0199"
                   style={styles.input}
                 />
+              </div>
+
+              {/* Dedicated Section: Company Employee Primary Contact Details */}
+              <div style={styles.primaryContactSectionCard}>
+                <div style={styles.primaryContactHeaderRow}>
+                  <div>
+                    <h3 style={styles.primaryContactTitle}>Primary Contact Details</h3>
+                    <p style={styles.primaryContactDesc}>
+                      Details of company employee / primary liaison for engagement coordination
+                    </p>
+                  </div>
+                  <span style={styles.primaryContactBadge}>Employee Contact</span>
+                </div>
+
+                <div style={styles.fieldGroup}>
+                  <label style={styles.label}>Full Name</label>
+                  <input
+                    type="text"
+                    name="primary_contact_name"
+                    value={formData.primary_contact_name}
+                    onChange={handleChange}
+                    placeholder="e.g. Sarah Jenkins (Finance Director)"
+                    style={styles.input}
+                  />
+                </div>
+
+                <div style={styles.fieldGroup}>
+                  <label style={styles.label}>Email Address</label>
+                  <input
+                    type="email"
+                    name="primary_contact_email"
+                    value={formData.primary_contact_email}
+                    onChange={handleChange}
+                    placeholder="e.g. sarah.jenkins@company.com"
+                    style={styles.input}
+                  />
+                </div>
+
+                <div style={styles.fieldGroup}>
+                  <label style={styles.label}>Phone Number</label>
+                  <input
+                    type="text"
+                    name="primary_contact_phone"
+                    value={formData.primary_contact_phone}
+                    onChange={handleChange}
+                    placeholder="e.g. +94 77 123 4567"
+                    style={styles.input}
+                  />
+                </div>
               </div>
 
               <div style={styles.buttonGroup}>
@@ -556,6 +626,13 @@ const styles = {
     outline: 'none',
     background: '#ffffff'
   },
+  primaryContactBox: { marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #cbd5e1' },
+  primaryContactHeader: { fontSize: '11px', fontWeight: 'bold', color: '#0284c7', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.4px' },
+  primaryContactSectionCard: { marginTop: '14px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' },
+  primaryContactHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '2px' },
+  primaryContactTitle: { margin: 0, fontSize: '14px', color: '#0f172a', fontWeight: '700' },
+  primaryContactDesc: { margin: '2px 0 0', fontSize: '12px', color: '#64748b' },
+  primaryContactBadge: { fontSize: '11px', fontWeight: 'bold', background: '#e0f2fe', color: '#0284c7', padding: '3px 8px', borderRadius: '12px' },
   buttonGroup: {
     display: 'flex',
     gap: '10px',

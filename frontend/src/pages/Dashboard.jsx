@@ -132,6 +132,7 @@ export default function Dashboard() {
 
   // Badge helpers
   const getTaskStatusBadge = (status) => {
+    if (status === 'Discontinued') return { background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' };
     if (status === 'Completed') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
     if (status === 'In-Progress' || status === 'Ongoing') return { background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd' };
     return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
@@ -140,6 +141,7 @@ export default function Dashboard() {
   const getLoeStatusBadge = (status) => {
     if (status === 'Approved') return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
     if (status === 'Rejected') return { background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3' };
+    if (status === 'Discontinued') return { background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' };
     return { background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' };
   };
 
