@@ -3,6 +3,93 @@ const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateTaskCode } = require('../utils/taskCodeHelper');
 
+let tableSchemaInitialized = false;
+
+/**
+ * Ensures two-tier approval audit columns exist on petty_cash_requests
+ */
+async function ensureTableExists() {
+  if (tableSchemaInitialized) return;
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE petty_cash_requests
+        ADD COLUMN IF NOT EXISTS manager_approved_by INTEGER REFERENCES employees(emp_id),
+        ADD COLUMN IF NOT EXISTS manager_approved_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS finance_approved_by INTEGER REFERENCES employees(emp_id),
+        ADD COLUMN IF NOT EXISTS finance_approved_at TIMESTAMP;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE petty_cash_requests
+        ALTER COLUMN status SET DEFAULT 'Pending Manager Approval';
+    `);
+    tableSchemaInitialized = true;
+  } catch (err) {
+    console.error('[PettyCash] ensureTableExists check warning:', err.message);
+  }
+}
+
+/**
+ * Shared Prisma include tree for PettyCash queries
+ */
+const PETTY_CASH_INCLUDE = {
+  employee: {
+    select: {
+      emp_id: true,
+      name: true,
+      email: true,
+      role: true,
+      department_id: true,
+      department: true
+    }
+  },
+  task: {
+    include: {
+      service: {
+        include: { department: true }
+      },
+      job: {
+        include: {
+          loe: {
+            include: { company: true }
+          }
+        }
+      },
+      assignees: {
+        select: {
+          emp_id: true,
+          name: true,
+          email: true,
+          department_id: true
+        }
+      }
+    }
+  },
+  approver: {
+    select: {
+      emp_id: true,
+      name: true,
+      email: true,
+      role: true
+    }
+  },
+  manager_approver: {
+    select: {
+      emp_id: true,
+      name: true,
+      email: true,
+      role: true
+    }
+  },
+  finance_approver: {
+    select: {
+      emp_id: true,
+      name: true,
+      email: true,
+      role: true
+    }
+  }
+};
+
 /**
  * Extracts authenticated user context from JWT header or query/body fallback
  */
@@ -32,7 +119,27 @@ const getUserFromReq = (req) => {
 };
 
 /**
- * Helper to compute task code safely
+ * Checks whether user belongs to Finance/Accounting department
+ */
+async function isUserInFinanceDept(user) {
+  if (!user) return false;
+  if (user.role === 'FINANCE') return true;
+  if (!user.department_id) return false;
+
+  try {
+    const dept = await prisma.department.findUnique({
+      where: { department_id: parseInt(user.department_id) },
+      select: { name: true }
+    });
+    const deptName = String(dept?.name || '').toLowerCase();
+    return deptName.includes('finance') || deptName.includes('accounting');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Helper to compute task code safely in uppercase format
  */
 const enrichTaskCode = (task) => {
   if (!task) return null;
@@ -42,66 +149,30 @@ const enrichTaskCode = (task) => {
   return generateTaskCode(companyName, scopeOrService, task.task_id).toUpperCase();
 };
 
+const enrichPettyCashRecord = (pc) => {
+  if (pc && pc.task) {
+    pc.task.task_code = enrichTaskCode(pc.task);
+  }
+  return pc;
+};
+
 // GET /api/petty-cash
-// Standard employees receive only their own petty cash records.
-// Managers receive records for tasks in their department.
-// Admins receive all records.
 exports.getAll = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const user = getUserFromReq(req);
   const role = user.role;
   const deptId = user.department_id;
   const empId = user.emp_id;
+  const isFinance = await isUserInFinanceDept(user);
 
   const query = {
-    include: {
-      employee: {
-        select: {
-          emp_id: true,
-          name: true,
-          email: true,
-          role: true,
-          department_id: true,
-          department: true
-        }
-      },
-      task: {
-        include: {
-          service: {
-            include: { department: true }
-          },
-          job: {
-            include: {
-              loe: {
-                include: { company: true }
-              }
-            }
-          },
-          assignees: {
-            select: {
-              emp_id: true,
-              name: true,
-              email: true,
-              department_id: true
-            }
-          }
-        }
-      },
-      approver: {
-        select: {
-          emp_id: true,
-          name: true,
-          email: true,
-          role: true
-        }
-      }
-    },
+    include: PETTY_CASH_INCLUDE,
     orderBy: { petty_cash_id: 'desc' }
   };
 
-  if (role === 'ADMIN') {
-    // Admin receives all records
+  if (role === 'ADMIN' || isFinance) {
+    // Admin and Finance Department receive all records for cross-department finance review
   } else if (role === 'MANAGER') {
-    // Managers receive records for tasks in their department OR created by them
     const conditions = [];
     if (deptId) {
       conditions.push({ task: { service: { department_id: deptId } } });
@@ -112,7 +183,6 @@ exports.getAll = asyncHandler(async (req, res) => {
     }
     query.where = conditions.length > 0 ? { OR: conditions } : {};
   } else {
-    // Standard employee: receives only their own records
     if (!empId) {
       return res.status(401).json({ error: 'User identification required' });
     }
@@ -120,20 +190,12 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const requests = await prisma.pettyCash.findMany(query);
-
-  const enriched = requests.map((pc) => {
-    if (pc.task) {
-      pc.task.task_code = enrichTaskCode(pc.task);
-    }
-    return pc;
-  });
-
-  res.json(enriched);
+  res.json(requests.map(enrichPettyCashRecord));
 });
 
 // GET /api/petty-cash/allocated-tasks
-// Returns active tasks allocated to the current user (or all active if Admin/Manager)
 exports.getAllocatedTasks = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const user = getUserFromReq(req);
   const role = user.role;
   const deptId = user.department_id;
@@ -161,10 +223,8 @@ exports.getAllocatedTasks = asyncHandler(async (req, res) => {
   };
 
   if (role === 'ADMIN') {
-    // Admin can select any active task
     query.where = { status: { not: 'Completed' } };
   } else if (role === 'MANAGER') {
-    // Manager can select department tasks or tasks assigned to them
     const conditions = [];
     if (deptId) conditions.push({ service: { department_id: deptId } });
     if (empId) conditions.push({ assignees: { some: { emp_id: empId } } });
@@ -175,7 +235,6 @@ exports.getAllocatedTasks = asyncHandler(async (req, res) => {
       ]
     };
   } else {
-    // Employee: must be actively assigned to the task
     if (!empId) {
       return res.status(401).json({ error: 'User identification required' });
     }
@@ -204,53 +263,22 @@ exports.getAllocatedTasks = asyncHandler(async (req, res) => {
 
 // GET /api/petty-cash/:id
 exports.getById = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Petty Cash ID' });
 
   const record = await prisma.pettyCash.findUnique({
     where: { petty_cash_id: id },
-    include: {
-      employee: {
-        select: {
-          emp_id: true,
-          name: true,
-          email: true,
-          department_id: true,
-          department: true
-        }
-      },
-      task: {
-        include: {
-          service: { include: { department: true } },
-          job: {
-            include: {
-              loe: { include: { company: true } }
-            }
-          },
-          assignees: true
-        }
-      },
-      approver: {
-        select: {
-          emp_id: true,
-          name: true,
-          email: true,
-          role: true
-        }
-      }
-    }
+    include: PETTY_CASH_INCLUDE
   });
 
   if (!record) return res.status(404).json({ error: 'Petty Cash record not found' });
-  if (record.task) record.task.task_code = enrichTaskCode(record.task);
-
-  res.json(record);
+  res.json(enrichPettyCashRecord(record));
 });
 
 // POST /api/petty-cash
-// Validates emp_id, task_id, amount, category, purpose, and date_required.
-// Verifies that emp_id is an assignee on task_id (unless requester is Admin).
 exports.create = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const user = getUserFromReq(req);
   const { task_id, amount, category, purpose, date_required } = req.body;
   const empId = user.role === 'ADMIN' && req.body.emp_id ? parseInt(req.body.emp_id) : user.emp_id;
@@ -308,7 +336,7 @@ exports.create = asyncHandler(async (req, res) => {
     });
   }
 
-  // 3. Create Petty Cash record
+  // 3. Create Petty Cash record with Initial Status "Pending Manager Approval"
   const newRequest = await prisma.pettyCash.create({
     data: {
       emp_id: empId,
@@ -317,33 +345,14 @@ exports.create = asyncHandler(async (req, res) => {
       category: category.trim(),
       purpose: purpose.trim(),
       date_required: parsedDate,
-      status: 'Pending'
+      status: 'Pending Manager Approval'
     },
-    include: {
-      employee: {
-        select: {
-          emp_id: true,
-          name: true,
-          email: true,
-          department_id: true
-        }
-      },
-      task: {
-        include: {
-          service: true,
-          job: {
-            include: { loe: { include: { company: true } } }
-          }
-        }
-      }
-    }
+    include: PETTY_CASH_INCLUDE
   });
 
-  if (newRequest.task) {
-    newRequest.task.task_code = enrichTaskCode(newRequest.task);
-  }
+  enrichPettyCashRecord(newRequest);
 
-  // 4. In-App Notification to Department Manager or Admins
+  // 4. In-App Notification to Department Manager & Admins
   try {
     const managers = await prisma.employee.findMany({
       where: {
@@ -358,7 +367,7 @@ exports.create = asyncHandler(async (req, res) => {
     const notifData = managers.map((m) => ({
       emp_id: m.emp_id,
       title: 'New Petty Cash Request',
-      message: `${newRequest.employee?.name || 'Employee'} submitted a petty cash request of Rs. ${parsedAmount.toFixed(2)} for Task ${newRequest.task?.task_code || '#' + parsedTaskId} (${category.trim()}).`
+      message: `${newRequest.employee?.name || 'Employee'} submitted a petty cash request of Rs. ${parsedAmount.toFixed(2)} for Task ${newRequest.task?.task_code || '#' + parsedTaskId} (${category.trim()}). Awaiting Manager Approval.`
     }));
 
     if (notifData.length > 0) {
@@ -372,11 +381,13 @@ exports.create = asyncHandler(async (req, res) => {
 });
 
 // PUT /api/petty-cash/:id/approve
-// Only ADMIN or MANAGER can approve. Updates status to Approved.
+// Step 1 (Manager Step): Only allowed if requester is MANAGER or ADMIN.
+// Transitions status from 'Pending Manager Approval' (or legacy 'Pending') to 'Pending Finance Approval'.
 exports.approve = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const user = getUserFromReq(req);
   if (!['ADMIN', 'MANAGER'].includes(user.role)) {
-    return res.status(403).json({ error: 'Access forbidden. Only Managers and Admins can approve petty cash.' });
+    return res.status(403).json({ error: 'Access forbidden. Only Managers and Admins can complete manager approval.' });
   }
 
   const id = parseInt(req.params.id);
@@ -391,29 +402,124 @@ exports.approve = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Petty cash record not found' });
   }
 
+  if (!['Pending Manager Approval', 'Pending'].includes(existing.status)) {
+    return res.status(400).json({
+      error: `Cannot perform manager approval: claim is currently in "${existing.status}" status.`
+    });
+  }
+
+  const now = new Date();
   const updated = await prisma.pettyCash.update({
     where: { petty_cash_id: id },
     data: {
-      status: 'Approved',
+      status: 'Pending Finance Approval',
+      manager_approved_by: user.emp_id || null,
+      manager_approved_at: now,
       approved_by: user.emp_id || null,
-      approved_at: new Date()
+      approved_at: now
     },
-    include: {
-      employee: true,
-      task: true,
-      approver: {
-        select: { emp_id: true, name: true, role: true }
-      }
-    }
+    include: PETTY_CASH_INCLUDE
   });
+
+  enrichPettyCashRecord(updated);
+
+  // Notify Finance Department, Admins & Employee
+  try {
+    await prisma.notification.create({
+      data: {
+        emp_id: updated.emp_id,
+        title: 'Petty Cash Manager Approved',
+        message: `Your petty cash request of Rs. ${Number(updated.amount).toFixed(2)} has been verified by your manager and sent to Finance for disbursement.`
+      }
+    });
+
+    const financeDepts = await prisma.department.findMany({
+      where: {
+        OR: [
+          { name: { contains: 'Finance', mode: 'insensitive' } },
+          { name: { contains: 'Accounting', mode: 'insensitive' } }
+        ]
+      },
+      select: { department_id: true }
+    });
+    const financeDeptIds = financeDepts.map((d) => d.department_id);
+
+    const financeReviewers = await prisma.employee.findMany({
+      where: {
+        OR: [
+          { role: 'ADMIN' },
+          ...(financeDeptIds.length > 0 ? [{ department_id: { in: financeDeptIds } }] : [])
+        ],
+        is_active: true
+      },
+      select: { emp_id: true }
+    });
+
+    const financeNotifs = financeReviewers.map((r) => ({
+      emp_id: r.emp_id,
+      title: 'Petty Cash Ready for Finance Review',
+      message: `Claim #${updated.petty_cash_id} (Rs. ${Number(updated.amount).toFixed(2)} for ${updated.employee?.name || 'Employee'}) received manager approval and awaits Finance review & disbursement.`
+    }));
+
+    if (financeNotifs.length > 0) {
+      await prisma.notification.createMany({ data: financeNotifs });
+    }
+  } catch (e) {}
+
+  res.json(updated);
+});
+
+// PUT /api/petty-cash/:id/disburse
+// Step 2 (Finance Step): Verifies status is 'Pending Finance Approval', transitions to 'Disbursed'.
+exports.disburse = asyncHandler(async (req, res) => {
+  await ensureTableExists();
+  const user = getUserFromReq(req);
+  const isFinance = await isUserInFinanceDept(user);
+
+  if (!['ADMIN', 'FINANCE', 'MANAGER'].includes(user.role) && !isFinance) {
+    return res.status(403).json({
+      error: 'Access forbidden. Only Admins or Finance/Management personnel can disburse funds.'
+    });
+  }
+
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid Petty Cash ID' });
+
+  const existing = await prisma.pettyCash.findUnique({
+    where: { petty_cash_id: id }
+  });
+
+  if (!existing) {
+    return res.status(404).json({ error: 'Petty cash record not found' });
+  }
+
+  if (!['Pending Finance Approval', 'Approved'].includes(existing.status)) {
+    return res.status(400).json({
+      error: `Cannot disburse funds: claim must have Manager Approval ("Pending Finance Approval") first. Current status is "${existing.status}".`
+    });
+  }
+
+  const now = new Date();
+  const updated = await prisma.pettyCash.update({
+    where: { petty_cash_id: id },
+    data: {
+      status: 'Disbursed',
+      finance_approved_by: user.emp_id || null,
+      finance_approved_at: now,
+      disbursed_at: now
+    },
+    include: PETTY_CASH_INCLUDE
+  });
+
+  enrichPettyCashRecord(updated);
 
   // Notify the employee
   try {
     await prisma.notification.create({
       data: {
         emp_id: updated.emp_id,
-        title: 'Petty Cash Request Approved',
-        message: `Your petty cash request of Rs. ${Number(updated.amount).toFixed(2)} has been approved. Awaiting physical disbursement.`
+        title: 'Petty Cash Disbursed',
+        message: `Petty cash of Rs. ${Number(updated.amount).toFixed(2)} has been approved by Finance and disbursed. Please submit receipts and mark as settled once completed.`
       }
     });
   } catch (e) {}
@@ -422,11 +528,13 @@ exports.approve = asyncHandler(async (req, res) => {
 });
 
 // PUT /api/petty-cash/:id/reject
-// Only ADMIN or MANAGER can reject. Requires a reason string.
 exports.reject = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const user = getUserFromReq(req);
-  if (!['ADMIN', 'MANAGER'].includes(user.role)) {
-    return res.status(403).json({ error: 'Access forbidden. Only Managers and Admins can reject petty cash.' });
+  const isFinance = await isUserInFinanceDept(user);
+
+  if (!['ADMIN', 'MANAGER', 'FINANCE'].includes(user.role) && !isFinance) {
+    return res.status(403).json({ error: 'Access forbidden. Only Managers, Finance, or Admins can reject petty cash.' });
   }
 
   const id = parseInt(req.params.id);
@@ -446,22 +554,29 @@ exports.reject = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Petty cash record not found' });
   }
 
+  const now = new Date();
+  const updateData = {
+    status: 'Rejected',
+    rejection_reason: reason.trim(),
+    approved_by: user.emp_id || null,
+    approved_at: now
+  };
+
+  if (existing.status === 'Pending Finance Approval') {
+    updateData.finance_approved_by = user.emp_id || null;
+    updateData.finance_approved_at = now;
+  } else {
+    updateData.manager_approved_by = user.emp_id || null;
+    updateData.manager_approved_at = now;
+  }
+
   const updated = await prisma.pettyCash.update({
     where: { petty_cash_id: id },
-    data: {
-      status: 'Rejected',
-      rejection_reason: reason.trim(),
-      approved_by: user.emp_id || null,
-      approved_at: new Date()
-    },
-    include: {
-      employee: true,
-      task: true,
-      approver: {
-        select: { emp_id: true, name: true, role: true }
-      }
-    }
+    data: updateData,
+    include: PETTY_CASH_INCLUDE
   });
+
+  enrichPettyCashRecord(updated);
 
   // Notify the employee
   try {
@@ -477,58 +592,11 @@ exports.reject = asyncHandler(async (req, res) => {
   res.json(updated);
 });
 
-// PUT /api/petty-cash/:id/disburse
-// Updates status to Disbursed.
-exports.disburse = asyncHandler(async (req, res) => {
-  const user = getUserFromReq(req);
-  if (!['ADMIN', 'MANAGER'].includes(user.role)) {
-    return res.status(403).json({ error: 'Access forbidden. Only authorized roles can disburse petty cash.' });
-  }
-
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) return res.status(400).json({ error: 'Invalid Petty Cash ID' });
-
-  const existing = await prisma.pettyCash.findUnique({
-    where: { petty_cash_id: id }
-  });
-
-  if (!existing) {
-    return res.status(404).json({ error: 'Petty cash record not found' });
-  }
-
-  const updated = await prisma.pettyCash.update({
-    where: { petty_cash_id: id },
-    data: {
-      status: 'Disbursed',
-      disbursed_at: new Date()
-    },
-    include: {
-      employee: true,
-      task: true,
-      approver: {
-        select: { emp_id: true, name: true, role: true }
-      }
-    }
-  });
-
-  // Notify the employee
-  try {
-    await prisma.notification.create({
-      data: {
-        emp_id: updated.emp_id,
-        title: 'Petty Cash Disbursed',
-        message: `Petty cash of Rs. ${Number(updated.amount).toFixed(2)} has been disbursed. Please submit receipts and mark as settled once completed.`
-      }
-    });
-  } catch (e) {}
-
-  res.json(updated);
-});
-
 // PUT /api/petty-cash/:id/settle
-// Updates status to Settled.
 exports.settle = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const user = getUserFromReq(req);
+  const isFinance = await isUserInFinanceDept(user);
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Petty Cash ID' });
 
@@ -540,8 +608,7 @@ exports.settle = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Petty cash record not found' });
   }
 
-  // Employee who requested it, or Admin/Manager can mark it settled
-  const canSettle = user.role === 'ADMIN' || user.role === 'MANAGER' || existing.emp_id === user.emp_id;
+  const canSettle = user.role === 'ADMIN' || user.role === 'MANAGER' || isFinance || existing.emp_id === user.emp_id;
   if (!canSettle) {
     return res.status(403).json({ error: 'You are not authorized to settle this request.' });
   }
@@ -551,23 +618,20 @@ exports.settle = asyncHandler(async (req, res) => {
     data: {
       status: 'Settled'
     },
-    include: {
-      employee: true,
-      task: true,
-      approver: {
-        select: { emp_id: true, name: true, role: true }
-      }
-    }
+    include: PETTY_CASH_INCLUDE
   });
 
-  // Notify approver/admin
+  enrichPettyCashRecord(updated);
+
+  // Notify approvers
   try {
-    if (updated.approved_by) {
+    const notifyId = updated.finance_approved_by || updated.manager_approved_by || updated.approved_by;
+    if (notifyId) {
       await prisma.notification.create({
         data: {
-          emp_id: updated.approved_by,
+          emp_id: notifyId,
           title: 'Petty Cash Settled',
-          message: `Petty cash of Rs. ${Number(updated.amount).toFixed(2)} for Task #${updated.task_id} has been marked as Settled.`
+          message: `Petty cash of Rs. ${Number(updated.amount).toFixed(2)} for Task ${updated.task?.task_code || '#' + updated.task_id} has been marked as Settled.`
         }
       });
     }
@@ -578,6 +642,7 @@ exports.settle = asyncHandler(async (req, res) => {
 
 // DELETE /api/petty-cash/:id
 exports.remove = asyncHandler(async (req, res) => {
+  await ensureTableExists();
   const user = getUserFromReq(req);
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Petty Cash ID' });
@@ -590,8 +655,8 @@ exports.remove = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Petty cash record not found' });
   }
 
-  // Only Admin or the requester (if still pending) can delete
-  if (user.role !== 'ADMIN' && (existing.emp_id !== user.emp_id || existing.status !== 'Pending')) {
+  const isPending = ['Pending Manager Approval', 'Pending'].includes(existing.status);
+  if (user.role !== 'ADMIN' && (existing.emp_id !== user.emp_id || !isPending)) {
     return res.status(403).json({ error: 'Cannot delete this petty cash request.' });
   }
 

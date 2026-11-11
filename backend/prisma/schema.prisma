@@ -39,8 +39,10 @@ model Employee {
   jobs_managed         Job[]                   @relation("JobManager")
   tasks                Task[]                  @relation("TaskAssignees")
   notifications        Notification[]          // NEW: In-app notifications
-  petty_cash_requests  PettyCash[]
-  petty_cash_approvals PettyCash[]             @relation("PettyCashApprover")
+  petty_cash_requests          PettyCash[]             @relation("PettyCashRequester")
+  petty_cash_approvals         PettyCash[]             @relation("PettyCashApprover")
+  petty_cash_manager_approvals PettyCash[]             @relation("PettyCashManagerApprover")
+  petty_cash_finance_approvals PettyCash[]             @relation("PettyCashFinanceApprover")
 
   @@index([department_id])
   @@map("employees")
@@ -216,24 +218,30 @@ model Invoice {
 }
 
 model PettyCash {
-  petty_cash_id    Int       @id @default(autoincrement())
-  emp_id           Int
-  task_id          Int
-  amount           Decimal   @db.Decimal(12, 2)
-  category         String    @db.VarChar(100)
-  purpose          String    @db.Text
-  date_required    DateTime  @db.Date
-  status           String    @default("Pending") @db.VarChar(50) // Pending, Approved, Rejected, Disbursed, Settled
-  rejection_reason String?   @db.Text
-  approved_by      Int?
-  approved_at      DateTime? @db.Timestamp()
-  disbursed_at     DateTime? @db.Timestamp()
-  created_at       DateTime  @default(now())
+  petty_cash_id       Int       @id @default(autoincrement())
+  emp_id              Int
+  task_id             Int
+  amount              Decimal   @db.Decimal(12, 2)
+  category            String    @db.VarChar(100)
+  purpose             String    @db.Text
+  date_required       DateTime  @db.Date
+  status              String    @default("Pending Manager Approval") @db.VarChar(50) // Pending Manager Approval, Pending Finance Approval, Disbursed, Rejected, Settled
+  rejection_reason    String?   @db.Text
+  approved_by         Int?
+  approved_at         DateTime? @db.Timestamp()
+  manager_approved_by Int?
+  manager_approved_at DateTime? @db.Timestamp()
+  finance_approved_by Int?
+  finance_approved_at DateTime? @db.Timestamp()
+  disbursed_at        DateTime? @db.Timestamp()
+  created_at          DateTime  @default(now())
 
   // Relations
-  employee         Employee  @relation(fields: [emp_id], references: [emp_id], onDelete: Cascade)
-  task             Task      @relation(fields: [task_id], references: [task_id], onDelete: Cascade)
-  approver         Employee? @relation("PettyCashApprover", fields: [approved_by], references: [emp_id])
+  employee            Employee  @relation("PettyCashRequester", fields: [emp_id], references: [emp_id], onDelete: Cascade)
+  task                Task      @relation(fields: [task_id], references: [task_id], onDelete: Cascade)
+  approver            Employee? @relation("PettyCashApprover", fields: [approved_by], references: [emp_id])
+  manager_approver    Employee? @relation("PettyCashManagerApprover", fields: [manager_approved_by], references: [emp_id])
+  finance_approver    Employee? @relation("PettyCashFinanceApprover", fields: [finance_approved_by], references: [emp_id])
 
   @@index([emp_id])
   @@index([task_id])
