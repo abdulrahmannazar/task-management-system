@@ -636,7 +636,7 @@ const styles = {
   pageContainer: {
     minHeight: '100vh',
     background: '#f8fafc',
-    fontFamily: 'system-ui',
+    fontFamily: "'Poppins', system-ui, -apple-system, sans-serif",
     marginLeft: 'var(--sidebar-width, 260px)',
     transition: 'margin-left 300ms ease-in-out'
   },
@@ -1032,7 +1032,7 @@ const styles = {
     listStyleType: 'none',
     marginLeft: '14px',
     marginBottom: '6px',
-    fontFamily: 'monospace',
+    fontFamily: "'Poppins', system-ui, -apple-system, sans-serif",
     fontSize: '12.5px',
     color: '#475569'
   },

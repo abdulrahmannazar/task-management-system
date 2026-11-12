@@ -389,7 +389,7 @@ const styles = {
   pageContainer: {
     minHeight: '100vh',
     background: '#f8fafc',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    fontFamily: "'Poppins', system-ui, -apple-system, sans-serif",
     paddingBottom: '60px'
   },
   container: {
