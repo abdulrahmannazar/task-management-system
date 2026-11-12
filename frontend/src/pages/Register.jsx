@@ -153,7 +153,7 @@ const styles = {
     alignItems: 'center',
     minHeight: '100vh',
     background: '#f8fafc',
-    fontFamily: 'system-ui',
+    fontFamily: "'Poppins', system-ui, -apple-system, sans-serif",
     padding: '24px'
   },
   form: {

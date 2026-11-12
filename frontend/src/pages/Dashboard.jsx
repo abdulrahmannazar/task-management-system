@@ -17,7 +17,7 @@ const parseScopePoints = (scopeText) => {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'loe'
+  const [activeTab, setActiveTab] = useState('loe'); // 'loe' | 'tasks'
   const [tasks, setTasks] = useState([]);
   const [loes, setLoes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -451,7 +451,7 @@ const styles = {
   pageContainer: {
     minHeight: '100vh',
     background: '#f8fafc',
-    fontFamily: 'system-ui',
+    fontFamily: "'Poppins', system-ui, -apple-system, sans-serif",
     marginLeft: 'var(--sidebar-width, 260px)',
     transition: 'margin-left 300ms ease-in-out'
   },

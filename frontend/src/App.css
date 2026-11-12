@@ -1,0 +1,17 @@
+/* Global Poppins typography across the entire web application */
+html,
+body,
+#root {
+  font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input,
+select,
+textarea,
+button,
+option,
+optgroup {
+  font-family: inherit;
+}
