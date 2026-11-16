@@ -1133,7 +1133,7 @@ export default function LoeManager() {
                                 </option>
                               ))}
                               <option value="__CUSTOM__" style={{ fontWeight: 'bold', color: '#0284c7' }}>
-                                ✨ + Create Custom Service (Client Specific)
+                                + Create Custom Service (Client Specific)
                               </option>
                             </select>
                             {srvBlock.department_id && (

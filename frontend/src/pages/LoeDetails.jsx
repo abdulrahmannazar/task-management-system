@@ -516,9 +516,9 @@ export default function LoeDetails() {
                   </p>
                 </div>
                 {loe.is_client_accepted ? (
-                  <span style={styles.clientApprovedBadge}>✓ Client Approved &amp; Accepted</span>
+                  <span style={styles.clientApprovedBadge}>Client Approved &amp; Accepted</span>
                 ) : (
-                  <span style={styles.clientPendingBadge}>⚠️ Client Acceptance Pending</span>
+                  <span style={styles.clientPendingBadge}>Client Acceptance Pending</span>
                 )}
               </div>
 
