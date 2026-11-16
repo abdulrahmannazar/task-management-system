@@ -48,7 +48,7 @@ export const DEFAULT_PERMISSIONS = {
   },
   EMPLOYEE: {
     VIEW_DISPATCH: true,
-    VIEW_LOES: true,
+    VIEW_LOES: false,
     VIEW_APPROVALS: false,
     VIEW_TASKS: true,
     VIEW_INVOICES: false,
@@ -147,6 +147,9 @@ export function hasPermission(user, permKey, matrixOverride = null) {
   }
 
   const role = String(user.role).toUpperCase();
+  if (role === 'EMPLOYEE' && permKey === 'VIEW_LOES') {
+    return false;
+  }
   const rolePerms = matrix[role] || DEFAULT_PERMISSIONS[role] || {};
   return Boolean(rolePerms[permKey]);
 }

@@ -19,8 +19,21 @@ export default function TaskAllocation() {
   const [groupedServices, setGroupedServices] = useState([]);
   const [selectedServiceGroup, setSelectedServiceGroup] = useState(null);
   
-  // Navigation View & Tab Modes
-  const [activeView, setActiveView] = useState('allocation'); // 'allocation' | 'tracker'
+  // Authentication & Permissions
+  const token = localStorage.getItem('token');
+  const userStr = localStorage.getItem('user');
+  const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : null;
+  const userDeptId = user?.department_id || 1;
+  
+  const isAdmin = user?.role === 'ADMIN';
+  const isManager = user?.role === 'MANAGER';
+  const isEmployee = !isAdmin && !isManager; 
+
+  const canViewTasks = hasPermission(user, 'VIEW_TASKS');
+  const canManage = hasPermission(user, 'MANAGE_TASKS');
+
+  // Navigation View & Tab Modes (Employees default to tracker list)
+  const [activeView, setActiveView] = useState(isEmployee ? 'tracker' : 'allocation'); // 'allocation' | 'tracker'
   const [assignmentTab, setAssignmentTab] = useState('ALL'); // 'ALL' | 'UNASSIGNED' | 'ASSIGNED'
   const [trackerDisplayMode, setTrackerDisplayMode] = useState('list'); // 'list' | 'board'
 
@@ -30,6 +43,9 @@ export default function TaskAllocation() {
   const [empSearch, setEmpSearch] = useState('');
   const [customEmpSearch, setCustomEmpSearch] = useState('');
   const [remindingTaskId, setRemindingTaskId] = useState(null);
+
+  // Multi-Task Selection for Starting Tasks
+  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
 
   // Status & Feedback
   const [error, setError] = useState('');
@@ -44,19 +60,6 @@ export default function TaskAllocation() {
   const [filterAssignee, setFilterAssignee] = useState('ALL');
   const [filterDepartment, setFilterDepartment] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Authentication & Permissions
-  const token = localStorage.getItem('token');
-  const userStr = localStorage.getItem('user');
-  const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : null;
-  const userDeptId = user?.department_id || 1;
-  
-  const isAdmin = user?.role === 'ADMIN';
-  const isManager = user?.role === 'MANAGER';
-  const isEmployee = !isAdmin && !isManager; 
-
-  const canViewTasks = hasPermission(user, 'VIEW_TASKS');
-  const canManage = hasPermission(user, 'MANAGE_TASKS');
 
   // Allocation Form State
   const [serviceDeadline, setServiceDeadline] = useState('');
@@ -324,6 +327,66 @@ export default function TaskAllocation() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleStartTask = async (taskId) => {
+    await handleStatusUpdate(taskId, 'In-Progress');
+  };
+
+  const handleStartSelectedTasks = async () => {
+    const pendingSelected = tasks.filter(t => selectedTaskIds.includes(t.task_id) && t.status === 'Pending');
+    if (pendingSelected.length === 0) {
+      setSuccessMsg('Selected tasks are already in progress or completed.');
+      setTimeout(() => setSuccessMsg(''), 3000);
+      return;
+    }
+    try {
+      setSaving(true);
+      setError('');
+      for (const t of pendingSelected) {
+        await fetch(`${API_BASE}/api/tasks/${t.task_id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ status: 'In-Progress' })
+        });
+      }
+      setTasks(prev => prev.map(t => selectedTaskIds.includes(t.task_id) && t.status === 'Pending' ? { ...t, status: 'In-Progress' } : t));
+      setSuccessMsg(`Successfully started ${pendingSelected.length} task(s)!`);
+      setSelectedTaskIds([]);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      setError(err.message || 'Failed to start selected tasks');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleSelectTask = (taskId) => {
+    setSelectedTaskIds(prev => prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]);
+  };
+
+  const toggleSelectAll = (filteredList) => {
+    const allIds = filteredList.map(t => t.task_id);
+    const allSelected = allIds.length > 0 && allIds.every(id => selectedTaskIds.includes(id));
+    if (allSelected) {
+      setSelectedTaskIds(prev => prev.filter(id => !allIds.includes(id)));
+    } else {
+      setSelectedTaskIds(prev => Array.from(new Set([...prev, ...allIds])));
+    }
+  };
+
+  const handleFilterByStaff = (empId, empName) => {
+    setFilterAssignee(String(empId));
+    setActiveView('tracker');
+    setSuccessMsg(`Showing tasks assigned to: ${empName}`);
+    setTimeout(() => setSuccessMsg(''), 3500);
+  };
+
+  const handleClearStaffFilter = () => {
+    setFilterAssignee('ALL');
   };
 
   const handleSendReminder = async (taskId) => {
@@ -829,7 +892,14 @@ export default function TaskAllocation() {
                             {allAssignees.length > 0 ? (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                 {allAssignees.map(a => (
-                                  <span key={a.emp_id} style={styles.assigneePill}>{a.name}</span>
+                                  <span 
+                                    key={a.emp_id} 
+                                    onClick={() => handleFilterByStaff(a.emp_id, a.name)}
+                                    style={styles.assigneePillClickable}
+                                    title={`Click to filter tasks assigned to ${a.name}`}
+                                  >
+                                    {a.name}
+                                  </span>
                                 ))}
                               </div>
                             ) : (
@@ -880,11 +950,85 @@ export default function TaskAllocation() {
         {/* VIEW 2: TASK STATUS TRACKER (Default List View with View Toggle & Assigned/Unassigned Filter) */}
         {activeView === 'tracker' && (
           <div>
+            {/* Interactive Staff Quick-Filter Bar */}
+            <div style={styles.staffFilterContainer}>
+              <div style={styles.staffFilterHeader}>
+                <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155' }}>
+                  Quick Filter by Staff Member:
+                </span>
+                {filterAssignee !== 'ALL' && (
+                  <button 
+                    type="button" 
+                    onClick={handleClearStaffFilter}
+                    style={styles.clearStaffBtn}
+                  >
+                    ✕ Clear Staff Filter ({employees.find(e => String(e.emp_id) === String(filterAssignee))?.name || 'Staff'})
+                  </button>
+                )}
+              </div>
+              <div style={styles.staffPillRow}>
+                <button
+                  type="button"
+                  onClick={() => setFilterAssignee('ALL')}
+                  style={filterAssignee === 'ALL' ? styles.staffPillActive : styles.staffPill}
+                >
+                  All Staff ({tasks.length})
+                </button>
+                {employees.map(emp => {
+                  const empTaskCount = tasks.filter(t => (t.assignees || []).some(a => a.emp_id === emp.emp_id)).length;
+                  const isSelected = String(filterAssignee) === String(emp.emp_id);
+                  return (
+                    <button
+                      key={emp.emp_id}
+                      type="button"
+                      onClick={() => handleFilterByStaff(emp.emp_id, emp.name)}
+                      style={isSelected ? styles.staffPillActive : styles.staffPill}
+                    >
+                      <span style={styles.staffAvatarMini}>{emp.name ? emp.name.charAt(0).toUpperCase() : 'E'}</span>
+                      {emp.name}
+                      <span style={isSelected ? styles.staffCountBadgeActive : styles.staffCountBadge}>{empTaskCount}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Batch Action Toolbar when tasks are selected */}
+            {selectedTaskIds.length > 0 && (
+              <div style={styles.batchToolbar}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#ffffff' }}>
+                    {selectedTaskIds.length} Task{selectedTaskIds.length === 1 ? '' : 's'} Selected
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    ({tasks.filter(t => selectedTaskIds.includes(t.task_id) && t.status === 'Pending').length} Pending to Start)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handleStartSelectedTasks}
+                    disabled={saving}
+                    style={styles.batchStartBtn}
+                  >
+                    Start Selected Tasks ({tasks.filter(t => selectedTaskIds.includes(t.task_id) && t.status === 'Pending').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTaskIds([])}
+                    style={styles.batchClearBtn}
+                  >
+                    Cancel Selection
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div style={styles.trackerNotice}>
               <div>
                 <strong>Task Status Tracking &amp; Progression</strong>
                 <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>
-                  Monitor deliverable milestones, advance completion states, and dispatch reminders to assigned personnel.
+                  Click any task or staff member to view full details and deadlines. Select tasks to start them immediately.
                 </div>
               </div>
 
@@ -919,6 +1063,15 @@ export default function TaskAllocation() {
                   <table style={styles.table}>
                     <thead>
                       <tr>
+                        <th style={{ ...styles.th, width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={filteredTasks.length > 0 && filteredTasks.every(t => selectedTaskIds.includes(t.task_id))}
+                            onChange={() => toggleSelectAll(filteredTasks)}
+                            title="Select / Deselect all visible tasks"
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </th>
                         <th style={styles.th}>Task Code</th>
                         <th style={styles.th}>Company &amp; LOE</th>
                         <th style={styles.th}>Service &amp; Scope</th>
@@ -934,8 +1087,26 @@ export default function TaskAllocation() {
                         const overdue = isOverdue(t.deadline, t.status);
                         const isUnassigned = !t.assignees || t.assignees.length === 0;
 
+                        const isSelected = selectedTaskIds.includes(t.task_id);
+
                         return (
-                          <tr key={t.task_id} style={styles.tr}>
+                          <tr 
+                            key={t.task_id} 
+                            style={{ 
+                              ...styles.tr, 
+                              cursor: 'pointer',
+                              background: isSelected ? '#f0f9ff' : 'transparent' 
+                            }}
+                            onClick={() => setSelectedTaskDetail(t)}
+                          >
+                            <td style={{ ...styles.td, width: '40px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectTask(t.task_id)}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            </td>
                             <td style={styles.td}>
                               <span style={styles.taskCodeBadge}>
                                 {t.task_code || `TASK #${t.task_id}`}
@@ -981,25 +1152,47 @@ export default function TaskAllocation() {
                               ) : (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                   {t.assignees.map(a => (
-                                    <span key={a.emp_id} style={styles.assigneePillMini}>{a.name}</span>
+                                    <span 
+                                      key={a.emp_id} 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleFilterByStaff(a.emp_id, a.name);
+                                      }}
+                                      style={styles.assigneePillClickable}
+                                      title={`Click to filter tasks assigned to ${a.name}`}
+                                    >
+                                      {a.name}
+                                    </span>
                                   ))}
                                 </div>
                               )}
                             </td>
-                            <td style={styles.td}>
-                              {/* 1-Click Status Progression Dropdown */}
-                              <select
-                                value={t.status === 'Ongoing' ? 'In-Progress' : t.status}
-                                onChange={(e) => handleStatusUpdate(t.task_id, e.target.value)}
-                                disabled={saving}
-                                style={getStatusSelectStyle(t.status)}
-                              >
-                                <option value="Pending">Pending</option>
-                                <option value="In-Progress">Ongoing</option>
-                                <option value="Completed">Completed</option>
-                              </select>
+                            <td style={styles.td} onClick={e => e.stopPropagation()}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <select
+                                  value={t.status === 'Ongoing' ? 'In-Progress' : t.status}
+                                  onChange={(e) => handleStatusUpdate(t.task_id, e.target.value)}
+                                  disabled={saving}
+                                  style={getStatusSelectStyle(t.status)}
+                                >
+                                  <option value="Pending">Pending</option>
+                                  <option value="In-Progress">Ongoing</option>
+                                  <option value="Completed">Completed</option>
+                                </select>
+                                {t.status === 'Pending' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartTask(t.task_id)}
+                                    disabled={saving}
+                                    style={styles.startTaskBtn}
+                                    title="Start this task now (Move to Ongoing)"
+                                  >
+                                    Start Task
+                                  </button>
+                                )}
+                              </div>
                             </td>
-                            <td style={{ ...styles.td, textAlign: 'right' }}>
+                            <td style={{ ...styles.td, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                               <div style={{ display: 'inline-flex', gap: '6px' }}>
                                 <button
                                   type="button"
@@ -1574,6 +1767,27 @@ export default function TaskAllocation() {
 
                 {/* Modal Action Controls */}
                 <div style={styles.modalActions}>
+                  {selectedTaskDetail.status === 'Pending' && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatusUpdate(selectedTaskDetail.task_id, 'In-Progress')}
+                      disabled={saving}
+                      style={styles.startTaskModalBtn}
+                    >
+                      Start Task (Move to Ongoing)
+                    </button>
+                  )}
+                  {selectedTaskDetail.status === 'In-Progress' && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatusUpdate(selectedTaskDetail.task_id, 'Completed')}
+                      disabled={saving}
+                      style={styles.completeTaskModalBtn}
+                    >
+                      Mark as Completed
+                    </button>
+                  )}
+
                   {selectedTaskDetail.status !== 'Completed' && selectedTaskDetail.assignees?.length > 0 && (
                     <button
                       type="button"
@@ -1661,7 +1875,17 @@ export default function TaskAllocation() {
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
               {t.assignees.map(a => (
-                <span key={a.emp_id} style={styles.assigneePillMini}>{a.name}</span>
+                <span 
+                  key={a.emp_id} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFilterByStaff(a.emp_id, a.name);
+                  }}
+                  style={styles.assigneePillClickable}
+                  title={`Click to filter tasks assigned to ${a.name}`}
+                >
+                  {a.name}
+                </span>
               ))}
             </div>
           )}
@@ -1685,6 +1909,18 @@ export default function TaskAllocation() {
             <option value="In-Progress">Ongoing</option>
             <option value="Completed">Completed</option>
           </select>
+
+          {t.status === 'Pending' && (
+            <button
+              type="button"
+              onClick={() => handleStartTask(t.task_id)}
+              disabled={saving}
+              style={styles.startTaskBtn}
+              title="Start Task immediately"
+            >
+              Start
+            </button>
+          )}
 
           <button
             type="button"
