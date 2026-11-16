@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { usePermissions } from '../utils/permissionHelper';
 
 // Helper to parse long or multi-point scopes into clean bullet lists
 const parseScopePoints = (scopeText) => {
@@ -17,7 +18,17 @@ const parseScopePoints = (scopeText) => {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('loe'); // 'loe' | 'tasks'
+  const { hasPermission } = usePermissions();
+  const token = localStorage.getItem('token');
+  const userStr = localStorage.getItem('user');
+  const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
+
+  const canViewLoes = hasPermission(user, 'VIEW_LOES');
+  const isAdmin = user.role === 'ADMIN';
+  const isManager = user.role === 'MANAGER';
+  const userDeptId = user.department_id || 1;
+
+  const [activeTab, setActiveTab] = useState(user?.role === 'EMPLOYEE' || !canViewLoes ? 'tasks' : 'loe');
   const [tasks, setTasks] = useState([]);
   const [loes, setLoes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,14 +36,6 @@ export default function Dashboard() {
 
   // Stores expanded/collapsed state for each task's scope list
   const [expandedTasks, setExpandedTasks] = useState({});
-
-  const token = localStorage.getItem('token');
-  const userStr = localStorage.getItem('user');
-  const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : {};
-
-  const isAdmin = user.role === 'ADMIN';
-  const isManager = user.role === 'MANAGER';
-  const userDeptId = user.department_id || 1;
 
   useEffect(() => {
     fetchDashboardData();

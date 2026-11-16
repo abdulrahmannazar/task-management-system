@@ -188,6 +188,7 @@ model Task {
   deadline         DateTime?   @db.Date
   duration_days    Int?       
   scope            String?     @db.Text
+  comments         String?     @db.Text
   last_reminded_at DateTime?   @db.Timestamp() // NEW: For reminder tracking
 
   // Relations

@@ -36,6 +36,7 @@ exports.getAll = asyncHandler(async (req, res) => {
       assignees: { select: { emp_id: true, name: true, email: true, department_id: true } },
       job: {
         include: {
+          manager: { select: { emp_id: true, name: true, email: true } },
           loe: {
             include: {
               company: true,
@@ -84,8 +85,19 @@ exports.getById = asyncHandler(async (req, res) => {
     where: { task_id: id },
     include: {
       service: { include: { department: true } },
-      assignees: { select: { emp_id: true, name: true, email: true } },
-      job: { include: { loe: { include: { company: true } } } }
+      assignees: { select: { emp_id: true, name: true, email: true, department_id: true } },
+      job: {
+        include: {
+          manager: { select: { emp_id: true, name: true, email: true } },
+          loe: {
+            include: {
+              company: true,
+              creator: { select: { emp_id: true, name: true, email: true } },
+              loe_items: { include: { service: true } }
+            }
+          }
+        }
+      }
     }
   });
 
@@ -107,7 +119,7 @@ exports.getById = asyncHandler(async (req, res) => {
 // POST /api/tasks
 exports.create = asyncHandler(async (req, res) => {
   clearTaskCache();
-  const { job_id, loe_id, service_id, assignee_ids, status, deadline, duration_days, service_deadline, scope } = req.body;
+  const { job_id, loe_id, service_id, assignee_ids, status, deadline, duration_days, service_deadline, scope, comments } = req.body;
 
   let targetJobId = job_id ? parseInt(job_id) : null;
 
@@ -161,6 +173,7 @@ exports.create = asyncHandler(async (req, res) => {
       duration_days: duration_days ? parseInt(duration_days) : null,
       service_deadline: service_deadline ? new Date(service_deadline) : null,
       scope: scope || null,
+      comments: comments || null,
       assignees: {
         connect: (assignee_ids || []).map(id => ({ emp_id: parseInt(id) }))
       }
@@ -181,7 +194,7 @@ exports.update = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Task ID' });
 
-  const { assignee_ids, deadline, duration_days, service_deadline, status, scope } = req.body;
+  const { assignee_ids, deadline, duration_days, service_deadline, status, scope, comments } = req.body;
 
   const prevTask = await prisma.task.findUnique({
     where: { task_id: id },
@@ -211,14 +224,26 @@ exports.update = asyncHandler(async (req, res) => {
   if (service_deadline !== undefined) data.service_deadline = service_deadline ? new Date(service_deadline) : null;
   if (status !== undefined) data.status = status;
   if (scope !== undefined) data.scope = scope;
+  if (comments !== undefined) data.comments = comments || null;
 
   const updatedTask = await prisma.task.update({
     where: { task_id: id },
     data,
     include: {
       service: { include: { department: true } },
-      assignees: { select: { emp_id: true, name: true, email: true } },
-      job: { include: { manager: true, loe: { include: { company: true } } } }
+      assignees: { select: { emp_id: true, name: true, email: true, department_id: true } },
+      job: {
+        include: {
+          manager: { select: { emp_id: true, name: true, email: true } },
+          loe: {
+            include: {
+              company: true,
+              creator: { select: { emp_id: true, name: true, email: true } },
+              loe_items: { include: { service: true } }
+            }
+          }
+        }
+      }
     }
   });
 

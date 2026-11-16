@@ -175,13 +175,14 @@ async function processApprovedLoe(loeId, managerEmpId) {
 
 // GET /api/loes
 exports.getAll = asyncHandler(async (req, res) => {
-  const cacheKey = `${req.query.role}_${req.query.department_id}`;
+  const role = req.query.role;
+  const deptId = parseInt(req.query.department_id);
+  const empId = parseInt(req.query.emp_id);
+  const cacheKey = `${role}_${deptId}_${empId || ''}`;
   const cached = loeCache.get(cacheKey);
   if (cached && (Date.now() - cached.time < LOE_CACHE_TTL)) {
     return res.json(cached.data);
   }
-  const role = req.query.role;
-  const deptId = parseInt(req.query.department_id);
 
   const query = {
     include: { 
@@ -193,8 +194,17 @@ exports.getAll = asyncHandler(async (req, res) => {
     orderBy: { loe_id: 'desc' }
   };
 
-  if (role !== 'ADMIN' && !isNaN(deptId)) {
-    query.where = { loe_items: { some: { service: { department_id: deptId } } } };
+  if (role !== 'ADMIN') {
+    const orConditions = [];
+    if (!isNaN(deptId)) {
+      orConditions.push({ loe_items: { some: { service: { department_id: deptId } } } });
+    }
+    if (!isNaN(empId)) {
+      orConditions.push({ created_by: empId });
+    }
+    if (orConditions.length > 0) {
+      query.where = { OR: orConditions };
+    }
   }
 
   const loes = await prisma.loe.findMany(query);

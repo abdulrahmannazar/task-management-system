@@ -317,6 +317,23 @@ export default function LoeDetails() {
     : (loe?.loe_items || []).filter(item => item.service?.department_id === userDeptId);
 
   const hasPendingItems = relevantItems.some(item => item.status === 'Pending');
+  if (user?.role === 'EMPLOYEE' || !hasPermission(user, 'VIEW_LOES')) {
+    return (
+      <div style={styles.pageContainer}>
+        <Navbar />
+        <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: "'Poppins', sans-serif" }}>
+          <h2 style={{ color: '#0f172a', marginBottom: '8px' }}>Access Denied</h2>
+          <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>
+            Employees do not have access to view Letter of Engagement (LOE) details.
+          </p>
+          <button onClick={() => navigate('/tasks')} style={styles.backBtn}>
+            Go to My Tasks
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const totalFee = (loe?.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const loeCurrency = loe?.currency || 'LKR';
   const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || loeCurrency;
@@ -516,9 +533,9 @@ export default function LoeDetails() {
                   </p>
                 </div>
                 {loe.is_client_accepted ? (
-                  <span style={styles.clientApprovedBadge}>✓ Client Approved &amp; Accepted</span>
+                  <span style={styles.clientApprovedBadge}>Client Approved &amp; Accepted</span>
                 ) : (
-                  <span style={styles.clientPendingBadge}>⚠️ Client Acceptance Pending</span>
+                  <span style={styles.clientPendingBadge}>Client Acceptance Pending</span>
                 )}
               </div>
 

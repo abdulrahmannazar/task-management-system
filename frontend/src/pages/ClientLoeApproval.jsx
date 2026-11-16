@@ -178,12 +178,12 @@ export default function ClientLoeApproval() {
                 disabled={downloading}
                 style={styles.pdfBtn}
               >
-                {downloading ? 'Downloading...' : '📄 Download Official PDF'}
+                {downloading ? 'Downloading...' : 'Download Official PDF'}
               </button>
               {isAccepted ? (
-                <span style={styles.acceptedBadge}>✓ Approved by Client</span>
+                <span style={styles.acceptedBadge}>Approved by Client</span>
               ) : (
-                <span style={styles.pendingBadge}>⏳ Awaiting Client Acceptance</span>
+                <span style={styles.pendingBadge}>Awaiting Client Acceptance</span>
               )}
             </div>
           </div>
@@ -278,7 +278,11 @@ export default function ClientLoeApproval() {
 
                 {isAccepted ? (
                   <div style={styles.verifiedBox}>
-                    <div style={styles.verifiedIcon}>✓</div>
+                    <div style={styles.verifiedIcon}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </div>
                     <h3 style={{ margin: '8px 0 4px', fontSize: '17px', color: '#065f46' }}>
                       Engagement Officially Accepted
                     </h3>

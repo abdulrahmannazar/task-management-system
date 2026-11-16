@@ -436,7 +436,7 @@ export default function CompanyManager() {
 
         {successMsg && (
           <div style={styles.successBanner}>
-            <span>✓ {successMsg}</span>
+            <span>{successMsg}</span>
             <button
               type="button"
               onClick={() => setSuccessMsg('')}

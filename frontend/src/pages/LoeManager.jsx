@@ -50,6 +50,7 @@ export default function LoeManager() {
   const [filterFrequency, setFilterFrequency] = useState('ALL');
   const [filterCurrency, setFilterCurrency] = useState('ALL');
   const [filterDepartment, setFilterDepartment] = useState('ALL');
+  const [loeCategoryTab, setLoeCategoryTab] = useState('ALL'); // 'ALL' | 'REVISION_REJECTED' | 'MY_CREATED'
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -107,7 +108,7 @@ export default function LoeManager() {
       
       const url = isAdmin 
         ? `${API_BASE}/api/loes?role=ADMIN`
-        : `${API_BASE}/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}`;
+        : `${API_BASE}/api/loes?department_id=${userDeptId}&role=${user.role || 'EMPLOYEE'}&emp_id=${user?.emp_id || ''}`;
 
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -595,8 +596,9 @@ export default function LoeManager() {
 
   const displayedLoes = loes.filter(loe => {
     if (!isAdmin) {
+      const isCreator = loe.created_by === user?.emp_id;
       const hasDept = (loe.loe_items || []).some(item => item.service?.department_id === userDeptId);
-      if (!hasDept) return false;
+      if (!hasDept && !isCreator) return false;
     }
 
     if (filterCompany) {
@@ -637,17 +639,58 @@ export default function LoeManager() {
     return true;
   });
 
-  const hasActiveFilters = 
+  // Priority Sorting: Revision Required & Rejected show FIRST
+  const getLoePriorityScore = (l) => {
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    if (st.includes('revision') || st === 'revision required') return 1;
+    if (st.includes('reject') || hasRej) return 2;
+    if (st.includes('pending') || st === 'approval pending') return 3;
+    if (st.includes('approved')) return 4;
+    return 5;
+  };
+
+  const prioritizedLoes = [...displayedLoes].sort((a, b) => {
+    const scoreA = getLoePriorityScore(a);
+    const scoreB = getLoePriorityScore(b);
+    if (scoreA !== scoreB) {
+      return scoreA - scoreB; // 1 and 2 (Revision Required and Rejected) come FIRST
+    }
+    return (b.loe_id || 0) - (a.loe_id || 0);
+  });
+
+  const finalLoes = prioritizedLoes.filter(l => {
+    if (loeCategoryTab === 'REVISION_REJECTED') {
+      const st = (l.status || '').toLowerCase();
+      const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+      return st.includes('revision') || st.includes('reject') || hasRej;
+    }
+    if (loeCategoryTab === 'MY_CREATED') {
+      return l.created_by === user?.emp_id;
+    }
+    return true;
+  });
+
+  const revisionCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    return st.includes('revision') || st.includes('reject') || hasRej;
+  }).length;
+
+  const myCreatedCount = displayedLoes.filter(l => l.created_by === user?.emp_id).length;
+
+  const hasActiveFilters =
     filterCompany !== '' ||
     filterStatus !== 'ALL' ||
     filterType !== 'ALL' ||
     filterFrequency !== 'ALL' ||
     filterCurrency !== 'ALL' ||
-    (isAdmin && filterDepartment !== 'ALL');
+    (isAdmin && filterDepartment !== 'ALL') ||
+    loeCategoryTab !== 'ALL';
 
   const activeSymbol = CURRENCY_SYMBOLS[formData.currency] || 'Rs.';
 
-  if (!hasPermission(user, 'VIEW_LOES')) {
+  if (user?.role === 'EMPLOYEE' || !hasPermission(user, 'VIEW_LOES')) {
     return (
       <div style={styles.pageContainer}>
         <Navbar />
@@ -669,7 +712,7 @@ export default function LoeManager() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h1 style={styles.pageTitle}>Letters of Engagement [LOE]</h1>
               <span style={styles.countBadge}>
-                {displayedLoes.length} {displayedLoes.length === 1 ? 'Record' : 'Records'}
+                {finalLoes.length} of {displayedLoes.length} Records
               </span>
             </div>
             <p style={styles.pageSubtitle}>
@@ -685,6 +728,56 @@ export default function LoeManager() {
         </div>
 
         {/* Full-width Filter Bar */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('ALL')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'ALL' ? '1px solid #0284c7' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'ALL' ? '#f0f9ff' : '#ffffff',
+              color: loeCategoryTab === 'ALL' ? '#0284c7' : '#475569',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              cursor: 'pointer'
+            }}
+          >
+            All LOEs ({displayedLoes.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('REVISION_REJECTED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'REVISION_REJECTED' ? '1px solid #e11d48' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'REVISION_REJECTED' ? '#fff1f2' : '#ffffff',
+              color: loeCategoryTab === 'REVISION_REJECTED' ? '#e11d48' : '#475569',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              cursor: 'pointer'
+            }}
+          >
+            Revision Required &amp; Rejected ({revisionCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('MY_CREATED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'MY_CREATED' ? '1px solid #2563eb' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'MY_CREATED' ? '#eff6ff' : '#ffffff',
+              color: loeCategoryTab === 'MY_CREATED' ? '#2563eb' : '#475569',
+              fontWeight: 'bold',
+              fontSize: '13px',
+              cursor: 'pointer'
+            }}
+          >
+            My Created LOEs ({myCreatedCount})
+          </button>
+        </div>
         <div style={styles.filterBar}>
           <div style={styles.filterField}>
             <label style={styles.filterLabel}>Company</label>
@@ -799,11 +892,11 @@ export default function LoeManager() {
 
         {/* Existing LOEs Grid */}
         <div style={styles.listSection}>
-          {displayedLoes.length === 0 ? (
+          {finalLoes.length === 0 ? (
             <div style={styles.emptyCard}>No LOEs found matching your criteria.</div>
           ) : (
             <div style={styles.grid}>
-              {displayedLoes.map((loe) => {
+              {finalLoes.map((loe) => {
                 const badgeStyle = getStatusBadgeStyle(loe.status);
                 const loeCurrency = loe.currency || 'LKR';
                 const loeSymbol = CURRENCY_SYMBOLS[loeCurrency] || (loeCurrency + ' ');
@@ -1133,7 +1226,7 @@ export default function LoeManager() {
                                 </option>
                               ))}
                               <option value="__CUSTOM__" style={{ fontWeight: 'bold', color: '#0284c7' }}>
-                                ✨ + Create Custom Service (Client Specific)
+                                + Create Custom Service (Client Specific)
                               </option>
                             </select>
                             {srvBlock.department_id && (

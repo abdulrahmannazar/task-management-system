@@ -787,7 +787,7 @@ export default function PettyCashManager() {
                                     style={styles.approveBtn}
                                     title="Verify task & send to Finance Department"
                                   >
-                                    {isBusy ? 'Approving...' : '✓ Approve (Send to Finance)'}
+                                    {isBusy ? 'Approving...' : 'Approve (Send to Finance)'}
                                   </button>
                                   <button
                                     type="button"
@@ -796,7 +796,7 @@ export default function PettyCashManager() {
                                     style={styles.rejectBtn}
                                     title="Reject Requisition"
                                   >
-                                    ✕ Reject
+                                    Reject
                                   </button>
                                 </>
                               )}
@@ -821,7 +821,7 @@ export default function PettyCashManager() {
                                       style={styles.rejectBtn}
                                       title="Reject Requisition"
                                     >
-                                      ✕ Reject
+                                      Reject
                                     </button>
                                   </>
                                 ) : (
@@ -1250,14 +1250,14 @@ export default function PettyCashManager() {
                           onClick={() => handleManagerApprove(selectedRequest.petty_cash_id)}
                           style={{ ...styles.approveBtn, padding: '8px 14px', fontSize: '12.5px' }}
                         >
-                          ✓ Approve (Send to Finance)
+                          Approve (Send to Finance)
                         </button>
                         <button
                           type="button"
                           onClick={() => openRejectModal(selectedRequest)}
                           style={{ ...styles.rejectBtn, padding: '8px 14px', fontSize: '12.5px' }}
                         >
-                          ✕ Reject
+                          Reject
                         </button>
                       </>
                     )}
@@ -1275,7 +1275,7 @@ export default function PettyCashManager() {
                           onClick={() => openRejectModal(selectedRequest)}
                           style={{ ...styles.rejectBtn, padding: '8px 14px', fontSize: '12.5px' }}
                         >
-                          ✕ Reject
+                          Reject
                         </button>
                       </>
                     )}
