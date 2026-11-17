@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
+import { fetchCachedJson } from '../utils/api';
+import BlobLoader from '../components/BlobLoader';
 
 // Helper to parse multi-line or bulleted scopes into clean structured points
 const parseScopePoints = (scopeText) => {
@@ -31,6 +33,7 @@ export default function ServiceManager() {
 
   const [services, setServices] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
   const [editingId, setEditingId] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
@@ -60,8 +63,12 @@ export default function ServiceManager() {
   const [formData, setFormData] = useState(initialFormState);
 
   useEffect(() => {
-    fetchServices();
-    fetchDepartments();
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([fetchServices(), fetchDepartments()]);
+      setLoading(false);
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -93,9 +100,8 @@ export default function ServiceManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/departments`);
-      const data = await response.json();
-      if (response.ok && Array.isArray(data)) setDepartments(data);
+      const data = await fetchCachedJson('/api/auth/departments');
+      if (Array.isArray(data)) setDepartments(data);
     } catch (err) {
       console.error(err);
     }
@@ -260,7 +266,11 @@ export default function ServiceManager() {
 
         {/* Full-width Services Directory Grid */}
         <div style={styles.listSection}>
-          {displayedServices.length === 0 ? (
+          {loading ? (
+            <div style={{ ...styles.emptyState, background: '#ffffff', padding: '10px' }}>
+              <BlobLoader message="Loading services catalogue..." />
+            </div>
+          ) : displayedServices.length === 0 ? (
             <div style={styles.emptyState}>No services registered in this department yet.</div>
           ) : (
             <div style={styles.grid}>
@@ -432,6 +442,7 @@ export default function ServiceManager() {
                     <option value="Hourly">Hourly Rate</option>
                     <option value="Monthly">Monthly Retainer</option>
                     <option value="Quarterly">Quarterly</option>
+                    <option value="Annually">Annually</option>
                   </select>
                 </div>
               </div>

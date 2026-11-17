@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
+import BlobLoader from '../components/BlobLoader';
 import { usePermissions } from '../utils/permissionHelper';
 
 const EXPENSE_CATEGORIES = [
@@ -658,8 +659,8 @@ export default function PettyCashManager() {
             </div>
 
             {loading ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
-                Loading petty cash records...
+              <div style={{ padding: '20px', textAlign: 'center' }}>
+                <BlobLoader message="Loading petty cash records..." />
               </div>
             ) : filteredRequests.length === 0 ? (
               <div style={{ padding: '50px 20px', textAlign: 'center', color: '#64748b' }}>

@@ -413,6 +413,18 @@ exports.approveItem = asyncHandler(async (req, res) => {
   const itemId = parseInt(req.params.itemId);
   const { emp_id } = req.body;
 
+  // Strict check: Rejecting one line rejects the whole LOE
+  const currentLoe = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: { loe_items: true }
+  });
+  if (!currentLoe) return res.status(404).json({ error: 'LOE record not found' });
+  if (currentLoe.status === 'Rejected' || currentLoe.loe_items.some(i => i.status === 'Rejected' && i.loe_item_id !== itemId)) {
+    return res.status(400).json({
+      error: 'Cannot approve items on a rejected LOE. Rejecting one line item rejects the entire LOE. Please edit and resubmit the engagement.'
+    });
+  }
+
   await prisma.loeItem.update({
     where: { loe_item_id: itemId },
     data: { status: 'Approved', rejection_reason: null }
@@ -492,6 +504,18 @@ exports.approveAll = asyncHandler(async (req, res) => {
   clearLoeCache();
   const loeId = parseInt(req.params.id);
   const { emp_id } = req.body;
+
+  // Strict check: Rejecting one line rejects the whole LOE
+  const currentLoe = await prisma.loe.findUnique({
+    where: { loe_id: loeId },
+    include: { loe_items: true }
+  });
+  if (!currentLoe) return res.status(404).json({ error: 'LOE record not found' });
+  if (currentLoe.status === 'Rejected' || currentLoe.loe_items.some(i => i.status === 'Rejected')) {
+    return res.status(400).json({
+      error: 'Cannot approve all items on a rejected LOE. Rejecting one line item rejects the entire LOE. Please edit and resubmit the engagement.'
+    });
+  }
 
   await prisma.loeItem.updateMany({
     where: { loe_id: loeId },

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import BlobLoader from '../components/BlobLoader';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -276,7 +277,9 @@ export default function DispatchTracker() {
           </div>
 
           {loading ? (
-            <div style={styles.loadingState}>Loading records...</div>
+            <div style={{ ...styles.loadingState, background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BlobLoader message="Loading dispatch tracking records..." size="large" />
+          </div>
           ) : activeTab === 'loe' ? (
             <div>
               <div style={styles.statsGrid}>

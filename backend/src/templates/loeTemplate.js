@@ -425,7 +425,7 @@ module.exports = function generateLoeTemplate({ loe, company }) {
   </style>
 </head>
 <body>
-  ${!isApproved ? '<div class="watermark">PENDING APPROVAL</div>' : ''}
+  ${!isApproved ? '<div class="watermark">DRAFT</div>' : ''}
 
   <!-- Top Letterhead Banner (Exact design from uploaded image) -->
   ${

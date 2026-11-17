@@ -7,6 +7,11 @@ const createCrudRouter = (controller) => {
     router.get('/pending', controller.getPending);
   }
 
+  // Invoice & Financial Reports endpoint (must be before /:id)
+  if (typeof controller.getReports === 'function') {
+    router.get('/reports', controller.getReports);
+  }
+
   if (typeof controller.generatePdf === 'function') {
     router.get('/:id/pdf', controller.generatePdf);
   }
@@ -19,6 +24,14 @@ const createCrudRouter = (controller) => {
   // NEW: Manual Reminder endpoints
   if (typeof controller.remind === 'function') {
     router.post('/:id/remind', controller.remind);
+  }
+
+  // Invoice Payment endpoints
+  if (typeof controller.addPayment === 'function') {
+    router.post('/:id/payments', controller.addPayment);
+  }
+  if (typeof controller.getPayments === 'function') {
+    router.get('/:id/payments', controller.getPayments);
   }
 
   if (typeof controller.approveItem === 'function') {

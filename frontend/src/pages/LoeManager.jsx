@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../utils/api';
+import { API_BASE, fetchCachedJson } from '../utils/api';
+import BlobLoader from '../components/BlobLoader';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -26,6 +27,7 @@ export default function LoeManager() {
   const [departments, setDepartments] = useState([]);
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -62,10 +64,17 @@ export default function LoeManager() {
   const userDeptId = user.department_id || 1;
 
   useEffect(() => {
-    fetchLoes();
-    fetchDepartments();
-    fetchServices();
-    fetchCompanies();
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchLoes(),
+        fetchDepartments(),
+        fetchServices(),
+        fetchCompanies()
+      ]);
+      setLoading(false);
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -128,9 +137,8 @@ export default function LoeManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/departments`);
-      const data = await response.json();
-      if (response.ok && Array.isArray(data)) setDepartments(data);
+      const data = await fetchCachedJson('/api/auth/departments');
+      if (Array.isArray(data)) setDepartments(data);
     } catch (err) {
       console.error('Failed to load departments', err);
     }
@@ -139,11 +147,8 @@ export default function LoeManager() {
   const fetchServices = async () => {
     try {
       if (!token) return;
-      const response = await fetch(`${API_BASE}/api/services`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (response.ok) setServices(data);
+      const data = await fetchCachedJson('/api/services');
+      if (Array.isArray(data)) setServices(data);
     } catch (err) {
       console.error('Failed to load services', err);
     }
@@ -152,11 +157,8 @@ export default function LoeManager() {
   const fetchCompanies = async () => {
     try {
       if (!token) return;
-      const response = await fetch(`${API_BASE}/api/companies`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (response.ok) {
+      const data = await fetchCachedJson('/api/companies');
+      if (data) {
         setCompanies(Array.isArray(data) ? data : data.companies || []);
       }
     } catch (err) {
@@ -659,25 +661,55 @@ export default function LoeManager() {
     return (b.loe_id || 0) - (a.loe_id || 0);
   });
 
+  const pendingCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+    return (st.includes('pending') || st === 'approval pending') && !st.includes('reject') && !st.includes('revision') && !hasRej && !hasRev;
+  }).length;
+
+  const approvedCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    return st.includes('approved') && !st.includes('pending');
+  }).length;
+
+  const revisionCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+    return st.includes('revision') || hasRev;
+  }).length;
+
+  const rejectedCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+    return (st.includes('reject') || hasRej) && !st.includes('revision') && !hasRev;
+  }).length;
+
+  const myCreatedCount = displayedLoes.filter(l => l.created_by === user?.emp_id).length;
+
   const finalLoes = prioritizedLoes.filter(l => {
-    if (loeCategoryTab === 'REVISION_REJECTED') {
-      const st = (l.status || '').toLowerCase();
-      const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
-      return st.includes('revision') || st.includes('reject') || hasRej;
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+
+    if (loeCategoryTab === 'PENDING') {
+      return (st.includes('pending') || st === 'approval pending') && !st.includes('reject') && !st.includes('revision') && !hasRej && !hasRev;
+    }
+    if (loeCategoryTab === 'APPROVED') {
+      return st.includes('approved') && !st.includes('pending');
+    }
+    if (loeCategoryTab === 'REVISION_REQUIRED') {
+      return st.includes('revision') || hasRev;
+    }
+    if (loeCategoryTab === 'REJECTED') {
+      return (st.includes('reject') || hasRej) && !st.includes('revision') && !hasRev;
     }
     if (loeCategoryTab === 'MY_CREATED') {
       return l.created_by === user?.emp_id;
     }
-    return true;
+    return true; // 'ALL'
   });
-
-  const revisionCount = displayedLoes.filter(l => {
-    const st = (l.status || '').toLowerCase();
-    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
-    return st.includes('revision') || st.includes('reject') || hasRej;
-  }).length;
-
-  const myCreatedCount = displayedLoes.filter(l => l.created_by === user?.emp_id).length;
 
   const hasActiveFilters =
     filterCompany !== '' ||
@@ -728,7 +760,7 @@ export default function LoeManager() {
         </div>
 
         {/* Full-width Filter Bar */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             type="button"
             onClick={() => setLoeCategoryTab('ALL')}
@@ -738,29 +770,117 @@ export default function LoeManager() {
               border: loeCategoryTab === 'ALL' ? '1px solid #0284c7' : '1px solid #cbd5e1',
               background: loeCategoryTab === 'ALL' ? '#f0f9ff' : '#ffffff',
               color: loeCategoryTab === 'ALL' ? '#0284c7' : '#475569',
-              fontWeight: 'bold',
+              fontWeight: loeCategoryTab === 'ALL' ? '700' : '500',
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
             }}
           >
-            All LOEs ({displayedLoes.length})
+            All LOEs
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'ALL' ? '#0284c7' : '#f1f5f9', color: loeCategoryTab === 'ALL' ? '#ffffff' : '#64748b', padding: '1px 7px', borderRadius: '10px' }}>
+              {displayedLoes.length}
+            </span>
           </button>
+
           <button
             type="button"
-            onClick={() => setLoeCategoryTab('REVISION_REJECTED')}
+            onClick={() => setLoeCategoryTab('PENDING')}
             style={{
               padding: '7px 14px',
               borderRadius: '6px',
-              border: loeCategoryTab === 'REVISION_REJECTED' ? '1px solid #e11d48' : '1px solid #cbd5e1',
-              background: loeCategoryTab === 'REVISION_REJECTED' ? '#fff1f2' : '#ffffff',
-              color: loeCategoryTab === 'REVISION_REJECTED' ? '#e11d48' : '#475569',
-              fontWeight: 'bold',
+              border: loeCategoryTab === 'PENDING' ? '1px solid #d97706' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'PENDING' ? '#fffbeb' : '#ffffff',
+              color: loeCategoryTab === 'PENDING' ? '#b45309' : '#475569',
+              fontWeight: loeCategoryTab === 'PENDING' ? '700' : '500',
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
             }}
           >
-            Revision Required &amp; Rejected ({revisionCount})
+            Pending Approval
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'PENDING' ? '#d97706' : '#fef3c7', color: loeCategoryTab === 'PENDING' ? '#ffffff' : '#b45309', padding: '1px 7px', borderRadius: '10px' }}>
+              {pendingCount}
+            </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('APPROVED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'APPROVED' ? '1px solid #059669' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'APPROVED' ? '#ecfdf5' : '#ffffff',
+              color: loeCategoryTab === 'APPROVED' ? '#059669' : '#475569',
+              fontWeight: loeCategoryTab === 'APPROVED' ? '700' : '500',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Approved
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'APPROVED' ? '#059669' : '#d1fae5', color: loeCategoryTab === 'APPROVED' ? '#ffffff' : '#065f46', padding: '1px 7px', borderRadius: '10px' }}>
+              {approvedCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('REVISION_REQUIRED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'REVISION_REQUIRED' ? '1px solid #e11d48' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'REVISION_REQUIRED' ? '#fff1f2' : '#ffffff',
+              color: loeCategoryTab === 'REVISION_REQUIRED' ? '#e11d48' : '#475569',
+              fontWeight: loeCategoryTab === 'REVISION_REQUIRED' ? '700' : '500',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Revision Required
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'REVISION_REQUIRED' ? '#e11d48' : '#ffe4e6', color: loeCategoryTab === 'REVISION_REQUIRED' ? '#ffffff' : '#9f1239', padding: '1px 7px', borderRadius: '10px' }}>
+              {revisionCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('REJECTED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'REJECTED' ? '1px solid #be123c' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'REJECTED' ? '#ffe4e6' : '#ffffff',
+              color: loeCategoryTab === 'REJECTED' ? '#9f1239' : '#475569',
+              fontWeight: loeCategoryTab === 'REJECTED' ? '700' : '500',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Rejected
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'REJECTED' ? '#be123c' : '#fecdd3', color: loeCategoryTab === 'REJECTED' ? '#ffffff' : '#881337', padding: '1px 7px', borderRadius: '10px' }}>
+              {rejectedCount}
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => setLoeCategoryTab('MY_CREATED')}
@@ -770,12 +890,19 @@ export default function LoeManager() {
               border: loeCategoryTab === 'MY_CREATED' ? '1px solid #2563eb' : '1px solid #cbd5e1',
               background: loeCategoryTab === 'MY_CREATED' ? '#eff6ff' : '#ffffff',
               color: loeCategoryTab === 'MY_CREATED' ? '#2563eb' : '#475569',
-              fontWeight: 'bold',
+              fontWeight: loeCategoryTab === 'MY_CREATED' ? '700' : '500',
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
             }}
           >
-            My Created LOEs ({myCreatedCount})
+            My Created LOEs
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'MY_CREATED' ? '#2563eb' : '#dbeafe', color: loeCategoryTab === 'MY_CREATED' ? '#ffffff' : '#1e40af', padding: '1px 7px', borderRadius: '10px' }}>
+              {myCreatedCount}
+            </span>
           </button>
         </div>
         <div style={styles.filterBar}>
@@ -892,7 +1019,11 @@ export default function LoeManager() {
 
         {/* Existing LOEs Grid */}
         <div style={styles.listSection}>
-          {finalLoes.length === 0 ? (
+          {loading ? (
+            <div style={{ ...styles.emptyCard, background: '#ffffff', padding: '10px' }}>
+              <BlobLoader message="Loading Letters of Engagement..." />
+            </div>
+          ) : finalLoes.length === 0 ? (
             <div style={styles.emptyCard}>No LOEs found matching your criteria.</div>
           ) : (
             <div style={styles.grid}>

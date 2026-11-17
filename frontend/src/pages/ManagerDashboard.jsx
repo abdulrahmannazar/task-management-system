@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import BlobLoader from '../components/BlobLoader';
 import { usePermissions } from '../utils/permissionHelper';
 
 const CURRENCY_SYMBOLS = {
@@ -356,7 +357,9 @@ export default function ManagerDashboard() {
         {error && <div style={styles.errorBanner}>{error}</div>}
 
         {loading ? (
-          <div style={styles.emptyBox}>Loading pending approvals...</div>
+          <div style={{ ...styles.emptyBox, padding: '20px' }}>
+            <BlobLoader message="Loading pending approvals workspace..." />
+          </div>
         ) : filteredLoes.length === 0 ? (
           <div style={styles.emptyBox}>
             No pending Letters of Engagement match your current filters.

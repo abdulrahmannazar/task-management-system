@@ -56,10 +56,15 @@ function extractBulletPoints(scopesArray) {
   return result.length > 0 ? result : ['Standard Deliverable'];
 }
 
-module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
+module.exports = function generateInvoiceTemplate({ invoice, loe, company, customLogo, logoAlignment = 'center' }) {
   const currencyCode = loe?.currency || 'LKR';
   const currencySymbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode;
-  const logoBannerDataUri = getLogoBannerDataUri();
+  const logoBannerDataUri = customLogo || getLogoBannerDataUri();
+
+  const isProforma = invoice.invoice_type === 'Proforma';
+  const totalAmt = Number(invoice.total_amount || 0);
+  const paidAmt = Number(invoice.paid_amount || 0);
+  const balanceDue = Math.max(0, totalAmt - paidAmt);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -99,12 +104,16 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
 
   const serviceList = Array.from(serviceMap.values());
   const invoiceNumber = `INV-${String(invoice.invoice_id).padStart(5, '0')}`;
+  const alignStyle = logoAlignment === 'left' ? 'text-align: left;' : logoAlignment === 'right' ? 'text-align: right;' : 'text-align: center;';
+
+  const statusColor = invoice.status === 'Paid' ? '#059669' : invoice.status === 'Partially Paid' ? '#0284c7' : '#b91c1c';
+  const statusBg = invoice.status === 'Paid' ? '#ecfdf5' : invoice.status === 'Partially Paid' ? '#e0f2fe' : '#fff1f2';
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Invoice ${invoiceNumber}</title>
+  <title>${isProforma ? 'Proforma Invoice' : 'Invoice'} ${invoiceNumber}</title>
   <style>
     @page {
       size: A4;
@@ -118,7 +127,6 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       box-sizing: border-box;
     }
 
-    /* Universal typography matching LOE: Same font and same font size throughout */
     body {
       font-family: 'Times New Roman', Times, serif;
       font-size: 11pt;
@@ -130,9 +138,8 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       print-color-adjust: exact;
     }
 
-    /* Top Letterhead Banner - Centered, matching LOE exactly */
     .top-banner-container {
-      text-align: center;
+      ${alignStyle}
       margin-bottom: 18px;
       padding-bottom: 4px;
       break-inside: avoid;
@@ -146,7 +153,6 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       display: inline-block;
     }
 
-    /* Header Bar */
     .invoice-header {
       display: flex;
       justify-content: space-between;
@@ -176,12 +182,23 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       font-family: 'Times New Roman', Times, serif;
       font-size: 11pt;
       font-weight: bold;
-      border: 1px solid ${invoice.status === 'Paid' ? '#059669' : '#b91c1c'};
-      background: ${invoice.status === 'Paid' ? '#ecfdf5' : '#fff1f2'};
-      color: ${invoice.status === 'Paid' ? '#047857' : '#be123c'};
+      border: 1px solid ${statusColor};
+      background: ${statusBg};
+      color: ${statusColor};
     }
 
-    /* Billed To and Details Grid */
+    .type-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 9.5pt;
+      font-weight: bold;
+      background: #f1f5f9;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+      margin-top: 4px;
+    }
+
     .grid-info {
       display: flex;
       justify-content: space-between;
@@ -211,7 +228,6 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       font-size: 11pt;
     }
 
-    /* Deliverables Table with Billing Routine Column */
     table.invoice-table {
       width: 100%;
       border-collapse: collapse;
@@ -263,7 +279,6 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       page-break-inside: avoid;
     }
 
-    /* Out of pocket expenses Note */
     .fee-note {
       font-style: italic;
       margin: 10px 0 14px 0;
@@ -274,7 +289,6 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       page-break-inside: avoid;
     }
 
-    /* Total Section */
     .total-section {
       margin-top: 14px;
       border: 1.5px solid #000000;
@@ -315,7 +329,7 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
 </head>
 <body>
 
-  <!-- Top Letterhead Banner (Exact design from uploaded image) -->
+  <!-- Top Letterhead Banner -->
   ${
     logoBannerDataUri
       ? `<div class="top-banner-container">
@@ -327,8 +341,9 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
   <!-- Header Row with Title and Status -->
   <div class="invoice-header">
     <div>
-      <div class="invoice-title">Official Tax Invoice</div>
+      <div class="invoice-title">${isProforma ? 'PROFORMA INVOICE (ADVANCE PAYMENT)' : 'Official Tax Invoice'}</div>
       <div style="margin-top: 3px;">Invoice No: <strong>${invoiceNumber}</strong></div>
+      ${isProforma ? '<span class="type-badge">Proforma / Advance Request</span>' : ''}
     </div>
     <div style="text-align: right;">
       <span class="status-badge">${invoice.status.toUpperCase()}</span>
@@ -350,10 +365,20 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       <div class="box-title">Invoice Details:</div>
       <div><strong>Issue Date:</strong> ${formatDate(invoice.issued_date)}</div>
       <div><strong>Due Date:</strong> ${formatDate(invoice.due_date)}</div>
+      <div><strong>Invoice Type:</strong> ${isProforma ? 'Proforma Invoice (Advance)' : 'Standard Tax Invoice'}</div>
       <div><strong>Billing Type:</strong> ${loe?.type || 'Adhoc'} (${loe?.billing_frequency || 'One-Time'})</div>
       <div><strong>Payment Terms:</strong> 15 Days from Invoice Date</div>
     </div>
   </div>
+
+  ${
+    invoice.notes
+      ? `<div class="box-info" style="margin-bottom: 14px; background: #f8fafc; border: 1px solid #cbd5e1;">
+           <div class="box-title">Notes / Advance Terms:</div>
+           <div>${invoice.notes}</div>
+         </div>`
+      : ''
+  }
 
   <!-- Deliverables & Professional Fees Table with Billing Routine Column -->
   <table class="invoice-table">
@@ -366,31 +391,40 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
       </tr>
     </thead>
     <tbody>
-      ${serviceList.map((srv, idx) => {
-        const cleanBullets = extractBulletPoints(srv.scopes);
-        const deptInfo = srv.subCategory
-          ? `${srv.department} – ${srv.subCategory}`
-          : srv.department;
+      ${
+        serviceList.length > 0
+          ? serviceList.map((srv, idx) => {
+              const cleanBullets = extractBulletPoints(srv.scopes);
+              const deptInfo = srv.subCategory
+                ? `${srv.department} – ${srv.subCategory}`
+                : srv.department;
 
-        return `
-          <tr>
-            <td class="center" style="font-weight: bold;">${idx + 1}</td>
-            <td>
-              <div>
-                <strong>${srv.name}</strong>
-                <span style="color: #475569;"> (${deptInfo})</span>
-              </div>
-              <ul class="scope-list">
-                ${cleanBullets.map(pt => `<li>${pt}</li>`).join('')}
-              </ul>
-            </td>
-            <td class="center">${srv.billingRoutine}</td>
-            <td class="right" style="font-weight: bold;">
-              ${formatCurrency(srv.amount)}
-            </td>
-          </tr>
-        `;
-      }).join('')}
+              return `
+                <tr>
+                  <td class="center" style="font-weight: bold;">${idx + 1}</td>
+                  <td>
+                    <div>
+                      <strong>${srv.name}</strong>
+                      <span style="color: #475569;"> (${deptInfo})</span>
+                    </div>
+                    <ul class="scope-list">
+                      ${cleanBullets.map(pt => `<li>${pt}</li>`).join('')}
+                    </ul>
+                  </td>
+                  <td class="center">${srv.billingRoutine}</td>
+                  <td class="right" style="font-weight: bold;">
+                    ${formatCurrency(srv.amount)}
+                  </td>
+                </tr>
+              `;
+            }).join('')
+          : `<tr>
+               <td class="center">1</td>
+               <td>${invoice.notes || (isProforma ? 'Advance Payment Request' : 'Professional Advisory Services')}</td>
+               <td class="center">One-Time</td>
+               <td class="right" style="font-weight: bold;">${formatCurrency(totalAmt)}</td>
+             </tr>`
+      }
     </tbody>
   </table>
 
@@ -402,7 +436,17 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company }) {
   <!-- Total Section -->
   <div class="total-section">
     <div>Please remit payment in <strong>${currencyCode} (${currencySymbol})</strong></div>
-    <div class="total-amount">Total Due: ${formatCurrency(invoice.total_amount)}</div>
+    <div style="text-align: right;">
+      <div class="total-amount">Total Invoiced: ${formatCurrency(totalAmt)}</div>
+      ${
+        paidAmt > 0
+          ? `<div style="font-size: 10.5pt; color: #059669; margin-top: 3px;">Paid to Date: -${formatCurrency(paidAmt)}</div>
+             <div style="font-size: 11pt; font-weight: bold; color: ${balanceDue > 0 ? '#b91c1c' : '#059669'}; margin-top: 3px;">
+               ${balanceDue > 0 ? 'Remaining Balance Due:' : 'Status: Fully Settled'} ${formatCurrency(balanceDue)}
+             </div>`
+          : ''
+      }
+    </div>
   </div>
 
   <!-- Remittance Information -->

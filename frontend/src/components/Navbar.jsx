@@ -354,6 +354,7 @@ export default function Navbar() {
     const found = navItems.find((item) => item.path === pathname);
     if (found) return found.label;
     if (pathname === '/settings') return 'Settings';
+    if (pathname === '/access-control' || pathname === '/permissions') return 'Access Control';
     return 'Task Management';
   };
 
@@ -635,7 +636,7 @@ export default function Navbar() {
             aria-label="Account Settings"
             style={{
               ...styles.topUtilityBtn,
-              ...(location.pathname === '/settings' ? styles.topUtilityBtnActive : {})
+              ...(location.pathname === '/settings' || location.pathname === '/access-control' ? styles.topUtilityBtnActive : {})
             }}
           >
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

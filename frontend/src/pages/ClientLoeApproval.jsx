@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
+import BlobLoader from '../components/BlobLoader';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -193,7 +194,7 @@ export default function ClientLoeApproval() {
         {successMsg && <div style={styles.successBanner}>{successMsg}</div>}
 
         {loading ? (
-          <div style={styles.loadingBox}>Loading Letter of Engagement...</div>
+          <div style={styles.loadingBox}><BlobLoader message="Loading Letter of Engagement..." /></div>
         ) : !loe ? (
           <div style={styles.loadingBox}>Letter of Engagement record not found.</div>
         ) : (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import apiFetch, { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
+import BlobLoader from '../components/BlobLoader';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -896,8 +897,8 @@ export default function CompanyManager() {
               </div>
 
               {loading ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                  Loading companies directory...
+                <div style={{ padding: '20px', textAlign: 'center' }}>
+                  <BlobLoader message="Loading companies directory &amp; financial summaries..." />
                 </div>
               ) : filteredCompanies.length === 0 ? (
                 <div style={{ padding: '45px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>

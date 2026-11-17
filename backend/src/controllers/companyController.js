@@ -168,8 +168,18 @@ function buildCompanyHistory(company) {
   };
 }
 
+// High-speed In-Memory Cache for Companies
+const companyCache = new Map();
+const COMPANY_CACHE_TTL = 90 * 1000;
+const clearCompanyCache = () => companyCache.clear();
+exports.clearCompanyCache = clearCompanyCache;
+
 // GET /api/companies
 exports.getAll = asyncHandler(async (req, res) => {
+  const cached = companyCache.get('ALL');
+  if (cached && (Date.now() - cached.time < COMPANY_CACHE_TTL)) {
+    return res.json(cached.data);
+  }
   const companies = await prisma.company.findMany({
     include: {
       loes: {
@@ -222,6 +232,7 @@ exports.getAll = asyncHandler(async (req, res) => {
     };
   });
 
+  companyCache.set('ALL', { data: enriched, time: Date.now() });
   res.json(enriched);
 });
 
@@ -257,6 +268,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // POST /api/companies
 exports.create = asyncHandler(async (req, res) => {
+  clearCompanyCache();
   const {
     name,
     client_type,
@@ -317,6 +329,7 @@ exports.create = asyncHandler(async (req, res) => {
 
 // PUT /api/companies/:id
 exports.update = asyncHandler(async (req, res) => {
+  clearCompanyCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
@@ -389,6 +402,7 @@ exports.update = asyncHandler(async (req, res) => {
 
 // DELETE /api/companies/:id (Requires Password Verification)
 const deleteCompany = asyncHandler(async (req, res) => {
+  clearCompanyCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 

@@ -203,19 +203,40 @@ model Task {
 }
 
 model Invoice {
-  invoice_id       Int      @id @default(autoincrement())
+  invoice_id       Int              @id @default(autoincrement())
   job_id           Int      
-  total_amount     Decimal  @db.Decimal(12, 2)
-  status           String   @db.VarChar(50)
-  issued_date      DateTime @db.Date
-  due_date         DateTime @db.Date
-  last_reminded_at DateTime? @db.Timestamp() // NEW: For reminder tracking
+  total_amount     Decimal          @db.Decimal(12, 2)
+  status           String           @db.VarChar(50)
+  issued_date      DateTime         @db.Date
+  due_date         DateTime         @db.Date
+  last_reminded_at DateTime?        @db.Timestamp() // NEW: For reminder tracking
+  invoice_type     String           @default("Standard") @db.VarChar(50)
+  paid_amount      Decimal          @default(0.00) @db.Decimal(12, 2)
+  notes            String?          @db.Text
 
   // Relations
-  job              Job      @relation(fields: [job_id], references: [job_id])
+  job              Job              @relation(fields: [job_id], references: [job_id])
+  payments         InvoicePayment[]
 
   @@index([job_id])
   @@map("invoices")
+}
+
+model InvoicePayment {
+  payment_id     Int      @id @default(autoincrement())
+  invoice_id     Int
+  amount         Decimal  @db.Decimal(12, 2)
+  payment_date   DateTime @default(now()) @db.Date
+  payment_method String   @default("Bank Transfer") @db.VarChar(50)
+  reference_no   String?  @db.VarChar(100)
+  notes          String?  @db.Text
+  created_at     DateTime @default(now())
+
+  // Relations
+  invoice        Invoice  @relation(fields: [invoice_id], references: [invoice_id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@map("invoice_payments")
 }
 
 model PettyCash {

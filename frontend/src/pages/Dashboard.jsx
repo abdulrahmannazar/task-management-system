@@ -3,6 +3,7 @@ import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
+import BlobLoader from '../components/BlobLoader';
 
 // Helper to parse long or multi-point scopes into clean bullet lists
 const parseScopePoints = (scopeText) => {
@@ -205,7 +206,7 @@ export default function Dashboard() {
           </div>
 
           {loading ? (
-            <div style={styles.loadingState}>Loading insights...</div>
+            <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)' }}><BlobLoader message="Loading dashboard insights & performance..." /></div>
           ) : activeTab === 'tasks' ? (
             /* ==========================================
                TASKS INSIGHTS VIEW

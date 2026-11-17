@@ -1,10 +1,20 @@
 const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 
+// High-speed In-Memory Cache for Services
+const serviceCache = new Map();
+const SERVICE_CACHE_TTL = 90 * 1000;
+const clearServiceCache = () => serviceCache.clear();
+
 // GET /api/services
 exports.getAll = asyncHandler(async (req, res) => {
   const role = req.query.role;
   const deptId = parseInt(req.query.department_id);
+  const cacheKey = `${role}_${deptId}`;
+  const cached = serviceCache.get(cacheKey);
+  if (cached && (Date.now() - cached.time < SERVICE_CACHE_TTL)) {
+    return res.json(cached.data);
+  }
 
   const query = {
     include: { department: true },
@@ -16,6 +26,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const services = await prisma.service.findMany(query);
+  serviceCache.set(cacheKey, { data: services, time: Date.now() });
   res.json(services);
 });
 
@@ -35,6 +46,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // POST /api/services
 exports.create = asyncHandler(async (req, res) => {
+  clearServiceCache();
   const { department_id, name, sub_category, scope, billing_type, price, is_active } = req.body;
 
   if (!department_id || !name) {
@@ -59,6 +71,7 @@ exports.create = asyncHandler(async (req, res) => {
 
 // PUT /api/services/:id
 exports.update = asyncHandler(async (req, res) => {
+  clearServiceCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Service ID' });
 
@@ -84,6 +97,7 @@ exports.update = asyncHandler(async (req, res) => {
 
 // DELETE /api/services/:id
 const deleteService = asyncHandler(async (req, res) => {
+  clearServiceCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Service ID' });
 

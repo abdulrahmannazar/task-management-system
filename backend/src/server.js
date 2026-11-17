@@ -34,4 +34,18 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Automated Keep-Alive Heartbeat: Prevents Render free-tier instance from sleeping (spins down after 15m)
+  const PING_INTERVAL_MS = 8 * 60 * 1000; // 8 minutes
+  const remoteHealthUrl = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL}/api/health`
+    : 'https://task-management-system-6ifq.onrender.com/api/health';
+
+  setInterval(async () => {
+    try {
+      if (typeof fetch === 'function') {
+        await fetch(remoteHealthUrl);
+      }
+    } catch (_) {}
+  }, PING_INTERVAL_MS);
 });
