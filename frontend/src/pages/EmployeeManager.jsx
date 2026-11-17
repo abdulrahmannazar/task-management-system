@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
+import { fetchCachedJson } from '../utils/api';
+import BlobLoader from '../components/BlobLoader';
 
 export default function EmployeeManager() {
   const navigate = useNavigate();
@@ -10,6 +12,7 @@ export default function EmployeeManager() {
 
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
   const [editingId, setEditingId] = useState(null);
@@ -45,9 +48,12 @@ export default function EmployeeManager() {
   const [formData, setFormData] = useState(initialFormState);
 
   useEffect(() => {
-    fetchEmployees();
-    fetchDepartments();
-    fetchTasks();
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([fetchEmployees(), fetchDepartments(), fetchTasks()]);
+      setLoading(false);
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -79,9 +85,8 @@ export default function EmployeeManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/departments`);
-      const data = await response.json();
-      if (response.ok && Array.isArray(data)) setDepartments(data);
+      const data = await fetchCachedJson('/api/auth/departments');
+      if (Array.isArray(data)) setDepartments(data);
     } catch (err) {
       console.error(err);
     }
@@ -807,7 +812,11 @@ export default function EmployeeManager() {
 
             {/* Employees Cards Grid */}
             <div style={styles.listSection}>
-              {displayedEmployees.length === 0 ? (
+              {loading ? (
+                <div style={{ ...styles.emptyState, background: '#ffffff', padding: '10px' }}>
+                  <BlobLoader message="Loading employees directory &amp; task loads..." />
+                </div>
+              ) : displayedEmployees.length === 0 ? (
                 <div style={styles.emptyState}>No employees found.</div>
               ) : (
                 <div style={styles.grid}>

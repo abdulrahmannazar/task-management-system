@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { API_BASE } from '../utils/api';
+import { API_BASE, fetchCachedJson } from '../utils/api';
+import BlobLoader from '../components/BlobLoader';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -52,6 +53,7 @@ export default function TaskAllocation() {
   const [successMsg, setSuccessMsg] = useState('');
   const [validationWarning, setValidationWarning] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingTasks, setLoadingTasks] = useState(true);
 
   // Filter States
   const [filterCompany, setFilterCompany] = useState(() => location.state?.filterCompany || '');
@@ -79,12 +81,19 @@ export default function TaskAllocation() {
   });
 
   useEffect(() => {
-    fetchTasks();
-    if (!isEmployee || canManage) fetchLoes();
-    fetchEmployees();
-    fetchCompanies();
-    fetchServices();
-    if (isAdmin) fetchDepartments();
+    const init = async () => {
+      setLoadingTasks(true);
+      await Promise.all([
+        fetchTasks(),
+        (!isEmployee || canManage) ? fetchLoes() : Promise.resolve(),
+        fetchEmployees(),
+        fetchCompanies(),
+        fetchServices(),
+        isAdmin ? fetchDepartments() : Promise.resolve()
+      ]);
+      setLoadingTasks(false);
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -1051,7 +1060,11 @@ export default function TaskAllocation() {
               </div>
             </div>
 
-            {filteredTasks.length === 0 ? (
+            {loadingTasks ? (
+              <div style={{ ...styles.card, padding: '20px', textAlign: 'center' }}>
+                <BlobLoader message="Loading task allocations & tracker..." />
+              </div>
+            ) : filteredTasks.length === 0 ? (
               <div style={{ ...styles.card, padding: '40px', textAlign: 'center', color: '#64748b' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '15px' }}>No tasks found for the selected criteria.</div>
                 <div style={{ fontSize: '13px', marginTop: '4px' }}>Try switching between All, Assigned, and Unassigned tabs.</div>

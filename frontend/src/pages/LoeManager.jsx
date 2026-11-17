@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../utils/api';
+import { API_BASE, fetchCachedJson } from '../utils/api';
+import BlobLoader from '../components/BlobLoader';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -26,6 +27,7 @@ export default function LoeManager() {
   const [departments, setDepartments] = useState([]);
   const [services, setServices] = useState([]);
   const [companies, setCompanies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -62,10 +64,17 @@ export default function LoeManager() {
   const userDeptId = user.department_id || 1;
 
   useEffect(() => {
-    fetchLoes();
-    fetchDepartments();
-    fetchServices();
-    fetchCompanies();
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchLoes(),
+        fetchDepartments(),
+        fetchServices(),
+        fetchCompanies()
+      ]);
+      setLoading(false);
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -128,9 +137,8 @@ export default function LoeManager() {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/departments`);
-      const data = await response.json();
-      if (response.ok && Array.isArray(data)) setDepartments(data);
+      const data = await fetchCachedJson('/api/auth/departments');
+      if (Array.isArray(data)) setDepartments(data);
     } catch (err) {
       console.error('Failed to load departments', err);
     }
@@ -139,11 +147,8 @@ export default function LoeManager() {
   const fetchServices = async () => {
     try {
       if (!token) return;
-      const response = await fetch(`${API_BASE}/api/services`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (response.ok) setServices(data);
+      const data = await fetchCachedJson('/api/services');
+      if (Array.isArray(data)) setServices(data);
     } catch (err) {
       console.error('Failed to load services', err);
     }
@@ -152,11 +157,8 @@ export default function LoeManager() {
   const fetchCompanies = async () => {
     try {
       if (!token) return;
-      const response = await fetch(`${API_BASE}/api/companies`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (response.ok) {
+      const data = await fetchCachedJson('/api/companies');
+      if (data) {
         setCompanies(Array.isArray(data) ? data : data.companies || []);
       }
     } catch (err) {
@@ -1017,7 +1019,11 @@ export default function LoeManager() {
 
         {/* Existing LOEs Grid */}
         <div style={styles.listSection}>
-          {finalLoes.length === 0 ? (
+          {loading ? (
+            <div style={{ ...styles.emptyCard, background: '#ffffff', padding: '10px' }}>
+              <BlobLoader message="Loading Letters of Engagement..." />
+            </div>
+          ) : finalLoes.length === 0 ? (
             <div style={styles.emptyCard}>No LOEs found matching your criteria.</div>
           ) : (
             <div style={styles.grid}>

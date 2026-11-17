@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../utils/api';
+import { API_BASE, fetchCachedJson } from '../utils/api';
+import BlobLoader from '../components/BlobLoader';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -80,9 +81,14 @@ export default function InvoiceManager() {
   const userDeptId = user.department_id || 1;
 
   useEffect(() => {
-    fetchInvoices();
-    fetchCompanies();
-    fetchDepartments();
+    const init = async () => {
+      await Promise.all([
+        fetchInvoices(),
+        fetchCompanies(),
+        fetchDepartments()
+      ]);
+    };
+    init();
   }, []);
 
   // Sync viewing invoice when invoices list updates

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import BlobLoader from '../components/BlobLoader';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',

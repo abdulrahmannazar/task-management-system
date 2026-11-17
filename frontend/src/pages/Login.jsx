@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FrontierLogo from '../components/FrontierLogo';
-import { apiFetch } from '../utils/api';
+import { apiFetch, getApiUrl } from '../utils/api';
+import BlobLoader from '../components/BlobLoader';
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    // Immediate pre-warm ping so the server is wide awake by the time the user clicks submit
+    try {
+      fetch(getApiUrl('/api/health'), { keepalive: true }).catch(() => {});
+    } catch (_) {}
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -92,7 +100,7 @@ export default function Login() {
           </div>
 
           <button type="submit" disabled={loading} style={styles.button}>
-            {loading ? 'Authenticating...' : 'Sign In'}
+            {loading ? <BlobLoader inline size="small" message="Authenticating..." /> : 'Sign In'}
           </button>
         </form>
 
