@@ -277,7 +277,9 @@ export default function DispatchTracker() {
           </div>
 
           {loading ? (
-            <div style={styles.loadingState}>Loading records...</div>
+            <div style={{ ...styles.loadingState, background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BlobLoader message="Loading dispatch tracking records..." size="large" />
+          </div>
           ) : activeTab === 'loe' ? (
             <div>
               <div style={styles.statsGrid}>

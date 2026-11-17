@@ -1249,7 +1249,9 @@ export default function InvoiceManager() {
 
                 {/* Invoices List / Grid Display */}
                 {loading ? (
-                  <div style={styles.emptyCard}>Loading invoices...</div>
+                  <div style={{ ...styles.emptyCard, background: '#ffffff', padding: '40px 20px', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BlobLoader message="Loading invoices & financial records..." size="large" />
+                </div>
                 ) : filteredInvoices.length === 0 ? (
                   <div style={styles.emptyCard}>No invoices match your filter criteria.</div>
                 ) : viewMode === 'list' ? (

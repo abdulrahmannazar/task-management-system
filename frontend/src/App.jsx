@@ -14,6 +14,7 @@ import EmployeeManager from './pages/EmployeeManager';
 import InvoiceManager from './pages/InvoiceManager';
 import DispatchTracker from './pages/DispatchTracker';
 import Settings from './pages/Settings';
+import AccessControl from './pages/AccessControl';
 import PettyCashManager from './pages/PettyCashManager';
 
 function App() {
@@ -36,6 +37,8 @@ function App() {
         <Route path="/companies" element={<CompanyManager />} />
         <Route path="/dispatch" element={<DispatchTracker />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/access-control" element={<AccessControl />} />
+        <Route path="/permissions" element={<AccessControl />} />
       </Routes>
     </BrowserRouter>
   );

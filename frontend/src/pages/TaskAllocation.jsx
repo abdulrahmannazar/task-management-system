@@ -824,7 +824,13 @@ export default function TaskAllocation() {
         {error && <div style={styles.errorBanner}>{error}</div>}
         {successMsg && <div style={styles.successBanner}>{successMsg}</div>}
 
-        {/* VIEW 1: ALLOCATION BOARD TABLE */}
+                {loadingTasks ? (
+          <div style={{ ...styles.card, padding: '50px 20px', minHeight: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BlobLoader message="Loading task allocations & tracker workspace..." size="large" />
+          </div>
+        ) : (
+          <>
+{/* VIEW 1: ALLOCATION BOARD TABLE */}
         {activeView === 'allocation' && (
           <div style={styles.card}>
             {filteredGroups.length === 0 ? (
@@ -959,48 +965,7 @@ export default function TaskAllocation() {
         {/* VIEW 2: TASK STATUS TRACKER (Default List View with View Toggle & Assigned/Unassigned Filter) */}
         {activeView === 'tracker' && (
           <div>
-            {/* Interactive Staff Quick-Filter Bar */}
-            <div style={styles.staffFilterContainer}>
-              <div style={styles.staffFilterHeader}>
-                <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#334155' }}>
-                  Quick Filter by Staff Member:
-                </span>
-                {filterAssignee !== 'ALL' && (
-                  <button 
-                    type="button" 
-                    onClick={handleClearStaffFilter}
-                    style={styles.clearStaffBtn}
-                  >
-                    ✕ Clear Staff Filter ({employees.find(e => String(e.emp_id) === String(filterAssignee))?.name || 'Staff'})
-                  </button>
-                )}
-              </div>
-              <div style={styles.staffPillRow}>
-                <button
-                  type="button"
-                  onClick={() => setFilterAssignee('ALL')}
-                  style={filterAssignee === 'ALL' ? styles.staffPillActive : styles.staffPill}
-                >
-                  All Staff ({tasks.length})
-                </button>
-                {employees.map(emp => {
-                  const empTaskCount = tasks.filter(t => (t.assignees || []).some(a => a.emp_id === emp.emp_id)).length;
-                  const isSelected = String(filterAssignee) === String(emp.emp_id);
-                  return (
-                    <button
-                      key={emp.emp_id}
-                      type="button"
-                      onClick={() => handleFilterByStaff(emp.emp_id, emp.name)}
-                      style={isSelected ? styles.staffPillActive : styles.staffPill}
-                    >
-                      <span style={styles.staffAvatarMini}>{emp.name ? emp.name.charAt(0).toUpperCase() : 'E'}</span>
-                      {emp.name}
-                      <span style={isSelected ? styles.staffCountBadgeActive : styles.staffCountBadge}>{empTaskCount}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            
 
             {/* Batch Action Toolbar when tasks are selected */}
             {selectedTaskIds.length > 0 && (
@@ -1060,11 +1025,7 @@ export default function TaskAllocation() {
               </div>
             </div>
 
-            {loadingTasks ? (
-              <div style={{ ...styles.card, padding: '20px', textAlign: 'center' }}>
-                <BlobLoader message="Loading task allocations & tracker..." />
-              </div>
-            ) : filteredTasks.length === 0 ? (
+            {filteredTasks.length === 0 ? (
               <div style={{ ...styles.card, padding: '40px', textAlign: 'center', color: '#64748b' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '15px' }}>No tasks found for the selected criteria.</div>
                 <div style={{ fontSize: '13px', marginTop: '4px' }}>Try switching between All, Assigned, and Unassigned tabs.</div>
@@ -1290,6 +1251,8 @@ export default function TaskAllocation() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
 
         {/* ALLOCATION MODAL (Pop-up with Comments, Search, Past Date support, NO Status dropdown, NO Emojis) */}
@@ -2164,9 +2127,16 @@ const styles = {
   unassignedBadge: { background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '3px 8px', borderRadius: '10px', fontSize: '11.5px', fontWeight: 'bold', display: 'inline-block' },
   assigneePill: { background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '2px 8px', fontSize: '11.5px', color: '#334155' },
   assigneePillMini: { background: '#f1f5f9', borderRadius: '10px', padding: '2px 7px', fontSize: '11px', color: '#334155', border: '1px solid #e2e8f0' },
-  actionIconBtn: { padding: '6px 12px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
+  actionIconBtn: { padding: '6px 12px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)', transition: 'all 0.15s ease' },
+  startTaskBtn: { padding: '6px 14px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(2, 132, 199, 0.25)', transition: 'all 0.15s ease' },
+  startTaskModalBtn: { padding: '8px 18px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 1px 2px rgba(2, 132, 199, 0.25)', transition: 'all 0.15s ease' },
+  completeTaskModalBtn: { padding: '8px 18px', background: '#059669', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 1px 2px rgba(5, 150, 105, 0.25)', transition: 'all 0.15s ease' },
+  batchToolbar: { background: '#0f172a', padding: '12px 18px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 6px -1px rgba(15, 23, 42, 0.15)' },
+  batchStartBtn: { padding: '8px 16px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s ease' },
+  batchClearBtn: { padding: '8px 14px', background: 'transparent', color: '#94a3b8', border: '1px solid #475569', borderRadius: '6px', fontSize: '12.5px', fontWeight: '500', cursor: 'pointer', transition: 'all 0.15s ease' },
+  assigneePillClickable: { background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '3px 8px', fontSize: '11.5px', color: '#334155', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s ease' },
   actionPrimaryBtn: { padding: '6px 14px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
-  remindTableBtn: { padding: '5px 10px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: '4px', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer' },
+  remindTableBtn: { padding: '6px 12px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s ease' },
   trackerNotice: { background: '#f0f9ff', border: '1px solid #bae6fd', padding: '12px 18px', borderRadius: '8px', marginBottom: '20px', color: '#0369a1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' },
   displayModeGroup: { display: 'flex', background: '#ffffff', padding: '3px', borderRadius: '6px', border: '1px solid #bae6fd', gap: '3px' },
   modeBtn: { padding: '5px 12px', background: 'transparent', color: '#475569', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
@@ -2180,8 +2150,8 @@ const styles = {
   cardInfoRow: { display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginTop: '6px', paddingBottom: '6px', borderBottom: '1px dashed #f1f5f9' },
   cardCommentsSnippet: { background: '#f8fafc', padding: '6px 8px', borderRadius: '4px', fontSize: '11px', color: '#475569', fontStyle: 'italic', marginBottom: '10px' },
   cardFooterActions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '6px' },
-  cardStatusSelect: { padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
-  cardDetailBtn: { padding: '5px 10px', background: '#f8fafc', color: '#0284c7', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '11.5px', fontWeight: 'bold', cursor: 'pointer' },
+  cardStatusSelect: { padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: '600', cursor: 'pointer', outline: 'none' },
+  cardDetailBtn: { padding: '6px 12px', background: '#ffffff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.15s ease' },
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
   modalContent: { background: '#fff', borderRadius: '8px', width: '100%', maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.2)', border: '1px solid #e2e8f0' },
   detailsModalContent: { background: '#fff', borderRadius: '8px', width: '100%', maxWidth: '840px', maxHeight: '90vh', overflowY: 'auto', padding: '26px', boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.25)', border: '1px solid #e2e8f0' },
