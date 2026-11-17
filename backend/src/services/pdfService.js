@@ -176,8 +176,8 @@ exports.generateLoePdf = async ({ loe, company }) => {
 /**
  * Compiles the Invoice HTML template and generates a PDF buffer using Puppeteer
  */
-exports.generateInvoicePdf = async ({ invoice, loe, company }) => {
-  const htmlContent = generateInvoiceTemplate({ invoice, loe, company });
+exports.generateInvoicePdf = async ({ invoice, loe, company, customLogo, logoAlignment }) => {
+  const htmlContent = generateInvoiceTemplate({ invoice, loe, company, customLogo, logoAlignment });
   const browser = await puppeteer.launch(getLaunchOptions());
 
   try {
