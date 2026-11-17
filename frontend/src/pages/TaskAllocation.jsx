@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -54,7 +54,7 @@ export default function TaskAllocation() {
   const [saving, setSaving] = useState(false);
 
   // Filter States
-  const [filterCompany, setFilterCompany] = useState('');
+  const [filterCompany, setFilterCompany] = useState(() => location.state?.filterCompany || '');
   const [filterService, setFilterService] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterAssignee, setFilterAssignee] = useState('ALL');

@@ -659,25 +659,55 @@ export default function LoeManager() {
     return (b.loe_id || 0) - (a.loe_id || 0);
   });
 
+  const pendingCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+    return (st.includes('pending') || st === 'approval pending') && !st.includes('reject') && !st.includes('revision') && !hasRej && !hasRev;
+  }).length;
+
+  const approvedCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    return st.includes('approved') && !st.includes('pending');
+  }).length;
+
+  const revisionCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+    return st.includes('revision') || hasRev;
+  }).length;
+
+  const rejectedCount = displayedLoes.filter(l => {
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+    return (st.includes('reject') || hasRej) && !st.includes('revision') && !hasRev;
+  }).length;
+
+  const myCreatedCount = displayedLoes.filter(l => l.created_by === user?.emp_id).length;
+
   const finalLoes = prioritizedLoes.filter(l => {
-    if (loeCategoryTab === 'REVISION_REJECTED') {
-      const st = (l.status || '').toLowerCase();
-      const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
-      return st.includes('revision') || st.includes('reject') || hasRej;
+    const st = (l.status || '').toLowerCase();
+    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
+    const hasRev = (l.loe_items || []).some(it => (it.rejection_reason || '').toLowerCase().includes('revision') || (it.status || '').toLowerCase().includes('revision'));
+
+    if (loeCategoryTab === 'PENDING') {
+      return (st.includes('pending') || st === 'approval pending') && !st.includes('reject') && !st.includes('revision') && !hasRej && !hasRev;
+    }
+    if (loeCategoryTab === 'APPROVED') {
+      return st.includes('approved') && !st.includes('pending');
+    }
+    if (loeCategoryTab === 'REVISION_REQUIRED') {
+      return st.includes('revision') || hasRev;
+    }
+    if (loeCategoryTab === 'REJECTED') {
+      return (st.includes('reject') || hasRej) && !st.includes('revision') && !hasRev;
     }
     if (loeCategoryTab === 'MY_CREATED') {
       return l.created_by === user?.emp_id;
     }
-    return true;
+    return true; // 'ALL'
   });
-
-  const revisionCount = displayedLoes.filter(l => {
-    const st = (l.status || '').toLowerCase();
-    const hasRej = (l.loe_items || []).some(it => it.status === 'Rejected');
-    return st.includes('revision') || st.includes('reject') || hasRej;
-  }).length;
-
-  const myCreatedCount = displayedLoes.filter(l => l.created_by === user?.emp_id).length;
 
   const hasActiveFilters =
     filterCompany !== '' ||
@@ -728,7 +758,7 @@ export default function LoeManager() {
         </div>
 
         {/* Full-width Filter Bar */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             type="button"
             onClick={() => setLoeCategoryTab('ALL')}
@@ -738,29 +768,117 @@ export default function LoeManager() {
               border: loeCategoryTab === 'ALL' ? '1px solid #0284c7' : '1px solid #cbd5e1',
               background: loeCategoryTab === 'ALL' ? '#f0f9ff' : '#ffffff',
               color: loeCategoryTab === 'ALL' ? '#0284c7' : '#475569',
-              fontWeight: 'bold',
+              fontWeight: loeCategoryTab === 'ALL' ? '700' : '500',
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
             }}
           >
-            All LOEs ({displayedLoes.length})
+            All LOEs
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'ALL' ? '#0284c7' : '#f1f5f9', color: loeCategoryTab === 'ALL' ? '#ffffff' : '#64748b', padding: '1px 7px', borderRadius: '10px' }}>
+              {displayedLoes.length}
+            </span>
           </button>
+
           <button
             type="button"
-            onClick={() => setLoeCategoryTab('REVISION_REJECTED')}
+            onClick={() => setLoeCategoryTab('PENDING')}
             style={{
               padding: '7px 14px',
               borderRadius: '6px',
-              border: loeCategoryTab === 'REVISION_REJECTED' ? '1px solid #e11d48' : '1px solid #cbd5e1',
-              background: loeCategoryTab === 'REVISION_REJECTED' ? '#fff1f2' : '#ffffff',
-              color: loeCategoryTab === 'REVISION_REJECTED' ? '#e11d48' : '#475569',
-              fontWeight: 'bold',
+              border: loeCategoryTab === 'PENDING' ? '1px solid #d97706' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'PENDING' ? '#fffbeb' : '#ffffff',
+              color: loeCategoryTab === 'PENDING' ? '#b45309' : '#475569',
+              fontWeight: loeCategoryTab === 'PENDING' ? '700' : '500',
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
             }}
           >
-            Revision Required &amp; Rejected ({revisionCount})
+            Pending Approval
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'PENDING' ? '#d97706' : '#fef3c7', color: loeCategoryTab === 'PENDING' ? '#ffffff' : '#b45309', padding: '1px 7px', borderRadius: '10px' }}>
+              {pendingCount}
+            </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('APPROVED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'APPROVED' ? '1px solid #059669' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'APPROVED' ? '#ecfdf5' : '#ffffff',
+              color: loeCategoryTab === 'APPROVED' ? '#059669' : '#475569',
+              fontWeight: loeCategoryTab === 'APPROVED' ? '700' : '500',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Approved
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'APPROVED' ? '#059669' : '#d1fae5', color: loeCategoryTab === 'APPROVED' ? '#ffffff' : '#065f46', padding: '1px 7px', borderRadius: '10px' }}>
+              {approvedCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('REVISION_REQUIRED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'REVISION_REQUIRED' ? '1px solid #e11d48' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'REVISION_REQUIRED' ? '#fff1f2' : '#ffffff',
+              color: loeCategoryTab === 'REVISION_REQUIRED' ? '#e11d48' : '#475569',
+              fontWeight: loeCategoryTab === 'REVISION_REQUIRED' ? '700' : '500',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Revision Required
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'REVISION_REQUIRED' ? '#e11d48' : '#ffe4e6', color: loeCategoryTab === 'REVISION_REQUIRED' ? '#ffffff' : '#9f1239', padding: '1px 7px', borderRadius: '10px' }}>
+              {revisionCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setLoeCategoryTab('REJECTED')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              border: loeCategoryTab === 'REJECTED' ? '1px solid #be123c' : '1px solid #cbd5e1',
+              background: loeCategoryTab === 'REJECTED' ? '#ffe4e6' : '#ffffff',
+              color: loeCategoryTab === 'REJECTED' ? '#9f1239' : '#475569',
+              fontWeight: loeCategoryTab === 'REJECTED' ? '700' : '500',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Rejected
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'REJECTED' ? '#be123c' : '#fecdd3', color: loeCategoryTab === 'REJECTED' ? '#ffffff' : '#881337', padding: '1px 7px', borderRadius: '10px' }}>
+              {rejectedCount}
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => setLoeCategoryTab('MY_CREATED')}
@@ -770,12 +888,19 @@ export default function LoeManager() {
               border: loeCategoryTab === 'MY_CREATED' ? '1px solid #2563eb' : '1px solid #cbd5e1',
               background: loeCategoryTab === 'MY_CREATED' ? '#eff6ff' : '#ffffff',
               color: loeCategoryTab === 'MY_CREATED' ? '#2563eb' : '#475569',
-              fontWeight: 'bold',
+              fontWeight: loeCategoryTab === 'MY_CREATED' ? '700' : '500',
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease'
             }}
           >
-            My Created LOEs ({myCreatedCount})
+            My Created LOEs
+            <span style={{ fontSize: '11px', background: loeCategoryTab === 'MY_CREATED' ? '#2563eb' : '#dbeafe', color: loeCategoryTab === 'MY_CREATED' ? '#ffffff' : '#1e40af', padding: '1px 7px', borderRadius: '10px' }}>
+              {myCreatedCount}
+            </span>
           </button>
         </div>
         <div style={styles.filterBar}>

@@ -432,6 +432,7 @@ export default function ServiceManager() {
                     <option value="Hourly">Hourly Rate</option>
                     <option value="Monthly">Monthly Retainer</option>
                     <option value="Quarterly">Quarterly</option>
+                    <option value="Annually">Annually</option>
                   </select>
                 </div>
               </div>
