@@ -27,6 +27,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Lightweight Health and Keep-Alive Probe (Instant 200 OK)
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: Date.now() });
+});
+
 // Authentication and Public Routes
 app.use('/api/auth', authRoutes);
 

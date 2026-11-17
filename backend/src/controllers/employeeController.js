@@ -25,11 +25,21 @@ const getRequester = (req) => {
   };
 };
 
+// High-speed In-Memory Cache for Employees
+const employeeCache = new Map();
+const EMPLOYEE_CACHE_TTL = 90 * 1000;
+const clearEmployeeCache = () => employeeCache.clear();
+
 // GET /api/employees
 exports.getAll = asyncHandler(async (req, res) => {
   const requester = getRequester(req);
   const role = req.query.role || requester.role;
   const deptId = parseInt(req.query.department_id || requester.department_id);
+  const cacheKey = `${role}_${deptId}`;
+  const cached = employeeCache.get(cacheKey);
+  if (cached && (Date.now() - cached.time < EMPLOYEE_CACHE_TTL)) {
+    return res.json(cached.data);
+  }
 
   const query = {
     select: {
@@ -49,6 +59,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const employees = await prisma.employee.findMany(query);
+  employeeCache.set(cacheKey, { data: employees, time: Date.now() });
   res.json(employees);
 });
 
@@ -76,6 +87,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
 // POST /api/employees
 exports.create = asyncHandler(async (req, res) => {
+  clearEmployeeCache();
   const requester = getRequester(req);
   const { name, email, password, department_id, role } = req.body;
 
@@ -141,6 +153,7 @@ exports.create = asyncHandler(async (req, res) => {
 
 // PUT /api/employees/:id
 exports.update = asyncHandler(async (req, res) => {
+  clearEmployeeCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Employee ID' });
 
@@ -202,6 +215,7 @@ exports.update = asyncHandler(async (req, res) => {
 
 // DELETE /api/employees/:id
 const deleteEmployee = asyncHandler(async (req, res) => {
+  clearEmployeeCache();
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Employee ID' });
 
