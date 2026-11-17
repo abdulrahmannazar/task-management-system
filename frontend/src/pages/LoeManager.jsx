@@ -1426,8 +1426,42 @@ export default function LoeManager() {
 
                       {(selectedService || srvBlock.is_custom) && (
                         <div style={styles.scopeSelectionSection}>
+                          {/* SELECTED SCOPES LIST (Rendered Above the Scope Toolbar) */}
+                          <div style={{ ...styles.scopeListContainer, marginBottom: srvBlock.scopes.length > 0 ? '12px' : '8px' }}>
+                            {srvBlock.scopes.length === 0 ? (
+                              <p style={styles.emptyNotice}>
+                                {srvBlock.is_custom
+                                  ? 'No custom scopes added yet. Click "+ Add Custom Scope" below to type client deliverables.'
+                                  : 'No scopes added yet. Select a scope from the dropdown below or click "+ Custom Scope".'}
+                              </p>
+                            ) : (
+                              srvBlock.scopes.map((scopeText, scIdx) => (
+                                <div key={scIdx} style={styles.scopeItemRow}>
+                                  <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
+                                  <textarea
+                                    rows="2"
+                                    placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
+                                    value={scopeText}
+                                    onChange={(e) => handleScopeTextChange(srvIdx, scIdx, e.target.value)}
+                                    style={styles.scopeTextarea}
+                                    required
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeScopeItem(srvIdx, scIdx)}
+                                    style={styles.removeScopeBtn}
+                                    title="Delete scope"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* SCOPE SELECTION TOOLBAR (Rendered Under the Selected Scopes) */}
                           {srvBlock.is_custom ? (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#0369a1' }}>
                                  Custom Scope Deliverables for Client:
                               </span>
@@ -1495,38 +1529,6 @@ export default function LoeManager() {
                               </button>
                             </div>
                           )}
-
-                          <div style={styles.scopeListContainer}>
-                            {srvBlock.scopes.length === 0 ? (
-                              <p style={styles.emptyNotice}>
-                                {srvBlock.is_custom
-                                  ? 'No custom scopes added yet. Click "+ Add Custom Scope" to type client deliverables.'
-                                  : 'No scopes added yet. Select a scope from the dropdown above or click "+ Custom Scope".'}
-                              </p>
-                            ) : (
-                              srvBlock.scopes.map((scopeText, scIdx) => (
-                                <div key={scIdx} style={styles.scopeItemRow}>
-                                  <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
-                                  <textarea
-                                    rows="2"
-                                    placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
-                                    value={scopeText}
-                                    onChange={(e) => handleScopeTextChange(srvIdx, scIdx, e.target.value)}
-                                    style={styles.scopeTextarea}
-                                    required
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => removeScopeItem(srvIdx, scIdx)}
-                                    style={styles.removeScopeBtn}
-                                    title="Delete scope"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
                         </div>
                       )}
                     </div>
@@ -1915,7 +1917,7 @@ const styles = {
     display: 'flex',
     gap: '8px',
     alignItems: 'center',
-    marginBottom: '10px',
+    marginTop: '4px',
     flexWrap: 'wrap'
   },
   addAllBtn: {
