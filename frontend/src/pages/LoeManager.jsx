@@ -337,15 +337,41 @@ export default function LoeManager() {
     });
   };
 
-  const addSelectedScope = (serviceIndex) => {
+  const addSelectedScope = (serviceIndex, templateScopes = []) => {
     const serviceBlock = formData.loe_services[serviceIndex];
     if (!serviceBlock.selectedScopeChoice) return;
+
+    if (serviceBlock.selectedScopeChoice === '__ALL_SCOPES__') {
+      addAllScopes(serviceIndex, templateScopes);
+      return;
+    }
 
     setFormData(prev => {
       const updated = [...prev.loe_services];
       updated[serviceIndex] = {
         ...serviceBlock,
         scopes: [...serviceBlock.scopes, serviceBlock.selectedScopeChoice],
+        selectedScopeChoice: ''
+      };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  const addAllScopes = (serviceIndex, templateScopes = []) => {
+    if (!templateScopes || templateScopes.length === 0) return;
+
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const serviceBlock = updated[serviceIndex];
+      const currentScopes = serviceBlock.scopes || [];
+      const currentTrimmed = new Set(currentScopes.map(s => (s || '').trim()));
+
+      const toAdd = templateScopes.filter(ts => !currentTrimmed.has((ts || '').trim()));
+      const finalScopes = toAdd.length > 0 ? [...currentScopes, ...toAdd] : currentScopes.length === 0 ? [...templateScopes] : currentScopes;
+
+      updated[serviceIndex] = {
+        ...serviceBlock,
+        scopes: finalScopes,
         selectedScopeChoice: ''
       };
       return { ...prev, loe_services: updated };
@@ -1428,6 +1454,11 @@ export default function LoeManager() {
                                 style={styles.dropdownInput}
                               >
                                 <option value="" disabled>Select Scope Template...</option>
+                                {templateScopes.length > 0 && (
+                                  <option value="__ALL_SCOPES__" style={{ fontWeight: 'bold', color: '#0284c7' }}>
+                                    Select All Scopes ({templateScopes.length} Deliverables)
+                                  </option>
+                                )}
                                 {templateScopes.map((sc, i) => (
                                   <option key={i} value={sc}>
                                     {sc}
@@ -1437,12 +1468,23 @@ export default function LoeManager() {
 
                               <button
                                 type="button"
-                                onClick={() => addSelectedScope(srvIdx)}
+                                onClick={() => addSelectedScope(srvIdx, templateScopes)}
                                 disabled={!srvBlock.selectedScopeChoice}
                                 style={styles.addScopeBtn}
                               >
-                                + Add Selected Scope
+                                {srvBlock.selectedScopeChoice === '__ALL_SCOPES__' ? '+ Add All Scopes' : '+ Add Selected Scope'}
                               </button>
+
+                              {templateScopes.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => addAllScopes(srvIdx, templateScopes)}
+                                  style={styles.addAllBtn}
+                                  title="Add all template scopes at once"
+                                >
+                                  + Select All Scopes
+                                </button>
+                              )}
 
                               <button
                                 type="button"
@@ -1875,6 +1917,18 @@ const styles = {
     alignItems: 'center',
     marginBottom: '10px',
     flexWrap: 'wrap'
+  },
+  addAllBtn: {
+    padding: '8px 12px',
+    background: '#f0f9ff',
+    color: '#0284c7',
+    border: '1px solid #bae6fd',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.15s ease'
   },
   addScopeBtn: {
     padding: '8px 12px',
