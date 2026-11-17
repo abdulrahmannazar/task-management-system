@@ -38,6 +38,12 @@ export default function TaskAllocation() {
   const [assignmentTab, setAssignmentTab] = useState('ALL'); // 'ALL' | 'UNASSIGNED' | 'ASSIGNED'
   const [trackerDisplayMode, setTrackerDisplayMode] = useState('list'); // 'list' | 'board'
 
+  // Staff Insights State (For Department Managers & Admins)
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [insightsSearch, setInsightsSearch] = useState('');
+  const [insightsLoadFilter, setInsightsLoadFilter] = useState('ALL'); // 'ALL' | 'LIGHT' | 'OPTIMAL' | 'HEAVY' | 'OVERDUE'
+  const [expandedBacklogs, setExpandedBacklogs] = useState({});
+
   // Modals & Details
   const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -169,6 +175,82 @@ export default function TaskAllocation() {
       const data = await response.json();
       if (response.ok && Array.isArray(data)) setDepartments(data);
     } catch (err) {}
+  };
+
+  // Helper utilities for Staff Insights & Date Bounds
+  const getInitials = (name) => {
+    if (!name) return 'S';
+    return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const getWeekBounds = (offset = 0) => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = (day + 6) % 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diffToMonday + (offset * 7));
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    return { monday, sunday };
+  };
+
+  const getWorkloadLevel = (activeCount) => {
+    if (activeCount === 0) {
+      return {
+        statusText: 'Available (0 Active)',
+        badgeBg: '#f1f5f9',
+        badgeColor: '#475569',
+        badgeBorder: '#cbd5e1',
+        scorePercent: 10,
+        meterColor: '#94a3b8'
+      };
+    }
+    if (activeCount <= 2) {
+      return {
+        statusText: 'Light Workload',
+        badgeBg: '#ecfdf5',
+        badgeColor: '#059669',
+        badgeBorder: '#a7f3d0',
+        scorePercent: Math.round((activeCount / 6) * 100),
+        meterColor: '#10b981'
+      };
+    }
+    if (activeCount <= 5) {
+      return {
+        statusText: 'Optimal Capacity',
+        badgeBg: '#f0f9ff',
+        badgeColor: '#0284c7',
+        badgeBorder: '#bae6fd',
+        scorePercent: Math.round((activeCount / 6) * 100),
+        meterColor: '#0284c7'
+      };
+    }
+    if (activeCount <= 7) {
+      return {
+        statusText: 'Heavy Workload',
+        badgeBg: '#fffbeb',
+        badgeColor: '#b45309',
+        badgeBorder: '#fde68a',
+        scorePercent: Math.min(100, Math.round((activeCount / 6) * 100)),
+        meterColor: '#f59e0b'
+      };
+    }
+    return {
+      statusText: 'Overloaded / High Pressure',
+      badgeBg: '#fff1f2',
+      badgeColor: '#e11d48',
+      badgeBorder: '#fecdd3',
+      scorePercent: 100,
+      meterColor: '#e11d48'
+    };
+  };
+
+  const toggleBacklog = (empId) => {
+    setExpandedBacklogs(prev => ({ ...prev, [empId]: !prev[empId] }));
   };
 
   // Helper date utilities
@@ -602,6 +684,562 @@ export default function TaskAllocation() {
     );
   }
 
+  // =========================================================
+  // VIEW 3 COMPONENT: STAFF INSIGHTS & WEEKLY WORKLOAD TRACKER
+  // =========================================================
+  function renderStaffInsights() {
+    const { monday, sunday } = getWeekBounds(weekOffset);
+
+    // Scoped Staff List: Managers only see their department staff; Admins can filter
+    const staffForInsights = employees.filter(emp => {
+      if (!isAdmin && Number(emp.department_id) !== Number(userDeptId)) {
+        return false;
+      }
+      if (isAdmin && filterDepartment !== 'ALL' && Number(emp.department_id) !== Number(filterDepartment)) {
+        return false;
+      }
+      if (insightsSearch.trim()) {
+        const q = insightsSearch.toLowerCase().trim();
+        const matchName = (emp.name || '').toLowerCase().includes(q);
+        const matchEmail = (emp.email || '').toLowerCase().includes(q);
+        const matchRole = (emp.role || '').toLowerCase().includes(q);
+        if (!matchName && !matchEmail && !matchRole) return false;
+      }
+      if (insightsLoadFilter !== 'ALL') {
+        const empActiveCount = tasks.filter(t => 
+          (t.assignees || []).some(a => Number(a.emp_id) === Number(emp.emp_id)) && 
+          t.status !== 'Completed' && t.status !== 'Discontinued'
+        ).length;
+        const hasOverdue = tasks.some(t => 
+          (t.assignees || []).some(a => Number(a.emp_id) === Number(emp.emp_id)) &&
+          isOverdue(t.deadline, t.status)
+        );
+
+        if (insightsLoadFilter === 'AVAILABLE' && empActiveCount > 0) return false;
+        if (insightsLoadFilter === 'LIGHT' && (empActiveCount === 0 || empActiveCount > 2)) return false;
+        if (insightsLoadFilter === 'OPTIMAL' && (empActiveCount < 3 || empActiveCount > 5)) return false;
+        if (insightsLoadFilter === 'HEAVY' && (empActiveCount < 6 || empActiveCount > 7)) return false;
+        if (insightsLoadFilter === 'OVERLOADED' && empActiveCount < 8) return false;
+        if (insightsLoadFilter === 'OVERDUE' && !hasOverdue) return false;
+      }
+      return true;
+    });
+
+    // Compute Summary KPIs for the view
+    const totalStaffCount = staffForInsights.length;
+    let totalWeeklyDue = 0;
+    let totalOverdueAll = 0;
+    let overloadedStaffCount = 0;
+
+    staffForInsights.forEach(emp => {
+      const empTasks = tasks.filter(t => (t.assignees || []).some(a => Number(a.emp_id) === Number(emp.emp_id)));
+      const activeCount = empTasks.filter(t => t.status !== 'Completed' && t.status !== 'Discontinued').length;
+      if (activeCount >= 6) overloadedStaffCount++;
+
+      empTasks.forEach(t => {
+        if (t.deadline) {
+          const d = new Date(t.deadline);
+          if (!isNaN(d.getTime()) && d >= monday && d <= sunday) {
+            totalWeeklyDue++;
+          }
+          if (isOverdue(t.deadline, t.status)) {
+            totalOverdueAll++;
+          }
+        }
+      });
+    });
+
+    const isCurrentWeek = weekOffset === 0;
+    const weekLabel = isCurrentWeek 
+      ? `Current Week (${formatDate(monday)} – ${formatDate(sunday)})`
+      : weekOffset === 1
+      ? `Next Week (${formatDate(monday)} – ${formatDate(sunday)})`
+      : weekOffset === -1
+      ? `Previous Week (${formatDate(monday)} – ${formatDate(sunday)})`
+      : `Week of ${formatDate(monday)} – ${formatDate(sunday)}`;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Top Control Bar with Week Navigator, Staff Search, and Filters */}
+        <div style={styles.insightsControlCard}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a', fontWeight: '800' }}>
+                  Staff Workload &amp; Weekly Task Insights
+                </h3>
+                <span style={styles.insightsDeptPill}>
+                  {isAdmin ? 'All Departments (Admin Mode)' : `${departments.find(d => Number(d.department_id) === Number(userDeptId))?.name || 'Department'} Team`}
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                Review team member active workload capacities, weekly scheduled deadlines, and track potential bottlenecks.
+              </p>
+            </div>
+
+            {/* Week Navigator */}
+            <div style={styles.weekNavigatorGroup}>
+              <button
+                type="button"
+                onClick={() => setWeekOffset(prev => prev - 1)}
+                style={styles.weekNavBtn}
+                title="View previous week"
+              >
+                &larr; Prev Week
+              </button>
+              
+              <div style={styles.weekLabelBox}>
+                <span style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>{weekLabel}</span>
+                {isCurrentWeek && (
+                  <span style={styles.currentWeekTag}>ACTIVE</span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setWeekOffset(prev => prev + 1)}
+                style={styles.weekNavBtn}
+                title="View next week"
+              >
+                Next Week &rarr;
+              </button>
+
+              {!isCurrentWeek && (
+                <button
+                  type="button"
+                  onClick={() => setWeekOffset(0)}
+                  style={styles.todayResetBtn}
+                  title="Jump to current week"
+                >
+                  Current Week
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Filters Row */}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', paddingTop: '14px' }}>
+            <div style={{ flex: '1 1 240px' }}>
+              <input
+                type="text"
+                placeholder="Search staff by name or email..."
+                value={insightsSearch}
+                onChange={(e) => setInsightsSearch(e.target.value)}
+                style={styles.insightsSearchInput}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Workload Status:</label>
+              <select
+                value={insightsLoadFilter}
+                onChange={(e) => setInsightsLoadFilter(e.target.value)}
+                style={styles.insightsSelect}
+              >
+                <option value="ALL">All Staff Capacities</option>
+                <option value="AVAILABLE">Available / Idle (0 active)</option>
+                <option value="LIGHT">Light Workload (1-2 active)</option>
+                <option value="OPTIMAL">Optimal Capacity (3-5 active)</option>
+                <option value="HEAVY">Heavy Workload (6-7 active)</option>
+                <option value="OVERLOADED">Overloaded (8+ active)</option>
+                <option value="OVERDUE">Has Overdue Tasks</option>
+              </select>
+
+              {isAdmin && (
+                <>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', marginLeft: '6px' }}>Department:</label>
+                  <select
+                    value={filterDepartment}
+                    onChange={(e) => setFilterDepartment(e.target.value)}
+                    style={styles.insightsSelect}
+                  >
+                    <option value="ALL">All Departments</option>
+                    {departments.map(dept => (
+                      <option key={dept.department_id} value={dept.department_id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              {(insightsSearch || insightsLoadFilter !== 'ALL' || (isAdmin && filterDepartment !== 'ALL')) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInsightsSearch('');
+                    setInsightsLoadFilter('ALL');
+                    if (isAdmin) setFilterDepartment('ALL');
+                  }}
+                  style={styles.clearFilterInlineBtn}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Weekly Team Overview KPIs */}
+        <div style={styles.kpiGrid}>
+          <div style={styles.kpiCard}>
+            <div style={styles.kpiLabel}>Team Members Analyzed</div>
+            <div style={{ ...styles.kpiValue, color: '#0f172a' }}>{totalStaffCount}</div>
+            <div style={styles.kpiSub}>Active staff in scope</div>
+          </div>
+          <div style={styles.kpiCard}>
+            <div style={styles.kpiLabel}>Tasks Due This Week</div>
+            <div style={{ ...styles.kpiValue, color: '#0284c7' }}>{totalWeeklyDue}</div>
+            <div style={styles.kpiSub}>Scheduled deadlines</div>
+          </div>
+          <div style={styles.kpiCard}>
+            <div style={styles.kpiLabel}>Staff at Heavy / Overload</div>
+            <div style={{ ...styles.kpiValue, color: overloadedStaffCount > 0 ? '#b45309' : '#059669' }}>
+              {overloadedStaffCount}
+            </div>
+            <div style={styles.kpiSub}>{overloadedStaffCount > 0 ? 'Review task balance' : 'Workload well distributed'}</div>
+          </div>
+          <div style={styles.kpiCard}>
+            <div style={styles.kpiLabel}>Total Overdue Tasks</div>
+            <div style={{ ...styles.kpiValue, color: totalOverdueAll > 0 ? '#e11d48' : '#059669' }}>
+              {totalOverdueAll}
+            </div>
+            <div style={styles.kpiSub}>{totalOverdueAll > 0 ? 'Requires manager attention' : 'All milestones on schedule'}</div>
+          </div>
+        </div>
+
+        {/* Staff Members Feed / Cards */}
+        {staffForInsights.length === 0 ? (
+          <div style={{ ...styles.card, padding: '40px', textAlign: 'center', color: '#64748b' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '15px' }}>No staff members match the selected filter criteria.</div>
+            <div style={{ fontSize: '13px', marginTop: '4px' }}>Try switching the workload status filter or clearing your search query.</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {staffForInsights.map(emp => {
+              const empTasks = tasks.filter(t => (t.assignees || []).some(a => Number(a.emp_id) === Number(emp.emp_id)));
+              const activeTasks = empTasks.filter(t => t.status !== 'Completed' && t.status !== 'Discontinued');
+              const ongoingTasks = empTasks.filter(t => t.status === 'Ongoing' || t.status === 'In-Progress');
+              const pendingTasks = empTasks.filter(t => t.status === 'Pending');
+              const completedTasks = empTasks.filter(t => t.status === 'Completed');
+              const overdueTasks = activeTasks.filter(t => isOverdue(t.deadline, t.status));
+
+              // Tasks scheduled within the selected week
+              const weeklyTasks = empTasks.filter(t => {
+                if (!t.deadline) return false;
+                const d = new Date(t.deadline);
+                return !isNaN(d.getTime()) && d >= monday && d <= sunday;
+              });
+
+              // Active tasks outside this week
+              const otherActiveTasks = activeTasks.filter(t => !weeklyTasks.some(wt => wt.task_id === t.task_id));
+              const isBacklogExpanded = Boolean(expandedBacklogs[emp.emp_id]);
+              const workload = getWorkloadLevel(activeTasks.length);
+
+              return (
+                <div key={emp.emp_id} style={styles.staffInsightCard}>
+                  {/* Staff Card Header */}
+                  <div style={styles.staffInsightHeader}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={styles.staffAvatarCircle}>
+                        {getInitials(emp.name)}
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                            {emp.name}
+                          </span>
+                          <span style={{ ...styles.badge, ...getRoleBadgeStyle(emp.role) }}>
+                            {emp.role}
+                          </span>
+                          <span style={styles.deptTag}>
+                            {emp.department?.name || departments.find(d => Number(d.department_id) === Number(emp.department_id))?.name || 'Department'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
+                          {emp.email} &nbsp;&bull;&nbsp; Total Lifetime Tasks: {empTasks.length}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Side: Workload Capacity Badge & Visual Busy Meter */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                      <span
+                        style={{
+                          fontSize: '11.5px',
+                          fontWeight: 'bold',
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          background: workload.badgeBg,
+                          color: workload.badgeColor,
+                          border: `1px solid ${workload.badgeBorder}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: workload.meterColor }} />
+                        {workload.statusText}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          Busy Meter: <strong>{activeTasks.length} Active Tasks</strong>
+                        </span>
+                        <div style={styles.busyMeterTrack}>
+                          <div
+                            style={{
+                              ...styles.busyMeterFill,
+                              width: `${workload.scorePercent}%`,
+                              background: workload.meterColor
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Staff Mini Metrics Grid */}
+                  <div style={styles.staffMetricsRow}>
+                    <div style={styles.miniMetricBox}>
+                      <span style={styles.miniMetricLabel}>Tasks This Week</span>
+                      <span style={{ ...styles.miniMetricVal, color: '#0284c7' }}>{weeklyTasks.length}</span>
+                    </div>
+                    <div style={styles.miniMetricBox}>
+                      <span style={styles.miniMetricLabel}>In-Progress</span>
+                      <span style={{ ...styles.miniMetricVal, color: '#0369a1' }}>{ongoingTasks.length}</span>
+                    </div>
+                    <div style={styles.miniMetricBox}>
+                      <span style={styles.miniMetricLabel}>Pending</span>
+                      <span style={{ ...styles.miniMetricVal, color: '#b45309' }}>{pendingTasks.length}</span>
+                    </div>
+                    <div style={styles.miniMetricBox}>
+                      <span style={styles.miniMetricLabel}>Overdue</span>
+                      <span style={{ ...styles.miniMetricVal, color: overdueTasks.length > 0 ? '#e11d48' : '#059669', fontWeight: '800' }}>
+                        {overdueTasks.length}
+                      </span>
+                    </div>
+                    <div style={styles.miniMetricBox}>
+                      <span style={styles.miniMetricLabel}>Completed</span>
+                      <span style={{ ...styles.miniMetricVal, color: '#059669' }}>{completedTasks.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Tasks Section for this Week */}
+                  <div style={{ marginTop: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12.5px', fontWeight: 'bold', color: '#0f172a' }}>
+                        Weekly Scheduled Deliverables ({weeklyTasks.length} task{weeklyTasks.length === 1 ? '' : 's'})
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        Deadlines within: {formatDate(monday)} &ndash; {formatDate(sunday)}
+                      </span>
+                    </div>
+
+                    {weeklyTasks.length === 0 ? (
+                      <div style={styles.emptyWeeklyBox}>
+                        No tasks scheduled with deadlines during this week. This team member has open capacity.
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={styles.insightTaskTable}>
+                          <thead>
+                            <tr>
+                              <th style={styles.insightTh}>Task Code</th>
+                              <th style={styles.insightTh}>Company &amp; LOE</th>
+                              <th style={styles.insightTh}>Service &amp; Scope</th>
+                              <th style={styles.insightTh}>Deadline</th>
+                              <th style={styles.insightTh}>Status</th>
+                              <th style={{ ...styles.insightTh, textAlign: 'right' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weeklyTasks.map(t => {
+                              const overdue = isOverdue(t.deadline, t.status);
+                              return (
+                                <tr key={t.task_id} style={styles.insightTr}>
+                                  <td style={styles.insightTd}>
+                                    <span style={styles.taskCodeBadge}>{t.task_code || `TSK-#${t.task_id}`}</span>
+                                  </td>
+                                  <td style={styles.insightTd}>
+                                    <div style={{ fontWeight: '600', color: '#0f172a' }}>{t.job?.loe?.company?.name || 'Company'}</div>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>{t.job?.loe?.loe_code || `LOE #${t.job?.loe_id}`}</div>
+                                  </td>
+                                  <td style={styles.insightTd}>
+                                    <div style={{ fontWeight: '600', color: '#0284c7' }}>{t.service?.name || 'Service'}</div>
+                                    <div style={{ fontSize: '11.5px', color: '#475569', maxWidth: '320px' }}>{t.scope || 'Standard deliverable'}</div>
+                                  </td>
+                                  <td style={styles.insightTd}>
+                                    <span style={{ fontWeight: overdue ? 'bold' : 'normal', color: overdue ? '#e11d48' : '#334155' }}>
+                                      {formatDate(t.deadline)}
+                                    </span>
+                                    {overdue && (
+                                      <span style={{ ...styles.badge, background: '#fee2e2', color: '#e11d48', border: '1px solid #fecdd3', marginLeft: '6px' }}>
+                                        Overdue
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={styles.insightTd}>
+                                    <span style={{
+                                      ...styles.badge,
+                                      background: t.status === 'Completed' ? '#ecfdf5' : t.status === 'Ongoing' || t.status === 'In-Progress' ? '#f0f9ff' : '#fffbeb',
+                                      color: t.status === 'Completed' ? '#059669' : t.status === 'Ongoing' || t.status === 'In-Progress' ? '#0284c7' : '#b45309',
+                                      border: `1px solid ${t.status === 'Completed' ? '#a7f3d0' : t.status === 'Ongoing' || t.status === 'In-Progress' ? '#bae6fd' : '#fde68a'}`
+                                    }}>
+                                      {t.status === 'In-Progress' ? 'Ongoing' : t.status}
+                                    </span>
+                                  </td>
+                                  <td style={{ ...styles.insightTd, textAlign: 'right' }}>
+                                    <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                      {t.status === 'Pending' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStartTask(t.task_id)}
+                                          disabled={saving}
+                                          style={styles.startTaskBtn}
+                                        >
+                                          Start
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedTaskDetail(t)}
+                                        style={styles.actionIconBtn}
+                                      >
+                                        Details
+                                      </button>
+                                      {t.status !== 'Completed' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSendReminder(t.task_id)}
+                                          disabled={remindingTaskId === t.task_id}
+                                          style={styles.remindTableBtn}
+                                          title="Send task reminder to staff"
+                                        >
+                                          Remind
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expandable Backlog for other active tasks outside this week */}
+                  {otherActiveTasks.length > 0 && (
+                    <div style={{ marginTop: '12px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleBacklog(emp.emp_id)}
+                        style={styles.toggleBacklogBtn}
+                      >
+                        {isBacklogExpanded ? '▲ Hide' : '▼ View'} other active deliverables for {emp.name} ({otherActiveTasks.length} task{otherActiveTasks.length === 1 ? '' : 's'} outside this week)
+                      </button>
+
+                      {isBacklogExpanded && (
+                        <div style={{ marginTop: '10px', overflowX: 'auto' }}>
+                          <table style={styles.insightTaskTable}>
+                            <thead>
+                              <tr>
+                                <th style={styles.insightTh}>Task Code</th>
+                                <th style={styles.insightTh}>Company &amp; LOE</th>
+                                <th style={styles.insightTh}>Service &amp; Scope</th>
+                                <th style={styles.insightTh}>Deadline</th>
+                                <th style={styles.insightTh}>Status</th>
+                                <th style={{ ...styles.insightTh, textAlign: 'right' }}>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {otherActiveTasks.map(t => {
+                                const overdue = isOverdue(t.deadline, t.status);
+                                return (
+                                  <tr key={t.task_id} style={styles.insightTr}>
+                                    <td style={styles.insightTd}>
+                                      <span style={styles.taskCodeBadge}>{t.task_code || `TSK-#${t.task_id}`}</span>
+                                    </td>
+                                    <td style={styles.insightTd}>
+                                      <div style={{ fontWeight: '600', color: '#0f172a' }}>{t.job?.loe?.company?.name || 'Company'}</div>
+                                      <div style={{ fontSize: '11px', color: '#64748b' }}>{t.job?.loe?.loe_code || `LOE #${t.job?.loe_id}`}</div>
+                                    </td>
+                                    <td style={styles.insightTd}>
+                                      <div style={{ fontWeight: '600', color: '#0284c7' }}>{t.service?.name || 'Service'}</div>
+                                      <div style={{ fontSize: '11.5px', color: '#475569', maxWidth: '320px' }}>{t.scope || 'Standard deliverable'}</div>
+                                    </td>
+                                    <td style={styles.insightTd}>
+                                      <span style={{ fontWeight: overdue ? 'bold' : 'normal', color: overdue ? '#e11d48' : '#334155' }}>
+                                        {formatDate(t.deadline)}
+                                      </span>
+                                      {overdue && (
+                                        <span style={{ ...styles.badge, background: '#fee2e2', color: '#e11d48', border: '1px solid #fecdd3', marginLeft: '6px' }}>
+                                          Overdue
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td style={styles.insightTd}>
+                                      <span style={{
+                                        ...styles.badge,
+                                        background: t.status === 'Completed' ? '#ecfdf5' : t.status === 'Ongoing' || t.status === 'In-Progress' ? '#f0f9ff' : '#fffbeb',
+                                        color: t.status === 'Completed' ? '#059669' : t.status === 'Ongoing' || t.status === 'In-Progress' ? '#0284c7' : '#b45309',
+                                        border: `1px solid ${t.status === 'Completed' ? '#a7f3d0' : t.status === 'Ongoing' || t.status === 'In-Progress' ? '#bae6fd' : '#fde68a'}`
+                                      }}>
+                                        {t.status === 'In-Progress' ? 'Ongoing' : t.status}
+                                      </span>
+                                    </td>
+                                    <td style={{ ...styles.insightTd, textAlign: 'right' }}>
+                                      <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                        {t.status === 'Pending' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartTask(t.task_id)}
+                                            disabled={saving}
+                                            style={styles.startTaskBtn}
+                                          >
+                                            Start
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedTaskDetail(t)}
+                                          style={styles.actionIconBtn}
+                                        >
+                                          Details
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSendReminder(t.task_id)}
+                                          disabled={remindingTaskId === t.task_id}
+                                          style={styles.remindTableBtn}
+                                        >
+                                          Remind
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const getRoleBadgeStyle = (role) => {
+    if (role === 'ADMIN') return { background: '#ede9fe', color: '#6d28d9', border: '1px solid #ddd6fe' };
+    if (role === 'MANAGER') return { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' };
+    return { background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' };
+  };
+
   return (
     <div style={styles.pageContainer}>
       <Navbar />
@@ -632,6 +1270,16 @@ export default function TaskAllocation() {
               >
                 Task Status Tracker
               </button>
+              {(isAdmin || isManager) && (
+                <button
+                  type="button"
+                  onClick={() => setActiveView('insights')}
+                  style={activeView === 'insights' ? styles.viewToggleBtnActive : styles.viewToggleBtn}
+                  title="View staff weekly tasks and workload distribution"
+                >
+                  Staff Insights
+                </button>
+              )}
             </div>
 
             {canManage && (
@@ -642,8 +1290,10 @@ export default function TaskAllocation() {
           </div>
         </div>
 
-        {/* Global KPI Metrics Bar */}
-        <div style={styles.kpiGrid}>
+        {/* Global KPI Metrics Bar & Filter Bar (Shown for Allocation Board and Task Status Tracker) */}
+        {activeView !== 'insights' && (
+          <>
+            <div style={styles.kpiGrid}>
           <div style={styles.kpiCard}>
             <div style={styles.kpiLabel}>Total Tasks</div>
             <div style={{ ...styles.kpiValue, color: '#0f172a' }}>{totalTasksCount}</div>
@@ -767,9 +1417,12 @@ export default function TaskAllocation() {
             </button>
           )}
         </div>
+          </>
+        )}
 
         {/* Assigned vs Unassigned Navigation Toggle */}
-        <div style={styles.toggleRowContainer}>
+        {activeView !== 'insights' && (
+          <div style={styles.toggleRowContainer}>
           <div style={styles.tabContainer}>
             <button
               type="button"
@@ -820,6 +1473,7 @@ export default function TaskAllocation() {
             </button>
           </div>
         </div>
+        )}
 
         {error && <div style={styles.errorBanner}>{error}</div>}
         {successMsg && <div style={styles.successBanner}>{successMsg}</div>}
@@ -1252,6 +1906,11 @@ export default function TaskAllocation() {
             )}
           </div>
         )}
+
+            {/* VIEW 3: STAFF INSIGHTS (For Department Managers & Admins) */}
+            {activeView === 'insights' && (isAdmin || isManager) && (
+              renderStaffInsights()
+            )}
           </>
         )}
 
@@ -2181,5 +2840,209 @@ const styles = {
   detailsScopeBox: { background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#334155', lineHeight: '1.5' },
   assigneeBadgeCard: { display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '8px 12px', borderRadius: '6px' },
   avatarCircle: { width: '30px', height: '30px', borderRadius: '50%', background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px' },
-  commentsContentBox: { background: '#f8fafc', padding: '12px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#334155', lineHeight: '1.5' }
+  commentsContentBox: { background: '#f8fafc', padding: '12px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#334155', lineHeight: '1.5' },
+  insightsControlCard: {
+    background: '#ffffff',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+    padding: '20px 24px',
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)'
+  },
+  insightsDeptPill: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    color: '#0284c7',
+    background: '#f0f9ff',
+    border: '1px solid #bae6fd',
+    padding: '3px 8px',
+    borderRadius: '12px'
+  },
+  weekNavigatorGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: '#f8fafc',
+    padding: '4px 8px',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    flexWrap: 'wrap'
+  },
+  weekNavBtn: {
+    padding: '6px 12px',
+    background: '#ffffff',
+    color: '#0f172a',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
+  },
+  weekLabelBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '0 8px'
+  },
+  currentWeekTag: {
+    fontSize: '10px',
+    fontWeight: '800',
+    background: '#0284c7',
+    color: '#ffffff',
+    padding: '2px 6px',
+    borderRadius: '6px'
+  },
+  todayResetBtn: {
+    padding: '5px 10px',
+    background: '#e0f2fe',
+    color: '#0369a1',
+    border: '1px solid #bae6fd',
+    borderRadius: '6px',
+    fontSize: '11.5px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
+  insightsSearchInput: {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: '6px',
+    border: '1px solid #cbd5e1',
+    fontSize: '13px',
+    boxSizing: 'border-box'
+  },
+  insightsSelect: {
+    padding: '8px 12px',
+    borderRadius: '6px',
+    border: '1px solid #cbd5e1',
+    fontSize: '12.5px',
+    background: '#ffffff',
+    fontWeight: '600',
+    color: '#334155'
+  },
+  clearFilterInlineBtn: {
+    padding: '7px 12px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    border: '1px solid #fecdd3',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
+  staffInsightCard: {
+    background: '#ffffff',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+    padding: '20px 24px',
+    boxShadow: '0 2px 5px rgba(15, 23, 42, 0.03)'
+  },
+  staffInsightHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '14px',
+    borderBottom: '1px solid #f1f5f9',
+    paddingBottom: '14px'
+  },
+  staffAvatarCircle: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '50%',
+    background: '#0284c7',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 'bold',
+    fontSize: '15px',
+    flexShrink: 0
+  },
+  deptTag: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#475569',
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    padding: '2px 8px',
+    borderRadius: '10px'
+  },
+  busyMeterTrack: {
+    width: '130px',
+    height: '8px',
+    background: '#f1f5f9',
+    borderRadius: '6px',
+    overflow: 'hidden',
+    border: '1px solid #e2e8f0'
+  },
+  busyMeterFill: {
+    height: '100%',
+    borderRadius: '6px',
+    transition: 'width 0.3s ease'
+  },
+  staffMetricsRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+    gap: '10px',
+    marginTop: '14px'
+  },
+  miniMetricBox: {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    padding: '10px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px'
+  },
+  miniMetricLabel: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    color: '#64748b'
+  },
+  miniMetricVal: {
+    fontSize: '18px',
+    fontWeight: '800'
+  },
+  emptyWeeklyBox: {
+    background: '#f8fafc',
+    border: '1px dashed #cbd5e1',
+    borderRadius: '6px',
+    padding: '16px',
+    fontSize: '12.5px',
+    color: '#64748b',
+    textAlign: 'center'
+  },
+  insightTaskTable: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '12.5px'
+  },
+  insightTh: {
+    textAlign: 'left',
+    padding: '8px 12px',
+    background: '#f8fafc',
+    color: '#475569',
+    fontWeight: 'bold',
+    borderBottom: '1px solid #e2e8f0',
+    fontSize: '12px'
+  },
+  insightTr: {
+    borderBottom: '1px solid #f1f5f9',
+    transition: 'background 0.15s ease'
+  },
+  insightTd: {
+    padding: '10px 12px',
+    verticalAlign: 'middle',
+    color: '#334155'
+  },
+  toggleBacklogBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#0284c7',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    padding: '4px 0'
+  }
 };
