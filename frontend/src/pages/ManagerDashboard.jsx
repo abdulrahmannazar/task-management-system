@@ -69,7 +69,10 @@ export default function ManagerDashboard() {
     try {
       setLoading(true);
       setError('');
-      if (!token) throw new Error('Authentication token missing.');
+      if (!token) {
+        navigate('/login', { replace: true });
+        return;
+      }
 
       const url = isAdmin
         ? `${API_BASE}/api/loes/pending?role=ADMIN`

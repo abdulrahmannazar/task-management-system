@@ -45,12 +45,16 @@ export default function DispatchTracker() {
   const userDeptId = user.department_id || 1;
 
   useEffect(() => {
+    if (!token) {
+      navigate('/login', { replace: true });
+      return;
+    }
     fetchDocuments();
   }, []);
 
   const fetchDocuments = async () => {
     if (!token) {
-      setError('Authentication token missing. Please log in again.');
+      navigate('/login', { replace: true });
       setLoading(false);
       return;
     }

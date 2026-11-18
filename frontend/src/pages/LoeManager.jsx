@@ -151,7 +151,7 @@ export default function LoeManager() {
   const fetchLoes = async () => {
     try {
       if (!token) {
-        setActionError("Authentication token missing.");
+        navigate('/login', { replace: true });
         return;
       }
       
