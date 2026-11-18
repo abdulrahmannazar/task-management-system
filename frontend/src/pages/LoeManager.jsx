@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE, fetchCachedJson } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
 import ScopeRichEditor from '../components/ScopeRichEditor';
+import OfficialLoeDocument from '../components/OfficialLoeDocument';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -17,6 +18,24 @@ const CURRENCY_SYMBOLS = {
   AUD: 'A$',
   CAD: 'C$',
   SGD: 'S$'
+};
+
+const formatOrdinalDate = (dateStr) => {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  if (isNaN(d.getTime())) return 'N/A';
+  const day = d.getDate();
+  const month = d.toLocaleString('en-GB', { month: 'long' });
+  const year = d.getFullYear();
+  const getOrdinalSuffix = (n) => {
+    if (n > 3 && n < 21) return 'th';
+    switch (n % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  };
+  return `${day}${getOrdinalSuffix(day)} ${month} ${year}`;
 };
 
 export default function LoeManager() {
@@ -42,6 +61,11 @@ export default function LoeManager() {
   });
   
   const [editingId, setEditingId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [draggedScope, setDraggedScope] = useState(null);
+  const [dragOverScope, setDragOverScope] = useState(null);
+  const [showDraftPreview, setShowDraftPreview] = useState(false);
   const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
   const [formError, setFormError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -89,13 +113,17 @@ export default function LoeManager() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isModalOpen) {
-        closeModal();
+      if (e.key === 'Escape') {
+        if (showDraftPreview) {
+          setShowDraftPreview(false);
+        } else if (isModalOpen) {
+          closeModal();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen]);
+  }, [isModalOpen, showDraftPreview]);
 
   const parseScopes = (scopeData) => {
     if (!scopeData) return [];
@@ -105,6 +133,17 @@ export default function LoeManager() {
       if (Array.isArray(parsed)) return parsed;
       return [parsed.toString()];
     } catch {
+      if (/<[a-z][\s\S]*>/i.test(scopeData)) {
+        const listItems = scopeData.match(/<li[^>]*>[\s\S]*?<\/li>/gi);
+        if (listItems && listItems.length > 0) {
+          return listItems.map((item) => item.trim());
+        }
+        const blockItems = scopeData.match(/<(p|h2|h3|pre)[^>]*>[\s\S]*?<\/\1>/gi);
+        if (blockItems && blockItems.length > 0) {
+          return blockItems.map((item) => item.trim());
+        }
+        return [scopeData.trim()];
+      }
       return scopeData.split('\n').map((s) => s.trim()).filter(Boolean);
     }
   };
@@ -208,6 +247,7 @@ export default function LoeManager() {
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setShowDraftPreview(false);
     setEditingId(null);
     setEditingPreviousStatus(null);
     setFormData({
@@ -413,6 +453,74 @@ export default function LoeManager() {
     });
   };
 
+  const reorderScopes = (srvIdx, fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return;
+    setFormData(prev => {
+      const updatedServices = [...prev.loe_services];
+      const srv = { ...updatedServices[srvIdx] };
+      const scopes = [...srv.scopes];
+      if (toIdx < 0 || toIdx >= scopes.length) return prev;
+      const [moved] = scopes.splice(fromIdx, 1);
+      scopes.splice(toIdx, 0, moved);
+      srv.scopes = scopes;
+      updatedServices[srvIdx] = srv;
+      return { ...prev, loe_services: updatedServices };
+    });
+  };
+
+  const moveScope = (srvIdx, scIdx, direction) => {
+    reorderScopes(srvIdx, scIdx, scIdx + direction);
+  };
+
+  const handleScopeDragStart = (srvIdx, scIdx, e) => {
+    setDraggedScope({ srvIdx, scIdx });
+    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ srvIdx, scIdx }));
+    } catch {}
+  };
+
+  const handleScopeDragOver = (srvIdx, scIdx, e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!dragOverScope || dragOverScope.srvIdx !== srvIdx || dragOverScope.scIdx !== scIdx) {
+      setDragOverScope({ srvIdx, scIdx });
+    }
+  };
+
+  const handleScopeDrop = (srvIdx, scIdx, e) => {
+    e.preventDefault();
+    setDragOverScope(null);
+    let from = draggedScope;
+    if (!from) {
+      try {
+        from = JSON.parse(e.dataTransfer.getData('text/plain'));
+      } catch {}
+    }
+    if (!from || from.srvIdx !== srvIdx) {
+      setDraggedScope(null);
+      return;
+    }
+    reorderScopes(srvIdx, from.scIdx, scIdx);
+    setDraggedScope(null);
+  };
+
+  const handleScopeDragEnd = () => {
+    setDraggedScope(null);
+    setDragOverScope(null);
+  };
+
+  const moveService = (srvIdx, direction) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const targetIdx = srvIdx + direction;
+      if (targetIdx < 0 || targetIdx >= updated.length) return prev;
+      const [moved] = updated.splice(srvIdx, 1);
+      updated.splice(targetIdx, 0, moved);
+      return { ...prev, loe_services: updated };
+    });
+  };
+
   const handleEdit = (loe) => {
     setEditingId(loe.loe_id);
     setEditingPreviousStatus(loe.status);
@@ -479,9 +587,14 @@ export default function LoeManager() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setFormError('');
     setActionError('');
+
+    if (!formData.company_id) {
+      setFormError('Please select a client company.');
+      return;
+    }
 
     const url = editingId 
       ? `${API_BASE}/api/loes/${editingId}`
@@ -530,6 +643,7 @@ export default function LoeManager() {
     }
 
     try {
+      setSubmitting(true);
       const response = await fetch(url, {
         method,
         headers: {
@@ -554,6 +668,8 @@ export default function LoeManager() {
       closeModal();
     } catch (err) {
       setFormError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -750,6 +866,12 @@ export default function LoeManager() {
     loeCategoryTab !== 'ALL';
 
   const activeSymbol = CURRENCY_SYMBOLS[formData.currency] || 'Rs.';
+  const selectedCompany = companies.find(c => String(c.company_id) === String(formData.company_id));
+  const getDepartmentName = (deptId) => {
+    const dept = departments.find(d => String(d.department_id) === String(deptId));
+    return dept ? dept.name : '';
+  };
+  const totalDraftFee = (formData.loe_services || []).reduce((sum, srv) => sum + (Number(srv.amount) || 0), 0);
 
   if (user?.role === 'EMPLOYEE' || !hasPermission(user, 'VIEW_LOES')) {
     return (
@@ -1179,9 +1301,19 @@ export default function LoeManager() {
                   Configure client entity, engagement type, billing cycle, deliverables, and service scopes.
                 </p>
               </div>
-              <button onClick={closeModal} style={styles.closeBtn} title="Close dialog">
-                ✕
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDraftPreview(true)}
+                  style={styles.headerDraftBtn}
+                  title="Preview the complete Letter of Engagement draft"
+                >
+                  👁 View Draft
+                </button>
+                <button onClick={closeModal} style={styles.closeBtn} title="Close dialog">
+                  ✕
+                </button>
+              </div>
             </div>
 
             {editingId && editingPreviousStatus === 'Rejected' && (
@@ -1417,6 +1549,36 @@ export default function LoeManager() {
                           />
                         </div>
 
+                        {formData.loe_services.length > 1 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <button
+                              type="button"
+                              onClick={() => moveService(srvIdx, -1)}
+                              disabled={srvIdx === 0}
+                              style={{
+                                ...styles.serviceMoveBtn,
+                                opacity: srvIdx === 0 ? 0.25 : 1,
+                                cursor: srvIdx === 0 ? 'default' : 'pointer'
+                              }}
+                              title="Move service card up"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveService(srvIdx, 1)}
+                              disabled={srvIdx === formData.loe_services.length - 1}
+                              style={{
+                                ...styles.serviceMoveBtn,
+                                opacity: srvIdx === formData.loe_services.length - 1 ? 0.25 : 1,
+                                cursor: srvIdx === formData.loe_services.length - 1 ? 'default' : 'pointer'
+                              }}
+                              title="Move service card down"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        )}
                         <button 
                           type="button" 
                           onClick={() => removeServiceCard(srvIdx)} 
@@ -1438,27 +1600,90 @@ export default function LoeManager() {
                                   : 'No scopes added yet. Select a scope from the dropdown below or click "+ Custom Scope".'}
                               </p>
                             ) : (
-                              srvBlock.scopes.map((scopeText, scIdx) => (
-                                <div key={scIdx} style={styles.scopeItemRow}>
-                                  <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <ScopeRichEditor
-                                      value={scopeText}
-                                      onChange={(newVal) => handleScopeTextChange(srvIdx, scIdx, newVal)}
-                                      placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
-                                      minHeight="80px"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeScopeItem(srvIdx, scIdx)}
-                                    style={styles.removeScopeBtn}
-                                    title="Delete scope"
+                              srvBlock.scopes.map((scopeText, scIdx) => {
+                                const isDragging = draggedScope && draggedScope.srvIdx === srvIdx && draggedScope.scIdx === scIdx;
+                                const isDragOver = dragOverScope && dragOverScope.srvIdx === srvIdx && dragOverScope.scIdx === scIdx;
+
+                                return (
+                                  <div
+                                    key={scIdx}
+                                    onDragOver={(e) => handleScopeDragOver(srvIdx, scIdx, e)}
+                                    onDrop={(e) => handleScopeDrop(srvIdx, scIdx, e)}
+                                    style={{
+                                      ...styles.scopeItemRow,
+                                      border: isDragOver ? '2px dashed #0284c7' : '1px solid #e2e8f0',
+                                      backgroundColor: isDragging ? '#f1f5f9' : isDragOver ? '#f0f9ff' : '#f8fafc',
+                                      opacity: isDragging ? 0.45 : 1,
+                                      transition: 'border 0.15s ease, background-color 0.15s ease'
+                                    }}
                                   >
-                                    ✕
-                                  </button>
-                                </div>
-                              ))
+                                    {/* Left Reorder & Drag Handle Column */}
+                                    <div style={styles.scopeControlCol}>
+                                      <div
+                                        draggable
+                                        onDragStart={(e) => handleScopeDragStart(srvIdx, scIdx, e)}
+                                        onDragEnd={handleScopeDragEnd}
+                                        style={styles.dragBadgeWrap}
+                                        title="Click and drag to reorder this scope deliverable"
+                                      >
+                                        <span style={styles.gripDots} aria-hidden="true">⠿</span>
+                                        <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
+                                      </div>
+
+                                      {srvBlock.scopes.length > 1 && (
+                                        <div style={styles.arrowControls}>
+                                          <button
+                                            type="button"
+                                            onClick={() => moveScope(srvIdx, scIdx, -1)}
+                                            disabled={scIdx === 0}
+                                            style={{
+                                              ...styles.arrowBtn,
+                                              opacity: scIdx === 0 ? 0.25 : 1,
+                                              cursor: scIdx === 0 ? 'default' : 'pointer'
+                                            }}
+                                            title="Move scope deliverable up"
+                                          >
+                                            ▲
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => moveScope(srvIdx, scIdx, 1)}
+                                            disabled={scIdx === srvBlock.scopes.length - 1}
+                                            style={{
+                                              ...styles.arrowBtn,
+                                              opacity: scIdx === srvBlock.scopes.length - 1 ? 0.25 : 1,
+                                              cursor: scIdx === srvBlock.scopes.length - 1 ? 'default' : 'pointer'
+                                            }}
+                                            title="Move scope deliverable down"
+                                          >
+                                            ▼
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Scope Rich Editor */}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <ScopeRichEditor
+                                        value={scopeText}
+                                        onChange={(newVal) => handleScopeTextChange(srvIdx, scIdx, newVal)}
+                                        placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
+                                        minHeight="80px"
+                                      />
+                                    </div>
+
+                                    {/* Remove Scope Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeScopeItem(srvIdx, scIdx)}
+                                      style={styles.removeScopeBtn}
+                                      title="Delete scope"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                );
+                              })
                             )}
                           </div>
 
@@ -1498,7 +1723,7 @@ export default function LoeManager() {
                                 )}
                                 {templateScopes.map((sc, i) => (
                                   <option key={i} value={sc}>
-                                    {sc}
+                                    {String(sc).replace(/<[^>]*>/g, '').trim() || sc}
                                   </option>
                                 ))}
                               </select>
@@ -1544,8 +1769,24 @@ export default function LoeManager() {
               </div>
 
               <div style={styles.buttonGroup}>
-                <button type="submit" style={styles.button}>
-                  {editingId ? 'Resubmit for Approval' : 'Submit for Approval'}
+                <button
+                  type="button"
+                  onClick={() => setShowDraftPreview(true)}
+                  style={styles.viewDraftButton}
+                  title="View full draft Letter of Engagement before submitting"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  View Draft
+                </button>
+                <button type="submit" disabled={submitting} style={styles.button}>
+                  {submitting ? (
+                    <BlobLoader inline size={14} light message={editingId ? 'Resubmitting...' : 'Submitting...'} />
+                  ) : (
+                    editingId ? 'Resubmit for Approval' : 'Submit for Approval'
+                  )}
                 </button>
                 <button 
                   type="button" 
@@ -1556,6 +1797,139 @@ export default function LoeManager() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Embedded style for rendered rich HTML in draft preview */}
+      <style>{`
+        .draft-rich-html p { margin: 0 0 6px 0; }
+        .draft-rich-html p:last-child { margin-bottom: 0; }
+        .draft-rich-html h2 { font-size: 14.5px; font-weight: bold; margin: 8px 0 4px 0; color: #0f172a; }
+        .draft-rich-html h3 { font-size: 13.5px; font-weight: bold; margin: 6px 0 3px 0; color: #1e293b; }
+        .draft-rich-html ul, .draft-rich-html ol { margin: 4px 0 6px 20px; padding-left: 0; }
+        .draft-rich-html li { margin-bottom: 3px; }
+        .draft-rich-html pre { background: #f1f5f9; padding: 6px 8px; border-radius: 4px; font-size: 11px; white-space: pre-wrap; font-family: monospace; }
+        .draft-rich-html a { color: #0284c7; text-decoration: underline; }
+        @media print {
+          body * { visibility: hidden !important; }
+          .draft-document-print-area, .draft-document-print-area * { visibility: visible !important; }
+          .draft-document-print-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 20px !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
+      {/* Comprehensive Full Draft Document Preview Modal with Watermark */}
+      {showDraftPreview && canEdit && (
+        <div style={styles.draftModalOverlay} onClick={() => setShowDraftPreview(false)}>
+          <div style={styles.draftModalContainer} onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header Bar */}
+            <div style={styles.draftModalHeader} className="no-print">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDraftPreview(false)}
+                  style={styles.draftBackBtn}
+                  title="Return to form editing"
+                >
+                  ← Back to Edit
+                </button>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a' }}>
+                    Draft Letter of Engagement Preview
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Read through full engagement terms, pricing, and formatted deliverables before submitting.
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={styles.draftPrintBtn}
+                  title="Print or save as PDF"
+                >
+                  🖨 Print / Export
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowDraftPreview(false);
+                    await handleSubmit();
+                  }}
+                  disabled={submitting}
+                  style={styles.draftSubmitBtn}
+                >
+                  {submitting ? (
+                    <BlobLoader inline size={13} light message={editingId ? 'Resubmitting...' : 'Submitting...'} />
+                  ) : (
+                    editingId ? 'Resubmit for Approval' : 'Submit for Approval'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDraftPreview(false)}
+                  style={styles.closeBtn}
+                  title="Close draft preview"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Document Container */}
+            <div style={styles.draftDocumentScrollWrap}>
+              <OfficialLoeDocument
+                loe={{
+                  ...formData,
+                  loe_id: editingId,
+                  loe_code: editingId ? (loes.find(l => l.loe_id === editingId)?.loe_code || `#${String(editingId).padStart(7, '0')}`) : 'LOE - DRAFT'
+                }}
+                company={selectedCompany}
+                services={services}
+                departments={departments}
+                isDraft={true}
+              />
+            </div>
+
+            {/* Modal Bottom Action Footer */}
+            <div style={styles.draftModalFooter} className="no-print">
+              <button
+                type="button"
+                onClick={() => setShowDraftPreview(false)}
+                style={styles.draftBackBtn}
+              >
+                ← Back to Edit
+              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowDraftPreview(false);
+                    await handleSubmit();
+                  }}
+                  disabled={submitting}
+                  style={styles.button}
+                >
+                  {submitting ? (
+                    <BlobLoader inline size={14} light message={editingId ? 'Resubmitting...' : 'Submitting...'} />
+                  ) : (
+                    editingId ? 'Resubmit for Approval' : 'Submit for Approval'
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1969,14 +2343,68 @@ const styles = {
     borderRadius: '4px',
     border: '1px solid #e2e8f0'
   },
-  scopeIndexBadge: {
+  scopeControlCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '4px',
+    flexShrink: 0,
+    marginTop: '2px'
+  },
+  dragBadgeWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
     background: '#e2e8f0',
-    color: '#334155',
+    borderRadius: '4px',
+    padding: '3px 6px',
+    cursor: 'grab',
+    userSelect: 'none',
+    transition: 'background 0.15s ease'
+  },
+  gripDots: {
+    color: '#64748b',
+    fontSize: '13px',
+    lineHeight: 1,
+    cursor: 'grab'
+  },
+  scopeIndexBadge: {
+    color: '#0f172a',
     fontWeight: 'bold',
-    fontSize: '11px',
-    padding: '4px 8px',
+    fontSize: '11px'
+  },
+  arrowControls: {
+    display: 'flex',
+    gap: '2px'
+  },
+  arrowBtn: {
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
     borderRadius: '3px',
-    marginTop: '4px'
+    width: '18px',
+    height: '16px',
+    fontSize: '7px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#475569',
+    cursor: 'pointer',
+    padding: 0,
+    lineHeight: 1
+  },
+  serviceMoveBtn: {
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    borderRadius: '3px',
+    width: '24px',
+    height: '16px',
+    fontSize: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#475569',
+    cursor: 'pointer',
+    padding: 0
   },
   scopeTextarea: {
     flex: '1',
@@ -2044,6 +2472,284 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 'bold',
     fontSize: '13.5px'
+  },
+  viewDraftButton: {
+    padding: '11px 20px',
+    background: '#ffffff',
+    color: '#0284c7',
+    border: '1.5px solid #0284c7',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13.5px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    transition: 'all 0.15s ease'
+  },
+  headerDraftBtn: {
+    padding: '6px 12px',
+    background: '#f0f9ff',
+    color: '#0284c7',
+    border: '1px solid #bae6fd',
+    borderRadius: '5px',
+    cursor: 'pointer',
+    fontWeight: '600',
+    fontSize: '12px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    transition: 'all 0.15s ease'
+  },
+  draftModalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(15, 23, 42, 0.72)',
+    backdropFilter: 'blur(3px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 11000,
+    padding: '20px'
+  },
+  draftModalContainer: {
+    background: '#f8fafc',
+    borderRadius: '12px',
+    width: '100%',
+    maxWidth: '960px',
+    maxHeight: '94vh',
+    display: 'flex',
+    flexDirection: 'column',
+    boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35)',
+    border: '1px solid #cbd5e1',
+    overflow: 'hidden'
+  },
+  draftModalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 22px',
+    background: '#ffffff',
+    borderBottom: '1px solid #e2e8f0',
+    flexShrink: 0
+  },
+  draftBackBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    background: '#f1f5f9',
+    color: '#334155',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontWeight: '600',
+    fontSize: '12px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
+  },
+  draftPrintBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '8px 14px',
+    background: '#ffffff',
+    color: '#475569',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontWeight: '600',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  draftSubmitBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 18px',
+    background: '#0284c7',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(2, 132, 199, 0.25)'
+  },
+  draftDocumentScrollWrap: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '24px 20px',
+    background: '#f1f5f9'
+  },
+  draftDocumentSheet: {
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    boxShadow: '0 4px 20px rgba(15, 23, 42, 0.08)',
+    borderRadius: '8px',
+    padding: '40px 48px',
+    maxWidth: '860px',
+    margin: '0 auto',
+    position: 'relative',
+    overflow: 'hidden',
+    fontFamily: "'Times New Roman', Times, serif"
+  },
+  draftWatermark: {
+    position: 'absolute',
+    top: '45%',
+    left: '50%',
+    transform: 'translate(-50%, -50%) rotate(-45deg)',
+    fontSize: '84px',
+    fontFamily: "'Times New Roman', Times, serif",
+    fontWeight: '900',
+    letterSpacing: '14px',
+    color: 'rgba(225, 29, 72, 0.12)',
+    textTransform: 'uppercase',
+    pointerEvents: 'none',
+    userSelect: 'none',
+    zIndex: 10,
+    whiteSpace: 'nowrap'
+  },
+  richScopeContent: {
+    fontSize: '13px',
+    color: '#334155',
+    lineHeight: '1.6',
+    margin: '4px 0'
+  },
+  draftNoticeBanner: {
+    textAlign: 'center',
+    background: '#fff1f2',
+    border: '1px solid #fecdd3',
+    color: '#be123c',
+    padding: '7px 12px',
+    borderRadius: '4px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    marginBottom: '20px',
+    letterSpacing: '0.5px'
+  },
+  draftLetterhead: {
+    textAlign: 'center',
+    marginBottom: '24px',
+    borderBottom: '2px solid #0f172a',
+    paddingBottom: '14px'
+  },
+  draftCompanyHeader: {
+    fontSize: '20px',
+    fontWeight: 'bold',
+    color: '#0f172a',
+    letterSpacing: '1px',
+    textTransform: 'uppercase'
+  },
+  draftCompanySub: {
+    fontSize: '11px',
+    color: '#64748b',
+    marginTop: '4px'
+  },
+  draftRefRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '20px',
+    fontSize: '13px',
+    color: '#334155'
+  },
+  draftRecipientBox: {
+    marginBottom: '20px',
+    fontSize: '13px',
+    color: '#334155',
+    lineHeight: '1.5'
+  },
+  draftSectionText: {
+    marginBottom: '16px',
+    fontSize: '13px',
+    color: '#334155',
+    lineHeight: '1.6'
+  },
+  draftSubjectTitle: {
+    fontWeight: 'bold',
+    fontSize: '14px',
+    color: '#0f172a',
+    textDecoration: 'underline',
+    marginBottom: '10px'
+  },
+  draftSectionHeading: {
+    fontWeight: 'bold',
+    fontSize: '13.5px',
+    color: '#0f172a',
+    marginBottom: '12px',
+    borderBottom: '1px solid #e2e8f0',
+    paddingBottom: '6px'
+  },
+  draftEmptyNotice: {
+    padding: '24px',
+    textAlign: 'center',
+    color: '#64748b',
+    background: '#f8fafc',
+    borderRadius: '6px',
+    border: '1px dashed #cbd5e1',
+    fontSize: '13px',
+    fontStyle: 'italic'
+  },
+  draftTable: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '12.5px',
+    marginBottom: '16px'
+  },
+  draftTableHeaderRow: {
+    background: '#f8fafc',
+    borderBottom: '2px solid #cbd5e1'
+  },
+  draftTh: {
+    padding: '8px 10px',
+    textAlign: 'left',
+    color: '#334155',
+    fontWeight: 'bold'
+  },
+  draftTableRow: {
+    borderBottom: '1px solid #f1f5f9'
+  },
+  draftTd: {
+    padding: '10px 10px',
+    verticalAlign: 'top',
+    lineHeight: '1.5'
+  },
+  draftScopeDeliverable: {
+    padding: '4px 0'
+  },
+  draftScopeNum: {
+    fontSize: '11.5px',
+    fontWeight: 'bold',
+    color: '#0284c7',
+    marginBottom: '2px'
+  },
+  draftRichHtml: {
+    fontSize: '12.5px',
+    color: '#334155',
+    lineHeight: '1.6'
+  },
+  draftTotalRow: {
+    borderTop: '2px solid #0f172a',
+    background: '#f8fafc'
+  },
+  draftSignaturesGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '40px',
+    marginTop: '36px',
+    paddingTop: '20px',
+    borderTop: '1px solid #cbd5e1'
+  },
+  draftModalFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '14px 24px',
+    background: '#ffffff',
+    borderTop: '1px solid #e2e8f0',
+    flexShrink: 0
   },
   resubmitNotice: {
     padding: '12px 14px',

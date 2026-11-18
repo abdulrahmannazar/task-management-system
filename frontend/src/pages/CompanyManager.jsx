@@ -1179,7 +1179,7 @@ export default function CompanyManager() {
 
               <div style={styles.buttonGroup}>
                 <button type="submit" disabled={saving} style={styles.button}>
-                  {saving ? 'Saving...' : editingId ? 'Update Company' : 'Create Company'}
+                  {saving ? <BlobLoader inline size={14} light message={editingId ? 'Updating Company...' : 'Creating Company...'} /> : editingId ? 'Update Company' : 'Create Company'}
                 </button>
                 <button
                   type="button"
@@ -1241,7 +1241,7 @@ export default function CompanyManager() {
                   disabled={deleting}
                   style={{ ...styles.confirmDeleteBtn, opacity: deleting ? 0.6 : 1 }}
                 >
-                  {deleting ? 'Verifying & Deleting...' : 'Confirm & Delete Company'}
+                  {deleting ? <BlobLoader inline size={14} light message="Deleting Company..." /> : 'Confirm & Delete Company'}
                 </button>
                 <button
                   type="button"

@@ -2049,7 +2049,7 @@ export default function InvoiceManager() {
                     Cancel
                   </button>
                   <button type="submit" disabled={savingPayment} style={styles.modalSubmitBtn}>
-                    {savingPayment ? 'Saving Payment...' : 'Confirm Payment'}
+                    {savingPayment ? <BlobLoader inline size={14} light message="Saving Payment..." /> : 'Confirm Payment'}
                   </button>
                 </div>
               </form>
@@ -2156,7 +2156,7 @@ export default function InvoiceManager() {
                     Cancel
                   </button>
                   <button type="submit" disabled={creatingProforma} style={styles.modalSubmitBtn}>
-                    {creatingProforma ? 'Generating Proforma...' : 'Create Proforma Invoice'}
+                    {creatingProforma ? <BlobLoader inline size={14} light message="Generating Proforma..." /> : 'Create Proforma Invoice'}
                   </button>
                 </div>
               </form>

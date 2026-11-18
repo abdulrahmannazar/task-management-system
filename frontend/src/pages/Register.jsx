@@ -13,6 +13,7 @@ export default function Register() {
   });
   const [departments, setDepartments] = useState([]);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function Register() {
     setError('');
 
     try {
+      setSubmitting(true);
       const response = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,6 +57,8 @@ export default function Register() {
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -136,7 +140,9 @@ export default function Register() {
           </select>
         </div>
 
-        <button type="submit" style={styles.button}>Register Account</button>
+        <button type="submit" disabled={submitting} style={styles.button}>
+            {submitting ? <BlobLoader inline size={14} light message="Registering Account..." /> : 'Register Account'}
+          </button>
 
         <p style={styles.footerText}>
           Already registered? <Link to="/login" style={styles.link}>Sign in here</Link>

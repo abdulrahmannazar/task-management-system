@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import BlobLoader from '../components/BlobLoader';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -310,7 +311,7 @@ export default function Settings() {
 
               <div style={{ marginTop: '8px' }}>
                 <button type="submit" disabled={saving} style={styles.saveBtn}>
-                  {saving ? 'Saving Changes...' : 'Save Profile Changes'}
+                  {saving ? <BlobLoader inline size={14} light message="Saving Changes..." /> : 'Save Profile Changes'}
                 </button>
               </div>
             </form>

@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 import BlobLoader from '../components/BlobLoader';
+import OfficialLoeDocument from '../components/OfficialLoeDocument';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -59,6 +60,8 @@ export default function LoeDetails() {
   const [successMsg, setSuccessMsg] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [processingId, setProcessingId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [signing, setSigning] = useState(false);
   const [rejectingItemId, setRejectingItemId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [staffSignatoryName, setStaffSignatoryName] = useState('');
@@ -414,7 +417,7 @@ export default function LoeDetails() {
                 disabled={processingId === 'ALL'}
                 style={styles.approveAllTopBtn}
               >
-                {processingId === 'ALL' ? 'Approving...' : 'Approve All Deliverables'}
+                {processingId === 'ALL' ? <BlobLoader inline size={14} light message="Approving All..." /> : 'Approve All Deliverables'}
               </button>
             )}
 
@@ -892,148 +895,13 @@ export default function LoeDetails() {
               </>
             )}
 
-            {/* TAB 2: OFFICIAL DOCUMENT PREVIEW (with DRAFT watermark if not approved) */}
+            {/* TAB 2: OFFICIAL DOCUMENT PREVIEW (Exact clone of LOE PDF format) */}
             {activeTab === 'PREVIEW' && (
-              <div style={styles.previewContainer}>
-                {/* Diagonal DRAFT Watermark for non-approved LOEs */}
-                {loe.status !== 'Approved' && (
-                  <div style={styles.previewWatermark}>
-                    DRAFT
-                  </div>
-                )}
-
-                {/* Letterhead Top Banner */}
-                <div style={{ textAlign: 'center', marginBottom: '24px', borderBottom: '2px solid #0f172a', paddingBottom: '14px' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                    FRONTIER ADVISORY (PRIVATE) LIMITED
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                    Corporate Advisory • Tax &amp; Regulatory Services • Management Consulting
-                  </div>
-                </div>
-
-                {/* Date and Ref */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '13px', color: '#334155' }}>
-                  <div>{formatOrdinalDate(loe.start_date)},</div>
-                  <div style={{ fontWeight: 'bold', color: '#0f172a' }}>{loe.loe_code || `#${String(loe.loe_id).padStart(7, '0')}`}</div>
-                </div>
-
-                {/* Recipient */}
-                <div style={{ marginBottom: '20px', fontSize: '13px', color: '#334155', lineHeight: '1.5' }}>
-                  <div>The Directors,</div>
-                  <strong style={{ fontSize: '14px', color: '#0f172a' }}>{loe.company?.name || 'The Client'}</strong>
-                  {loe.company?.reg_no && <div>Company Reg: {loe.company.reg_no}</div>}
-                  {loe.company?.email && <div>Email: {loe.company.email}</div>}
-                </div>
-
-                {/* Engagement Subject & Salutation */}
-                <div style={{ marginBottom: '16px', fontSize: '13px', color: '#334155', lineHeight: '1.6' }}>
-                  <div style={{ marginBottom: '10px' }}>Dear Sirs,</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#0f172a', textDecoration: 'underline', marginBottom: '10px' }}>
-                    ENGAGEMENT AS PROFESSIONAL CONSULTANTS FOR {String(loe.company?.name || 'THE COMPANY').toUpperCase()}
-                  </div>
-                  <p style={{ margin: '0 0 10px', textAlign: 'justify' }}>
-                    We refer to your request and confirm our engagement to provide professional advisory and consulting services as outlined in the schedules and scope of work below.
-                  </p>
-                </div>
-
-                {/* Deliverables Section */}
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#0f172a', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
-                    1. SCOPE OF SERVICES &amp; DELIVERABLES
-                  </div>
-
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', marginBottom: '16px' }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
-                        <th style={{ padding: '8px 10px', textAlign: 'left', color: '#334155', fontWeight: 'bold' }}>#</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'left', color: '#334155', fontWeight: 'bold' }}>Service &amp; Sub-Category</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'left', color: '#334155', fontWeight: 'bold' }}>Scope of Work / Description</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'left', color: '#334155', fontWeight: 'bold' }}>Routine</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'right', color: '#334155', fontWeight: 'bold' }}>Amount ({loeCurrency})</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(loe.loe_items || []).map((it, idx) => (
-                        <tr key={it.loe_item_id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '10px 10px', verticalAlign: 'top', color: '#64748b' }}>{idx + 1}</td>
-                          <td style={{ padding: '10px 10px', verticalAlign: 'top' }}>
-                            <strong style={{ color: '#0f172a' }}>{it.service?.name || `Service #${it.service_id}`}</strong>
-                            {it.service?.sub_category && (
-                              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                                {it.service.sub_category}
-                              </div>
-                            )}
-                            <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px' }}>
-                              {it.service?.department?.name || 'Department'}
-                            </div>
-                          </td>
-                          <td style={{ padding: '10px 10px', verticalAlign: 'top', color: '#334155', lineHeight: '1.5' }}>
-                            {it.custom_scope ? (
-                              /<[a-z][\s\S]*>/i.test(it.custom_scope) ? (
-                                <div style={styles.richScopeContent} dangerouslySetInnerHTML={{ __html: it.custom_scope }} />
-                              ) : (
-                                <div style={{ whiteSpace: 'pre-wrap' }}>{it.custom_scope}</div>
-                              )
-                            ) : it.service?.scope ? (
-                              <div style={{ whiteSpace: 'pre-wrap' }}>{it.service.scope}</div>
-                            ) : (
-                              <div style={{ fontStyle: 'italic', color: '#94a3b8' }}>Standard Deliverables</div>
-                            )}
-                          </td>
-                          <td style={{ padding: '10px 10px', verticalAlign: 'top', color: '#475569', whiteSpace: 'nowrap' }}>
-                            {it.service?.billing_type || loe.billing_frequency || 'One-Time'}
-                          </td>
-                          <td style={{ padding: '10px 10px', verticalAlign: 'top', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', whiteSpace: 'nowrap' }}>
-                            {loeSymbol} {Number(it.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      ))}
-                      <tr style={{ borderTop: '2px solid #0f172a', background: '#f8fafc', fontWeight: 'bold' }}>
-                        <td colSpan={4} style={{ padding: '10px', textAlign: 'right', color: '#0f172a' }}>
-                          Total Professional Fees:
-                        </td>
-                        <td style={{ padding: '10px', textAlign: 'right', color: '#0284c7', fontSize: '14px' }}>
-                          {loeSymbol} {totalFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Terms & Payment Routine */}
-                <div style={{ marginBottom: '24px', fontSize: '13px', color: '#334155', lineHeight: '1.6' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '13.5px', color: '#0f172a', marginBottom: '8px' }}>
-                    2. TERMS OF PAYMENT &amp; BILLING
-                  </div>
-                  <p style={{ margin: '0 0 8px', textAlign: 'justify' }}>
-                    Professional fees shall be invoiced based on the agreed billing routine (<strong>{loe.billing_frequency || 'One-Time'}</strong>) in <strong>{loeCurrency}</strong>. Invoices are due and payable upon receipt or as specified on official tax invoices. Out-of-pocket expenses and government levies, if applicable, will be charged separately at actual cost.
-                  </p>
-                </div>
-
-                {/* Signatures */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginTop: '36px', paddingTop: '20px', borderTop: '1px solid #cbd5e1' }}>
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '24px' }}>Yours faithfully,</div>
-                    <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#0f172a' }}>Frontier Advisory (Pvt) Ltd</div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>Authorized Signatory</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '24px' }}>Confirmed and Accepted by:</div>
-                    <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#0f172a' }}>
-                      {loe.client_signatory_name || 'Authorized Client Representative'}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>
-                      {loe.client_signatory_title || 'Director / Officer'}
-                    </div>
-                    {loe.client_accepted_at && (
-                      <div style={{ fontSize: '11.5px', color: '#059669', marginTop: '4px' }}>
-                        Signed on: {new Date(loe.client_accepted_at).toLocaleDateString()}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <OfficialLoeDocument
+                loe={loe}
+                company={loe?.company}
+                isDraft={loe?.status !== 'Approved'}
+              />
             )}
           </div>
         )}

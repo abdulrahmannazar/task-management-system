@@ -300,7 +300,7 @@ export default function AccessControl() {
               disabled={permSaving}
               style={styles.savePermBtn}
             >
-              {permSaving ? 'Saving...' : 'Save Access Permissions'}
+              {permSaving ? <BlobLoader inline size={14} light message="Saving Permissions..." /> : 'Save Access Permissions'}
             </button>
           </div>
         </div>

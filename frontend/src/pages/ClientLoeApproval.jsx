@@ -369,7 +369,7 @@ export default function ClientLoeApproval() {
                         ...(submitting || !agreeTerms || !signatoryName.trim() ? styles.disabledBtn : {})
                       }}
                     >
-                      {submitting ? 'Recording Acceptance...' : 'Authorize & Accept Engagement'}
+                      {submitting ? <BlobLoader inline size={14} light message="Recording Acceptance..." /> : 'Authorize & Accept Engagement'}
                     </button>
                   </form>
                 )}

@@ -440,7 +440,7 @@ export default function DispatchTracker() {
                                       : `Send LOE to ${loe.company?.primary_contact_email || loe.company?.email} from ${user?.email || 'your email'}`
                                   }
                                 >
-                                  {isSending ? 'Sending...' : sent ? 'Resend to Client' : 'Send to Client'}
+                                  {isSending ? <BlobLoader inline size={13} light message="Sending..." /> : sent ? 'Resend to Client' : 'Send to Client'}
                                 </button>
                                 <button
                                   type="button"
@@ -561,7 +561,7 @@ export default function DispatchTracker() {
                                       : `Send Invoice to ${company?.primary_contact_email || company?.email} from ${user?.email || 'your email'}`
                                   }
                                 >
-                                  {sendingId === `inv_${inv.invoice_id}` ? 'Sending...' : sent ? 'Resend to Client' : 'Send to Client'}
+                                  {sendingId === `inv_${inv.invoice_id}` ? <BlobLoader inline size={13} light message="Sending..." /> : sent ? 'Resend to Client' : 'Send to Client'}
                                 </button>
                                 <button
                                   type="button"
