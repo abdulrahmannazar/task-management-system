@@ -256,18 +256,6 @@ export default function Navbar() {
         </svg>
       )
     },
-    {
-      label: 'Petty Cash',
-      path: '/petty-cash',
-      permission: 'VIEW_PETTY_CASH',
-      icon: (active) => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#0284c7' : '#475569'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect width="20" height="14" x="2" y="5" rx="2" />
-          <line x1="2" x2="22" y1="10" y2="10" />
-          <circle cx="12" cy="15" r="2" />
-        </svg>
-      )
-    },
 
     {
       label: 'Employees',
@@ -338,6 +326,18 @@ export default function Navbar() {
           <rect x="4" y="2" width="16" height="20" rx="2" />
           <path d="M9 22v-4h6v4" />
           <path d="M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01" />
+        </svg>
+      )
+    },
+       {
+      label: 'Petty Cash',
+      path: '/petty-cash',
+      permission: 'VIEW_PETTY_CASH',
+      icon: (active) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#0284c7' : '#475569'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="20" height="14" x="2" y="5" rx="2" />
+          <line x1="2" x2="22" y1="10" y2="10" />
+          <circle cx="12" cy="15" r="2" />
         </svg>
       )
     }
