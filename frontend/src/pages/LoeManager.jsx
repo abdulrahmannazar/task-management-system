@@ -44,6 +44,8 @@ export default function LoeManager() {
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [draggedScope, setDraggedScope] = useState(null);
+  const [dragOverScope, setDragOverScope] = useState(null);
   const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
   const [formError, setFormError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -422,6 +424,74 @@ export default function LoeManager() {
       const updatedScopes = [...serviceBlock.scopes];
       updatedScopes.splice(scopeIndex, 1);
       updated[serviceIndex] = { ...serviceBlock, scopes: updatedScopes };
+      return { ...prev, loe_services: updated };
+    });
+  };
+
+  const reorderScopes = (srvIdx, fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return;
+    setFormData(prev => {
+      const updatedServices = [...prev.loe_services];
+      const srv = { ...updatedServices[srvIdx] };
+      const scopes = [...srv.scopes];
+      if (toIdx < 0 || toIdx >= scopes.length) return prev;
+      const [moved] = scopes.splice(fromIdx, 1);
+      scopes.splice(toIdx, 0, moved);
+      srv.scopes = scopes;
+      updatedServices[srvIdx] = srv;
+      return { ...prev, loe_services: updatedServices };
+    });
+  };
+
+  const moveScope = (srvIdx, scIdx, direction) => {
+    reorderScopes(srvIdx, scIdx, scIdx + direction);
+  };
+
+  const handleScopeDragStart = (srvIdx, scIdx, e) => {
+    setDraggedScope({ srvIdx, scIdx });
+    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ srvIdx, scIdx }));
+    } catch {}
+  };
+
+  const handleScopeDragOver = (srvIdx, scIdx, e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!dragOverScope || dragOverScope.srvIdx !== srvIdx || dragOverScope.scIdx !== scIdx) {
+      setDragOverScope({ srvIdx, scIdx });
+    }
+  };
+
+  const handleScopeDrop = (srvIdx, scIdx, e) => {
+    e.preventDefault();
+    setDragOverScope(null);
+    let from = draggedScope;
+    if (!from) {
+      try {
+        from = JSON.parse(e.dataTransfer.getData('text/plain'));
+      } catch {}
+    }
+    if (!from || from.srvIdx !== srvIdx) {
+      setDraggedScope(null);
+      return;
+    }
+    reorderScopes(srvIdx, from.scIdx, scIdx);
+    setDraggedScope(null);
+  };
+
+  const handleScopeDragEnd = () => {
+    setDraggedScope(null);
+    setDragOverScope(null);
+  };
+
+  const moveService = (srvIdx, direction) => {
+    setFormData(prev => {
+      const updated = [...prev.loe_services];
+      const targetIdx = srvIdx + direction;
+      if (targetIdx < 0 || targetIdx >= updated.length) return prev;
+      const [moved] = updated.splice(srvIdx, 1);
+      updated.splice(targetIdx, 0, moved);
       return { ...prev, loe_services: updated };
     });
   };
@@ -1433,6 +1503,36 @@ export default function LoeManager() {
                           />
                         </div>
 
+                        {formData.loe_services.length > 1 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <button
+                              type="button"
+                              onClick={() => moveService(srvIdx, -1)}
+                              disabled={srvIdx === 0}
+                              style={{
+                                ...styles.serviceMoveBtn,
+                                opacity: srvIdx === 0 ? 0.25 : 1,
+                                cursor: srvIdx === 0 ? 'default' : 'pointer'
+                              }}
+                              title="Move service card up"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveService(srvIdx, 1)}
+                              disabled={srvIdx === formData.loe_services.length - 1}
+                              style={{
+                                ...styles.serviceMoveBtn,
+                                opacity: srvIdx === formData.loe_services.length - 1 ? 0.25 : 1,
+                                cursor: srvIdx === formData.loe_services.length - 1 ? 'default' : 'pointer'
+                              }}
+                              title="Move service card down"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        )}
                         <button 
                           type="button" 
                           onClick={() => removeServiceCard(srvIdx)} 
@@ -1454,27 +1554,90 @@ export default function LoeManager() {
                                   : 'No scopes added yet. Select a scope from the dropdown below or click "+ Custom Scope".'}
                               </p>
                             ) : (
-                              srvBlock.scopes.map((scopeText, scIdx) => (
-                                <div key={scIdx} style={styles.scopeItemRow}>
-                                  <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <ScopeRichEditor
-                                      value={scopeText}
-                                      onChange={(newVal) => handleScopeTextChange(srvIdx, scIdx, newVal)}
-                                      placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
-                                      minHeight="80px"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeScopeItem(srvIdx, scIdx)}
-                                    style={styles.removeScopeBtn}
-                                    title="Delete scope"
+                              srvBlock.scopes.map((scopeText, scIdx) => {
+                                const isDragging = draggedScope && draggedScope.srvIdx === srvIdx && draggedScope.scIdx === scIdx;
+                                const isDragOver = dragOverScope && dragOverScope.srvIdx === srvIdx && dragOverScope.scIdx === scIdx;
+
+                                return (
+                                  <div
+                                    key={scIdx}
+                                    onDragOver={(e) => handleScopeDragOver(srvIdx, scIdx, e)}
+                                    onDrop={(e) => handleScopeDrop(srvIdx, scIdx, e)}
+                                    style={{
+                                      ...styles.scopeItemRow,
+                                      border: isDragOver ? '2px dashed #0284c7' : '1px solid #e2e8f0',
+                                      backgroundColor: isDragging ? '#f1f5f9' : isDragOver ? '#f0f9ff' : '#f8fafc',
+                                      opacity: isDragging ? 0.45 : 1,
+                                      transition: 'border 0.15s ease, background-color 0.15s ease'
+                                    }}
                                   >
-                                    ✕
-                                  </button>
-                                </div>
-                              ))
+                                    {/* Left Reorder & Drag Handle Column */}
+                                    <div style={styles.scopeControlCol}>
+                                      <div
+                                        draggable
+                                        onDragStart={(e) => handleScopeDragStart(srvIdx, scIdx, e)}
+                                        onDragEnd={handleScopeDragEnd}
+                                        style={styles.dragBadgeWrap}
+                                        title="Click and drag to reorder this scope deliverable"
+                                      >
+                                        <span style={styles.gripDots} aria-hidden="true">⠿</span>
+                                        <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
+                                      </div>
+
+                                      {srvBlock.scopes.length > 1 && (
+                                        <div style={styles.arrowControls}>
+                                          <button
+                                            type="button"
+                                            onClick={() => moveScope(srvIdx, scIdx, -1)}
+                                            disabled={scIdx === 0}
+                                            style={{
+                                              ...styles.arrowBtn,
+                                              opacity: scIdx === 0 ? 0.25 : 1,
+                                              cursor: scIdx === 0 ? 'default' : 'pointer'
+                                            }}
+                                            title="Move scope deliverable up"
+                                          >
+                                            ▲
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => moveScope(srvIdx, scIdx, 1)}
+                                            disabled={scIdx === srvBlock.scopes.length - 1}
+                                            style={{
+                                              ...styles.arrowBtn,
+                                              opacity: scIdx === srvBlock.scopes.length - 1 ? 0.25 : 1,
+                                              cursor: scIdx === srvBlock.scopes.length - 1 ? 'default' : 'pointer'
+                                            }}
+                                            title="Move scope deliverable down"
+                                          >
+                                            ▼
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Scope Rich Editor */}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <ScopeRichEditor
+                                        value={scopeText}
+                                        onChange={(newVal) => handleScopeTextChange(srvIdx, scIdx, newVal)}
+                                        placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
+                                        minHeight="80px"
+                                      />
+                                    </div>
+
+                                    {/* Remove Scope Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeScopeItem(srvIdx, scIdx)}
+                                      style={styles.removeScopeBtn}
+                                      title="Delete scope"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                );
+                              })
                             )}
                           </div>
 
@@ -1989,14 +2152,68 @@ const styles = {
     borderRadius: '4px',
     border: '1px solid #e2e8f0'
   },
-  scopeIndexBadge: {
+  scopeControlCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '4px',
+    flexShrink: 0,
+    marginTop: '2px'
+  },
+  dragBadgeWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
     background: '#e2e8f0',
-    color: '#334155',
+    borderRadius: '4px',
+    padding: '3px 6px',
+    cursor: 'grab',
+    userSelect: 'none',
+    transition: 'background 0.15s ease'
+  },
+  gripDots: {
+    color: '#64748b',
+    fontSize: '13px',
+    lineHeight: 1,
+    cursor: 'grab'
+  },
+  scopeIndexBadge: {
+    color: '#0f172a',
     fontWeight: 'bold',
-    fontSize: '11px',
-    padding: '4px 8px',
+    fontSize: '11px'
+  },
+  arrowControls: {
+    display: 'flex',
+    gap: '2px'
+  },
+  arrowBtn: {
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
     borderRadius: '3px',
-    marginTop: '4px'
+    width: '18px',
+    height: '16px',
+    fontSize: '7px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#475569',
+    cursor: 'pointer',
+    padding: 0,
+    lineHeight: 1
+  },
+  serviceMoveBtn: {
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    borderRadius: '3px',
+    width: '24px',
+    height: '16px',
+    fontSize: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#475569',
+    cursor: 'pointer',
+    padding: 0
   },
   scopeTextarea: {
     flex: '1',
