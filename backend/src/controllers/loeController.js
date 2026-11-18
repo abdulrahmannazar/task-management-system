@@ -575,6 +575,13 @@ exports.sendToClient = asyncHandler(async (req, res) => {
 
   if (!loe) return res.status(404).json({ error: 'LOE record not found' });
 
+  const isApproved = String(loe.status || '').trim().toLowerCase() === 'approved';
+  if (!isApproved) {
+    return res.status(400).json({
+      error: `Cannot dispatch LOE: LOE #${loeId} is currently "${loe.status}". Only approved LOEs can be sent to clients.`
+    });
+  }
+
   const targetEmail = loe.company?.primary_contact_email || loe.company?.email;
   if (!targetEmail || !targetEmail.trim()) {
     return res.status(400).json({
@@ -586,6 +593,10 @@ exports.sendToClient = asyncHandler(async (req, res) => {
   const totalAmount = (loe.loe_items || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const currency = loe.currency || 'LKR';
 
+  const { sender_email, sender_name } = req.body || {};
+  const senderEmail = sender_email || req.user?.email || loe.creator?.email;
+  const senderName = sender_name || req.user?.name || loe.creator?.name;
+
   // Dispatch email to client
   await sendLoeDispatchToClientEmail({
     toEmail: targetEmail.trim(),
@@ -594,7 +605,9 @@ exports.sendToClient = asyncHandler(async (req, res) => {
     loeId: loe.loe_id,
     loeCode: enriched.loe_code,
     totalAmount,
-    currency
+    currency,
+    senderName,
+    senderEmail
   });
 
   const now = new Date();
@@ -613,7 +626,7 @@ exports.sendToClient = asyncHandler(async (req, res) => {
   });
 
   res.json({
-    message: `LOE ${enriched.loe_code} successfully dispatched to client at ${targetEmail}.`,
+    message: `LOE ${enriched.loe_code} successfully dispatched to ${targetEmail}${senderEmail ? ` from ${senderEmail}` : ''}.`,
     loe: enrichLoeWithCode(updatedLoe),
     sent_at: now.toISOString()
   });

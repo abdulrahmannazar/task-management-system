@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE, fetchCachedJson } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
+import ScopeRichEditor from '../components/ScopeRichEditor';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -493,7 +494,9 @@ export default function LoeManager() {
       if (!srvBlock.service_id && !srvBlock.is_custom) return;
       if (srvBlock.is_custom && !srvBlock.custom_service_name?.trim()) return;
 
-      const validScopes = srvBlock.scopes.filter(s => s.trim().length > 0);
+      const validScopes = srvBlock.scopes.filter(
+        (s) => String(s || '').replace(/<[^>]*>/g, '').trim().length > 0
+      );
       const isApproved = srvBlock.status === 'Approved';
       const itemAmount = Number(srvBlock.amount || 0);
 
@@ -1438,14 +1441,14 @@ export default function LoeManager() {
                               srvBlock.scopes.map((scopeText, scIdx) => (
                                 <div key={scIdx} style={styles.scopeItemRow}>
                                   <span style={styles.scopeIndexBadge}>{scIdx + 1}</span>
-                                  <textarea
-                                    rows="2"
-                                    placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
-                                    value={scopeText}
-                                    onChange={(e) => handleScopeTextChange(srvIdx, scIdx, e.target.value)}
-                                    style={styles.scopeTextarea}
-                                    required
-                                  />
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <ScopeRichEditor
+                                      value={scopeText}
+                                      onChange={(newVal) => handleScopeTextChange(srvIdx, scIdx, newVal)}
+                                      placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
+                                      minHeight="80px"
+                                    />
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => removeScopeItem(srvIdx, scIdx)}

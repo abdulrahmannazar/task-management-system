@@ -107,6 +107,12 @@ export default function DispatchTracker() {
   };
 
   const handleSendLoe = async (loe) => {
+    const isApproved = String(loe.status || '').trim().toLowerCase() === 'approved';
+    if (!isApproved) {
+      setError(`Cannot send LOE: LOE #${loe.loe_id} must be Approved before dispatching to client (Current status: ${loe.status || 'Pending'}).`);
+      return;
+    }
+
     try {
       setSendingId(loe.loe_id);
       setError('');
@@ -117,7 +123,11 @@ export default function DispatchTracker() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({
+          sender_email: user?.email,
+          sender_name: user?.name
+        })
       });
 
       const data = await response.json();
@@ -143,6 +153,46 @@ export default function DispatchTracker() {
       setSendingId(null);
     }
   };
+
+  const handleSendInvoice = async (inv) => {
+    try {
+      setSendingId(`inv_${inv.invoice_id}`);
+      setError('');
+      setToastMsg('');
+
+      const response = await fetch(`${API_BASE}/api/invoices/${inv.invoice_id}/send-to-client`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          sender_email: user?.email,
+          sender_name: user?.name
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to dispatch Invoice to client');
+
+      // Update localStorage sync
+      const key = `inv_${inv.invoice_id}`;
+      const updatedMap = {
+        ...dispatchMap,
+        [key]: { sent: true, sent_at: data.sent_at || new Date().toISOString() }
+      };
+      setDispatchMap(updatedMap);
+      localStorage.setItem('client_dispatch_records', JSON.stringify(updatedMap));
+
+      setToastMsg(data.message || 'Invoice successfully dispatched to client.');
+      setTimeout(() => setToastMsg(''), 7000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSendingId(null);
+    }
+  };
+
 
   const handleToggleSent = async (type, item) => {
     const id = type === 'loe' ? item.loe_id : item.invoice_id;
@@ -325,6 +375,10 @@ export default function DispatchTracker() {
                         const currencyCode = loe.currency || 'LKR';
                         const symbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode;
                         const totalVal = (loe.loe_items || []).reduce((acc, i) => acc + Number(i.amount || 0), 0);
+                        const isApproved = String(loe.status || '').trim().toLowerCase() === 'approved';
+                        const hasEmail = Boolean((loe.company?.primary_contact_email || loe.company?.email || '').trim());
+                        const isSending = sendingId === loe.loe_id;
+                        const canSend = isApproved && hasEmail && !isSending;
 
                         return (
                           <tr key={loe.loe_id} style={styles.tr}>
@@ -366,13 +420,37 @@ export default function DispatchTracker() {
                               )}
                             </td>
                             <td style={styles.td}>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSent('loe', loe)}
-                                style={sent ? styles.markUnsentBtn : styles.markSentBtn}
-                              >
-                                {sent ? 'Mark Not Sent' : 'Mark as Sent'}
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => canSend && handleSendLoe(loe)}
+                                  disabled={!canSend}
+                                  style={{
+                                    ...styles.primarySendBtn,
+                                    ...(sent ? styles.resendBtn : {}),
+                                    ...(!canSend ? styles.disabledBtn : {})
+                                  }}
+                                  title={
+                                    !isApproved
+                                      ? `LOE must be Approved before sending to client (Current status: ${loe.status || 'Pending'})`
+                                      : !hasEmail
+                                      ? "No client email on file"
+                                      : sent
+                                      ? `Resend LOE to ${loe.company?.primary_contact_email || loe.company?.email} from ${user?.email || 'your email'}`
+                                      : `Send LOE to ${loe.company?.primary_contact_email || loe.company?.email} from ${user?.email || 'your email'}`
+                                  }
+                                >
+                                  {isSending ? 'Sending...' : sent ? 'Resend to Client' : 'Send to Client'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSent('loe', loe)}
+                                  style={sent ? styles.markUnsentBtn : styles.markSentBtn}
+                                  title="Toggle sent confirmation"
+                                >
+                                  {sent ? 'Mark Not Sent' : 'Mark as Sent'}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -465,13 +543,35 @@ export default function DispatchTracker() {
                               )}
                             </td>
                             <td style={styles.td}>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSent('inv', inv)}
-                                style={sent ? styles.markUnsentBtn : styles.markSentBtn}
-                              >
-                                {sent ? 'Mark Not Sent' : 'Mark as Sent'}
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendInvoice(inv)}
+                                  disabled={sendingId === `inv_${inv.invoice_id}` || !(company?.primary_contact_email || company?.email)}
+                                  style={{
+                                    ...styles.primarySendBtn,
+                                    ...(sent ? styles.resendBtn : {}),
+                                    ...(!(company?.primary_contact_email || company?.email) ? styles.disabledBtn : {})
+                                  }}
+                                  title={
+                                    !(company?.primary_contact_email || company?.email)
+                                      ? "No client email on file"
+                                      : sent
+                                      ? `Resend Invoice to ${company?.primary_contact_email || company?.email} from ${user?.email || 'your email'}`
+                                      : `Send Invoice to ${company?.primary_contact_email || company?.email} from ${user?.email || 'your email'}`
+                                  }
+                                >
+                                  {sendingId === `inv_${inv.invoice_id}` ? 'Sending...' : sent ? 'Resend to Client' : 'Send to Client'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSent('inv', inv)}
+                                  style={sent ? styles.markUnsentBtn : styles.markSentBtn}
+                                  title="Toggle sent confirmation"
+                                >
+                                  {sent ? 'Mark Not Sent' : 'Mark as Sent'}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -521,14 +621,14 @@ const styles = {
   badge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
   sentBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', display: 'inline-block' },
   notSentBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', display: 'inline-block' },
-  markSentBtn: { padding: '6px 12px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
-  markUnsentBtn: { padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
+  markSentBtn: { padding: '6px 12px', background: '#ffffff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  markUnsentBtn: { padding: '6px 12px', background: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' },
   loadingState: { padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '15px' },
   emptyText: { color: '#64748b', fontStyle: 'italic', fontSize: '14px' },
-  successBanner: { background: '#ecfdf5', color: '#059669', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #a7f3d0', fontSize: '13px', fontWeight: 'bold' },
-  primarySendBtn: { padding: '7px 14px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)' },
-  resendBtn: { padding: '7px 14px', background: '#f8fafc', color: '#0284c7', border: '1.5px solid #0284c7', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
-  disabledBtn: { opacity: 0.6, cursor: 'not-allowed' },
+  successBanner: { background: '#ecfdf5', color: '#059669', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #a7f3d0', fontSize: '13px', fontWeight: '600' },
+  primarySendBtn: { padding: '6px 14px', background: '#0284c7', color: '#ffffff', border: '1px solid #0284c7', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(2, 132, 199, 0.18)', whiteSpace: 'nowrap' },
+  resendBtn: { padding: '6px 14px', background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  disabledBtn: { opacity: 0.45, cursor: 'not-allowed', backgroundColor: '#94a3b8', borderColor: '#94a3b8', color: '#ffffff', boxShadow: 'none' },
   textToggleBtn: { background: 'none', border: 'none', color: '#64748b', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', padding: '2px 0' },
   errorBanner: { background: '#fff1f2', color: '#e11d48', padding: '12px 16px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #fecdd3', fontSize: '13px' }
 };

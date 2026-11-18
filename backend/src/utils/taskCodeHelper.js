@@ -12,7 +12,8 @@ function generateTaskCode(companyName, scopeText, number = 1) {
     : (compWords[0] || 'CMP').slice(0, 3);
   compCode = compCode.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'CMP';
 
-  let sc = (scopeText || 'TASK').replace(/[^a-zA-Z0-9\s]/g, '').trim();
+  const cleanScope = String(scopeText || 'TASK').replace(/<[^>]*>/g, ' ');
+  let sc = cleanScope.replace(/[^a-zA-Z0-9\s]/g, '').trim();
   const scWords = sc.split(/\s+/).filter(Boolean);
   let scopeCode = scWords.length > 0 ? scWords[0].slice(0, 3) : 'TSK';
   scopeCode = scopeCode.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'TSK';

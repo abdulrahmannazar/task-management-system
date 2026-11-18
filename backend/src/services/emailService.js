@@ -28,7 +28,7 @@ function formatMoney(amount, currency = 'LKR') {
   return `${sym} ${formatted} (${code})`;
 }
 
-async function sendViaEmailJS({ toEmail, subject, textContent }) {
+async function sendViaEmailJS({ toEmail, subject, textContent, senderName, senderEmail }) {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
   const publicKey = process.env.EMAILJS_PUBLIC_KEY;
@@ -46,7 +46,11 @@ async function sendViaEmailJS({ toEmail, subject, textContent }) {
     template_params: {
       to_email: toEmail,
       subject: subject,
-      message: textContent
+      message: textContent,
+      from_name: senderName ? `${senderName} (Frontier Advisory)` : 'Frontier Advisory',
+      reply_to: senderEmail || undefined,
+      sender_name: senderName || 'Frontier Advisory',
+      sender_email: senderEmail || ''
     }
   };
 
@@ -64,11 +68,11 @@ async function sendViaEmailJS({ toEmail, subject, textContent }) {
   return true;
 }
 
-async function dispatchEmail({ toEmail, subject, textContent }) {
+async function dispatchEmail({ toEmail, subject, textContent, senderName, senderEmail }) {
   if (!toEmail) return;
 
   try {
-    await sendViaEmailJS({ toEmail, subject, textContent });
+    await sendViaEmailJS({ toEmail, subject, textContent, senderName, senderEmail });
     console.log(`[Email Success] Delivered to ${toEmail}`);
   } catch (err) {
     console.error(`[Email Error] Failed delivering to ${toEmail}:`, err.message);
@@ -241,11 +245,15 @@ Please update the deliverables and submit for re-approval.`;
 }
 
 // 6. Direct Client Dispatch Email with LOE PDF & Client Acceptance Portal link
-async function sendLoeDispatchToClientEmail({ toEmail, recipientName, companyName, loeId, loeCode, totalAmount, currency = 'LKR' }) {
+async function sendLoeDispatchToClientEmail({ toEmail, recipientName, companyName, loeId, loeCode, totalAmount, currency = 'LKR', senderName, senderEmail }) {
   const code = loeCode || `LOE-${String(loeId).padStart(5, '0')}`;
   const appUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const approvalUrl = `${appUrl}/loes/${loeId}/client-approval`;
   const pdfUrl = `${BASE_URL}/api/loes/${loeId}/pdf`;
+
+  const senderSignoff = senderName 
+    ? `${senderName}${senderEmail ? ` (${senderEmail})` : ''}\nFrontier Advisory (Private) Limited` 
+    : `Frontier Advisory Operations Team\nFrontier Advisory (Private) Limited`;
 
   const textContent = 
 `Dear ${recipientName || companyName},
@@ -266,12 +274,52 @@ ${approvalUrl}
 Please review the deliverables and complete the client acceptance sign-off.
 
 Sincerely,
-Frontier Advisory Operations Team`;
+${senderSignoff}`;
 
   await dispatchEmail({
     toEmail,
     subject: `Letter of Engagement ${code} - Frontier Advisory (${companyName})`,
-    textContent
+    textContent,
+    senderName,
+    senderEmail
+  });
+}
+
+// 7. Direct Client Dispatch Email for Invoice with PDF link
+async function sendInvoiceDispatchToClientEmail({ toEmail, recipientName, companyName, invoiceId, amount, dueDate, currency = 'LKR', senderName, senderEmail }) {
+  const invCode = `INV-${String(invoiceId).padStart(5, '0')}`;
+  const pdfUrl = `${BASE_URL}/api/invoices/${invoiceId}/pdf`;
+  const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString() : 'Upon Receipt';
+
+  const senderSignoff = senderName 
+    ? `${senderName}${senderEmail ? ` (${senderEmail})` : ''}\nFrontier Advisory (Private) Limited` 
+    : `Frontier Advisory Finance Team\nFrontier Advisory (Private) Limited`;
+
+  const textContent = 
+`Dear ${recipientName || companyName},
+
+Frontier Advisory (Private) Limited has issued Invoice ${invCode}.
+
+Invoice Summary:
+- Invoice Reference: ${invCode}
+- Client: ${companyName}
+- Total Amount Due: ${formatMoney(amount, currency)}
+- Payment Due Date: ${formattedDueDate}
+
+Download Invoice Document (PDF):
+${pdfUrl}
+
+Please process payment according to the agreed payment terms. If you have any questions, you can reply directly to this email.
+
+Sincerely,
+${senderSignoff}`;
+
+  await dispatchEmail({
+    toEmail,
+    subject: `Invoice ${invCode} - Frontier Advisory (${companyName})`,
+    textContent,
+    senderName,
+    senderEmail
   });
 }
 
@@ -294,5 +342,6 @@ module.exports = {
   sendTaskReminderEmail, 
   sendTaskCompletedEmail,
   sendLoeRejectedEmail,
-  sendLoeDispatchToClientEmail
+  sendLoeDispatchToClientEmail,
+  sendInvoiceDispatchToClientEmail
 };
