@@ -34,6 +34,7 @@ export default function PettyCashManager() {
     task_id: '',
     amount: '',
     category: 'Travel & Transport',
+    custom_category: '',
     purpose: '',
     date_required: new Date().toISOString().split('T')[0]
   };
@@ -191,6 +192,7 @@ export default function PettyCashManager() {
       task_id: allocatedTasks[0] ? String(allocatedTasks[0].task_id) : '',
       amount: '',
       category: 'Travel & Transport',
+      custom_category: '',
       purpose: '',
       date_required: new Date().toISOString().split('T')[0]
     });
@@ -234,6 +236,19 @@ export default function PettyCashManager() {
       return;
     }
 
+    if (formData.category === 'Other') {
+      const cleanCustom = String(formData.custom_category || '').trim();
+      if (!cleanCustom) {
+        setModalError('Please specifically describe the expense category when "Other" is selected.');
+        return;
+      }
+    }
+
+    const finalCategory =
+      formData.category === 'Other'
+        ? `Other: ${formData.custom_category.trim()}`
+        : formData.category;
+
     try {
       setSubmitting(true);
       const res = await authenticatedFetch('/api/petty-cash', {
@@ -241,7 +256,7 @@ export default function PettyCashManager() {
         body: JSON.stringify({
           task_id: parseInt(formData.task_id),
           amount: numAmount,
-          category: formData.category,
+          category: finalCategory,
           purpose: formData.purpose.trim(),
           date_required: formData.date_required,
           emp_id: user.emp_id
@@ -398,7 +413,12 @@ export default function PettyCashManager() {
       }
     }
 
-    if (filterCategory !== 'ALL' && req.category !== filterCategory) return false;
+    if (filterCategory !== 'ALL') {
+      const matchCat =
+        req.category === filterCategory ||
+        (filterCategory === 'Other' && String(req.category || '').startsWith('Other'));
+      if (!matchCat) return false;
+    }
     if (filterDate && req.date_required && !req.date_required.startsWith(filterDate)) return false;
 
     if (filterCompany) {
@@ -411,6 +431,7 @@ export default function PettyCashManager() {
       const empName = req.employee?.name || '';
       const empEmail = req.employee?.email || '';
       const purpose = req.purpose || '';
+      const cat = req.category || '';
       const taskCode = req.task?.task_code || '';
       const compName = req.task?.job?.loe?.company?.name || '';
 
@@ -418,6 +439,7 @@ export default function PettyCashManager() {
         empName.toLowerCase().includes(search) ||
         empEmail.toLowerCase().includes(search) ||
         purpose.toLowerCase().includes(search) ||
+        cat.toLowerCase().includes(search) ||
         taskCode.toLowerCase().includes(search) ||
         compName.toLowerCase().includes(search);
 
@@ -988,6 +1010,57 @@ export default function PettyCashManager() {
                     ))}
                   </select>
                 </div>
+
+                {/* 3b. Specific Expense Category Input (Only when 'Other' is selected) */}
+                {formData.category === 'Other' && (
+                  <div
+                    style={{
+                      ...styles.formGroup,
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      marginTop: '-4px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ ...styles.label, marginBottom: 0, color: '#0f172a' }}>
+                        Specify Expense Category <span style={{ color: '#e11d48' }}>*</span>
+                      </label>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: '#0284c7',
+                          backgroundColor: '#e0f2fe',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontWeight: '700'
+                        }}
+                      >
+                        Required for 'Other'
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="e.g. Client Refreshment, Hardware Repair, Office Emergency Supplies, Legal Stamp..."
+                      value={formData.custom_category}
+                      onChange={(e) => setFormData({ ...formData, custom_category: e.target.value })}
+                      disabled={!hasAllocatedTasks || submitting}
+                      required
+                      autoFocus
+                      maxLength={80}
+                      style={{
+                        ...styles.selectInput,
+                        backgroundColor: '#ffffff',
+                        borderColor: '#0284c7',
+                        boxShadow: '0 0 0 3px rgba(2, 132, 199, 0.12)'
+                      }}
+                    />
+                    <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                      Please specify the exact nature of this expense since 'Other' was selected.
+                    </span>
+                  </div>
+                )}
 
                 {/* 4. Date Required */}
                 <div style={styles.formGroup}>

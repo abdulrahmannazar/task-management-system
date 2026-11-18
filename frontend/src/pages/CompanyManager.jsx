@@ -4,6 +4,7 @@ import apiFetch, { API_BASE } from '../utils/api';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 import BlobLoader from '../components/BlobLoader';
+import PhoneInputWithCountryCode from '../components/PhoneInputWithCountryCode';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -1114,15 +1115,13 @@ export default function CompanyManager() {
 
                 <div style={styles.fieldGroup}>
                   <label style={styles.label}>Company Phone Number</label>
-                  <input
-                    type="text"
+                  <PhoneInputWithCountryCode
                     name="phone_number"
                     value={formData.phone_number}
                     onChange={handleChange}
-                    placeholder="e.g. 011 234 5678 / +94 11..."
-                    style={styles.input}
+                    placeholder="11 234 5678"
                   />
-                  <span style={styles.inputHint}>10 digits local or +country code</span>
+                  <span style={styles.inputHint}>Select country code (default +94) and enter number</span>
                 </div>
               </div>
 
@@ -1165,14 +1164,13 @@ export default function CompanyManager() {
 
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Phone Number</label>
-                    <input
-                      type="text"
+                    <PhoneInputWithCountryCode
                       name="primary_contact_phone"
                       value={formData.primary_contact_phone}
                       onChange={handleChange}
-                      placeholder="e.g. 077 123 4567"
-                      style={styles.input}
+                      placeholder="77 123 4567"
                     />
+                    <span style={styles.inputHint}>Country code + contact number</span>
                   </div>
                 </div>
               </div>
