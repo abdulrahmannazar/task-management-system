@@ -89,7 +89,10 @@ export default function LoeDetails() {
   const fetchLoeDetails = async () => {
     try {
       setLoading(true);
-      if (!token) throw new Error('Authentication token missing.');
+      if (!token) {
+        navigate('/login', { replace: true });
+        return;
+      }
 
       const response = await fetch(`${API_BASE}/api/loes/${id}`, {
         headers: { Authorization: `Bearer ${token}` }

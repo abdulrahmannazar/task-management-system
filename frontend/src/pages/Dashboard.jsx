@@ -39,12 +39,16 @@ export default function Dashboard() {
   const [expandedTasks, setExpandedTasks] = useState({});
 
   useEffect(() => {
+    if (!token) {
+      navigate('/login', { replace: true });
+      return;
+    }
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
     if (!token) {
-      setError('Authentication token missing. Please log in again.');
+      navigate('/login', { replace: true });
       setLoading(false);
       return;
     }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import FrontierLogo from '../components/FrontierLogo';
 import { apiFetch, getApiUrl } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
@@ -9,6 +9,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   React.useEffect(() => {
     // Immediate pre-warm ping so the server is wide awake by the time the user clicks submit
@@ -53,7 +54,10 @@ export default function Login() {
         department_name: data.user.department_name
       }));
 
-      navigate('/dashboard');
+      const destination = location.state?.from?.pathname
+        ? `${location.state.from.pathname}${location.state.from.search || ''}`
+        : '/dashboard';
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

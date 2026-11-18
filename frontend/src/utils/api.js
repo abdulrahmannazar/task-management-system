@@ -52,6 +52,15 @@ export async function apiFetch(endpoint, options = {}) {
       const fallbackUrl = url.replace(LOCAL_API, REMOTE_API);
       return await fetch(fallbackUrl, options);
     }
+    if (res.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/health') && !url.includes('/client-approval')) {
+      if (typeof window !== 'undefined' && window.location && window.location.pathname !== '/login') {
+        try {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        } catch (_) {}
+        window.location.replace('/login');
+      }
+    }
     return res;
   } catch (err) {
     if (isLocal() && url.includes(LOCAL_API)) {
