@@ -788,13 +788,20 @@ export default function LoeDetails() {
                                   View Full Scope &amp; Description ↗
                                 </button>
                               </div>
-                              <ul style={styles.scopeBulletList}>
-                                {scopePoints.map((pt, idx) => (
-                                  <li key={idx} style={styles.scopeBulletItem}>
-                                    {pt}
-                                  </li>
-                                ))}
-                              </ul>
+                              {/<[a-z][\s\S]*>/i.test(item.custom_scope) ? (
+                                <div
+                                  style={styles.richScopeContent}
+                                  dangerouslySetInnerHTML={{ __html: item.custom_scope }}
+                                />
+                              ) : (
+                                <ul style={styles.scopeBulletList}>
+                                  {scopePoints.map((pt, idx) => (
+                                    <li key={idx} style={styles.scopeBulletItem}>
+                                      {pt}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
                               {item.service?.scope && item.custom_scope && (
                                 <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0', fontSize: '12px', color: '#64748b' }}>
                                   <span style={{ fontWeight: '600' }}>Service Catalogue Scope:</span> {item.service.scope.length > 180 ? item.service.scope.slice(0, 180) + '...' : item.service.scope}
@@ -963,7 +970,11 @@ export default function LoeDetails() {
                           </td>
                           <td style={{ padding: '10px 10px', verticalAlign: 'top', color: '#334155', lineHeight: '1.5' }}>
                             {it.custom_scope ? (
-                              <div style={{ whiteSpace: 'pre-wrap' }}>{it.custom_scope}</div>
+                              /<[a-z][\s\S]*>/i.test(it.custom_scope) ? (
+                                <div style={styles.richScopeContent} dangerouslySetInnerHTML={{ __html: it.custom_scope }} />
+                              ) : (
+                                <div style={{ whiteSpace: 'pre-wrap' }}>{it.custom_scope}</div>
+                              )
                             ) : it.service?.scope ? (
                               <div style={{ whiteSpace: 'pre-wrap' }}>{it.service.scope}</div>
                             ) : (
@@ -1074,7 +1085,15 @@ export default function LoeDetails() {
                   Engagement Scope &amp; Deliverables Description
                 </h4>
                 <div style={styles.modalScopeContent}>
-                  {modalDeliverable.custom_scope || 'No custom scope entered for this deliverable. Refer to the catalogue scope below.'}
+                  {modalDeliverable.custom_scope ? (
+                    /<[a-z][\s\S]*>/i.test(modalDeliverable.custom_scope) ? (
+                      <div style={styles.richScopeContent} dangerouslySetInnerHTML={{ __html: modalDeliverable.custom_scope }} />
+                    ) : (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{modalDeliverable.custom_scope}</div>
+                    )
+                  ) : (
+                    'No custom scope entered for this deliverable. Refer to the catalogue scope below.'
+                  )}
                 </div>
               </div>
 
@@ -1460,6 +1479,12 @@ const styles = {
   },
   scopeBulletItem: {
     marginBottom: '3px'
+  },
+  richScopeContent: {
+    fontSize: '13px',
+    color: '#334155',
+    lineHeight: '1.6',
+    margin: '4px 0'
   },
   approvalActionRow: {
     marginTop: '12px',
