@@ -18,6 +18,7 @@ export default function EmployeeManager() {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // In-Detail View State (matching CompanyManager.jsx viewingCompany pattern)
@@ -1241,7 +1242,7 @@ export default function EmployeeManager() {
 
               <div style={styles.buttonGroup}>
                 <button type="submit" disabled={saving} style={styles.button}>
-                  {saving ? 'Saving...' : editingId ? 'Update Details' : 'Create Employee'}
+                  {saving ? <BlobLoader inline size={14} light message={editingId ? 'Updating Details...' : 'Creating Employee...'} /> : editingId ? 'Update Details' : 'Create Employee'}
                 </button>
                 <button type="button" onClick={closeModal} style={styles.cancelButton}>
                   Cancel

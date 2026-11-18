@@ -42,6 +42,8 @@ export default function LoeManager() {
   });
   
   const [editingId, setEditingId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
   const [formError, setFormError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -105,6 +107,17 @@ export default function LoeManager() {
       if (Array.isArray(parsed)) return parsed;
       return [parsed.toString()];
     } catch {
+      if (/<[a-z][\s\S]*>/i.test(scopeData)) {
+        const listItems = scopeData.match(/<li[^>]*>[\s\S]*?<\/li>/gi);
+        if (listItems && listItems.length > 0) {
+          return listItems.map((item) => item.trim());
+        }
+        const blockItems = scopeData.match(/<(p|h2|h3|pre)[^>]*>[\s\S]*?<\/\1>/gi);
+        if (blockItems && blockItems.length > 0) {
+          return blockItems.map((item) => item.trim());
+        }
+        return [scopeData.trim()];
+      }
       return scopeData.split('\n').map((s) => s.trim()).filter(Boolean);
     }
   };
@@ -530,6 +543,7 @@ export default function LoeManager() {
     }
 
     try {
+      setSubmitting(true);
       const response = await fetch(url, {
         method,
         headers: {
@@ -554,6 +568,8 @@ export default function LoeManager() {
       closeModal();
     } catch (err) {
       setFormError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1498,7 +1514,7 @@ export default function LoeManager() {
                                 )}
                                 {templateScopes.map((sc, i) => (
                                   <option key={i} value={sc}>
-                                    {sc}
+                                    {String(sc).replace(/<[^>]*>/g, '').trim() || sc}
                                   </option>
                                 ))}
                               </select>
@@ -1544,8 +1560,12 @@ export default function LoeManager() {
               </div>
 
               <div style={styles.buttonGroup}>
-                <button type="submit" style={styles.button}>
-                  {editingId ? 'Resubmit for Approval' : 'Submit for Approval'}
+                <button type="submit" disabled={submitting} style={styles.button}>
+                  {submitting ? (
+                    <BlobLoader inline size={14} light message={editingId ? 'Resubmitting...' : 'Submitting...'} />
+                  ) : (
+                    editingId ? 'Resubmit for Approval' : 'Submit for Approval'
+                  )}
                 </button>
                 <button 
                   type="button" 

@@ -1038,7 +1038,7 @@ export default function PettyCashManager() {
                       cursor: !hasAllocatedTasks || submitting ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {submitting ? 'Submitting Requisition...' : 'Submit Requisition'}
+                    {submitting ? <BlobLoader inline size={14} light message="Submitting Requisition..." /> : 'Submit Requisition'}
                   </button>
                   <button
                     type="button"
@@ -1100,7 +1100,7 @@ export default function PettyCashManager() {
                     disabled={rejecting}
                     style={{ ...styles.rejectBtn, flex: 1, padding: '10px', fontSize: '13.5px', borderRadius: '6px' }}
                   >
-                    {rejecting ? 'Rejecting...' : 'Confirm Rejection'}
+                    {rejecting ? <BlobLoader inline size={14} light message="Rejecting..." /> : 'Confirm Rejection'}
                   </button>
                   <button
                     type="button"

@@ -2101,7 +2101,7 @@ export default function TaskAllocation() {
                     Cancel
                   </button>
                   <button type="button" onClick={handleSaveAllocation} disabled={saving} style={styles.saveBtn}>
-                    {saving ? 'Saving Changes...' : 'Save Allocation'}
+                    {saving ? <BlobLoader inline size={14} light message="Saving Changes..." /> : 'Save Allocation'}
                   </button>
                 </div>
               </div>
@@ -2275,7 +2275,7 @@ export default function TaskAllocation() {
                     Cancel
                   </button>
                   <button type="submit" disabled={saving} style={styles.saveBtn}>
-                    {saving ? 'Creating Task...' : 'Create Custom Task'}
+                    {saving ? <BlobLoader inline size={14} light message="Creating Task..." /> : 'Create Custom Task'}
                   </button>
                 </div>
               </form>

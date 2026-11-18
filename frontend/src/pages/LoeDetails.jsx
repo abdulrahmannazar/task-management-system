@@ -59,6 +59,8 @@ export default function LoeDetails() {
   const [successMsg, setSuccessMsg] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [processingId, setProcessingId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [signing, setSigning] = useState(false);
   const [rejectingItemId, setRejectingItemId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [staffSignatoryName, setStaffSignatoryName] = useState('');
@@ -414,7 +416,7 @@ export default function LoeDetails() {
                 disabled={processingId === 'ALL'}
                 style={styles.approveAllTopBtn}
               >
-                {processingId === 'ALL' ? 'Approving...' : 'Approve All Deliverables'}
+                {processingId === 'ALL' ? <BlobLoader inline size={14} light message="Approving All..." /> : 'Approve All Deliverables'}
               </button>
             )}
 

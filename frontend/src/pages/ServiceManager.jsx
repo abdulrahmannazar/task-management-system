@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 import { fetchCachedJson } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
+import ScopeRichEditor from '../components/ScopeRichEditor';
 
 // Helper to parse multi-line or bulleted scopes into clean structured points
 const parseScopePoints = (scopeText) => {
@@ -39,6 +40,7 @@ export default function ServiceManager() {
   const [selectedService, setSelectedService] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const token = localStorage.getItem('token');
@@ -469,14 +471,12 @@ export default function ServiceManager() {
               </div>
 
               <div style={styles.fieldGroup}>
-                <label style={styles.label}>Default Scope Template (Separate lines with Enter)</label>
-                <textarea
-                  rows="4"
-                  name="scope"
+                <label style={styles.label}>Default Scope Template</label>
+                <ScopeRichEditor
                   value={formData.scope}
-                  onChange={handleChange}
-                  placeholder="Review previous audit files&#10;Conduct year-end verification&#10;Draft audit report for management"
-                  style={{ ...styles.input, fontFamily: 'inherit', resize: 'vertical' }}
+                  onChange={(val) => setFormData(prev => ({ ...prev, scope: val }))}
+                  placeholder="Enter or format default scope deliverables for this service (headings, bullets, numbered lists, bold, etc)..."
+                  minHeight="120px"
                 />
               </div>
 
@@ -494,7 +494,7 @@ export default function ServiceManager() {
 
               <div style={styles.buttonGroup}>
                 <button type="submit" disabled={saving} style={styles.button}>
-                  {saving ? 'Saving...' : editingId ? 'Update Service' : 'Create Service'}
+                  {saving ? <BlobLoader inline size={14} light message={editingId ? 'Updating Service...' : 'Creating Service...'} /> : editingId ? 'Update Service' : 'Create Service'}
                 </button>
                 <button
                   type="button"
@@ -593,10 +593,15 @@ export default function ServiceManager() {
                 Full Default Scope of Work &amp; Deliverables
               </h4>
 
-              {parseScopePoints(selectedService.scope).length === 0 ? (
+              {!selectedService.scope || (/<[a-z][\s\S]*>/i.test(selectedService.scope) ? !selectedService.scope.replace(/<[^>]*>/g, '').trim() : parseScopePoints(selectedService.scope).length === 0) ? (
                 <p style={{ margin: 0, color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>
                   No default scope template defined for this service.
                 </p>
+              ) : /<[a-z][\s\S]*>/i.test(selectedService.scope) ? (
+                <div
+                  style={styles.modalRichScope}
+                  dangerouslySetInnerHTML={{ __html: selectedService.scope }}
+                />
               ) : (
                 <ul style={styles.modalScopeList}>
                   {parseScopePoints(selectedService.scope).map((pt, idx) => (
@@ -1014,6 +1019,12 @@ const styles = {
     fontSize: '14px',
     fontWeight: 'bold',
     color: '#0f172a'
+  },
+  modalRichScope: {
+    fontSize: '13.5px',
+    color: '#334155',
+    lineHeight: '1.65',
+    margin: '4px 0'
   },
   modalScopeContainer: {
     background: '#f8fafc',
