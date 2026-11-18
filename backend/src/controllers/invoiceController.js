@@ -4,7 +4,7 @@ const clearInvoiceCache = () => invoiceCache.clear();
 const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateInvoicePdf } = require('../services/pdfService');
-const { sendInvoiceReminderEmail } = require('../services/emailService');
+const { sendInvoiceReminderEmail, sendInvoiceDispatchToClientEmail } = require('../services/emailService');
 
 // GET /api/invoices
 exports.getAll = asyncHandler(async (req, res) => {
@@ -507,6 +507,69 @@ const deleteInvoice = asyncHandler(async (req, res) => {
 
   await prisma.invoice.delete({ where: { invoice_id: id } });
   res.json({ message: 'Invoice deleted successfully' });
+});
+
+// POST /api/invoices/:id/send-to-client
+exports.sendToClient = asyncHandler(async (req, res) => {
+  clearInvoiceCache();
+  const invoiceId = parseInt(req.params.id);
+  if (isNaN(invoiceId)) return res.status(400).json({ error: 'Invalid Invoice ID format' });
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { invoice_id: invoiceId },
+    include: {
+      payments: { orderBy: { payment_id: 'desc' } },
+      job: {
+        include: {
+          loe: {
+            include: {
+              company: true,
+              creator: { select: { emp_id: true, name: true, email: true } }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+  const company = invoice.job?.loe?.company;
+  const targetEmail = company?.primary_contact_email || company?.email;
+  if (!targetEmail || !targetEmail.trim()) {
+    return res.status(400).json({
+      error: `Cannot dispatch Invoice: No email address found on file for ${company?.name || 'client'}.`
+    });
+  }
+
+  const { sender_email, sender_name } = req.body || {};
+  const senderEmail = sender_email || req.user?.email || invoice.job?.loe?.creator?.email;
+  const senderName = sender_name || req.user?.name || invoice.job?.loe?.creator?.name;
+
+  const currency = invoice.job?.loe?.currency || 'LKR';
+  const totalAmount = Number(invoice.total_amount || 0);
+
+  if (typeof sendInvoiceDispatchToClientEmail === 'function') {
+    await sendInvoiceDispatchToClientEmail({
+      toEmail: targetEmail.trim(),
+      recipientName: company?.primary_contact_name || company?.name,
+      companyName: company?.name,
+      invoiceId: invoice.invoice_id,
+      amount: totalAmount,
+      dueDate: invoice.due_date,
+      currency,
+      senderName,
+      senderEmail
+    });
+  }
+
+  const now = new Date();
+  const invCode = `INV-${String(invoice.invoice_id).padStart(5, '0')}`;
+  res.json({
+    message: `Invoice ${invCode} successfully dispatched to ${targetEmail}${senderEmail ? ` from ${senderEmail}` : ''}.`,
+    invoice,
+    sent_at: now.toISOString()
+  });
 });
 
 exports.remove = deleteInvoice;
