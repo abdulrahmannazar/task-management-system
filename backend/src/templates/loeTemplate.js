@@ -322,6 +322,77 @@ module.exports = function generateLoeTemplate({ loe, company }) {
       font-weight: bold;
     }
 
+    /* Rich HTML Scope Styling (Times New Roman, 12pt) */
+    .rich-scope-container {
+      margin: 4px 0 10px 0;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      color: #000;
+    }
+
+    .rich-scope-container p {
+      margin: 0 0 6px 0;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      text-align: justify;
+    }
+
+    .rich-scope-container h2 {
+      font-size: 13pt;
+      font-weight: bold;
+      margin: 8px 0 4px 0;
+      font-family: 'Times New Roman', Times, serif;
+      color: #000;
+    }
+
+    .rich-scope-container h3 {
+      font-size: 12pt;
+      font-weight: bold;
+      margin: 6px 0 3px 0;
+      font-family: 'Times New Roman', Times, serif;
+      color: #000;
+    }
+
+    .rich-scope-container ul {
+      margin: 4px 0 8px 0;
+      padding-left: 24px;
+      list-style-type: disc;
+    }
+
+    .rich-scope-container ol {
+      margin: 4px 0 8px 0;
+      padding-left: 24px;
+      list-style-type: decimal;
+    }
+
+    .rich-scope-container li {
+      margin-bottom: 4px;
+      padding-left: 4px;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12pt;
+      line-height: 1.4;
+      text-align: justify;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .rich-scope-container pre {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10.5pt;
+      background: #f1f5f9;
+      padding: 6px 8px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      margin: 6px 0;
+    }
+
+    .rich-scope-container a {
+      color: #0284c7;
+      text-decoration: underline;
+    }
+
     .exclusion-list {
       margin: 4px 0 10px 24px;
       padding: 0;
@@ -478,51 +549,70 @@ module.exports = function generateLoeTemplate({ loe, company }) {
 
   ${serviceList
     .map((srv, idx) => {
-      const parsedItems = parseStructuredScopes(srv.scopes);
+      const hasHtml = (srv.scopes || []).some((sc) => /<[a-z][\s\S]*>/i.test(sc));
 
-      let htmlBlocks = '';
-      let inOrderedList = false;
-      let inSubList = false;
+      let contentHtml = '';
+      if (hasHtml) {
+        contentHtml = `
+          <div class="rich-scope-container">
+            ${(srv.scopes || [])
+              .map((sc) => {
+                if (/<[a-z][\s\S]*>/i.test(sc)) {
+                  return sc;
+                }
+                return `<p>${String(sc).replace(/\n/g, '<br/>')}</p>`;
+              })
+              .join('')}
+          </div>
+        `;
+      } else {
+        const parsedItems = parseStructuredScopes(srv.scopes);
 
-      parsedItems.forEach((item) => {
-        if (item.type === 'subheading') {
-          if (inSubList) {
-            htmlBlocks += '</ul>';
-            inSubList = false;
-          }
-          if (inOrderedList) {
-            htmlBlocks += '</ol>';
-            inOrderedList = false;
-          }
-          htmlBlocks += `<div class="sub-section-heading">${item.text}</div>`;
-        } else if (item.type === 'sub') {
-          if (!inSubList) {
-            htmlBlocks += '<ul class="scope-sub-list">';
-            inSubList = true;
-          }
-          htmlBlocks += `<li>${item.text}</li>`;
-        } else {
-          if (inSubList) {
-            htmlBlocks += '</ul>';
-            inSubList = false;
-          }
-          if (!inOrderedList) {
-            htmlBlocks += '<ol class="scope-ordered-list">';
-            inOrderedList = true;
-          }
-          htmlBlocks += `<li>${item.text}</li>`;
-        }
-      });
+        let htmlBlocks = '';
+        let inOrderedList = false;
+        let inSubList = false;
 
-      if (inSubList) htmlBlocks += '</ul>';
-      if (inOrderedList) htmlBlocks += '</ol>';
+        parsedItems.forEach((item) => {
+          if (item.type === 'subheading') {
+            if (inSubList) {
+              htmlBlocks += '</ul>';
+              inSubList = false;
+            }
+            if (inOrderedList) {
+              htmlBlocks += '</ol>';
+              inOrderedList = false;
+            }
+            htmlBlocks += `<div class="sub-section-heading">${item.text}</div>`;
+          } else if (item.type === 'sub') {
+            if (!inSubList) {
+              htmlBlocks += '<ul class="scope-sub-list">';
+              inSubList = true;
+            }
+            htmlBlocks += `<li>${item.text}</li>`;
+          } else {
+            if (inSubList) {
+              htmlBlocks += '</ul>';
+              inSubList = false;
+            }
+            if (!inOrderedList) {
+              htmlBlocks += '<ol class="scope-ordered-list">';
+              inOrderedList = true;
+            }
+            htmlBlocks += `<li>${item.text}</li>`;
+          }
+        });
+
+        if (inSubList) htmlBlocks += '</ul>';
+        if (inOrderedList) htmlBlocks += '</ol>';
+        contentHtml = htmlBlocks;
+      }
 
       return `
         <div class="section-heading">
           ${idx + 1}. ${srv.name}${srv.subCategory ? ` – ${srv.subCategory}` : ''}
         </div>
         <p style="margin-bottom: 6px;">The scope of work will include the following:</p>
-        ${htmlBlocks}
+        ${contentHtml}
       `;
     })
     .join('')}
