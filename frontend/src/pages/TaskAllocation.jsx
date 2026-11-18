@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE, fetchCachedJson } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
+import EmployeeMultiSelectDropdown from '../components/EmployeeMultiSelectDropdown';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 
@@ -2027,7 +2028,7 @@ export default function TaskAllocation() {
                           />
                         </div>
 
-                        {/* Assign Employees with Search Filter */}
+                        {/* Assign Employees with Dropdown */}
                         {canManage && (
                           <div style={{ marginTop: '14px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -2049,46 +2050,18 @@ export default function TaskAllocation() {
                               )}
                             </div>
 
-                            {/* Search employees input */}
-                            <input
-                              type="text"
-                              placeholder="Search employees by name or email..."
-                              value={empSearch}
-                              onChange={(e) => setEmpSearch(e.target.value)}
+                            <EmployeeMultiSelectDropdown
+                              employees={employees}
+                              selectedIds={scopeItem.assignee_ids}
+                              onChange={(newIds) => {
+                                const updated = [...formScopes];
+                                updated[idx].assignee_ids = newIds;
+                                setFormScopes(updated);
+                              }}
                               disabled={!isClientApproved}
-                              style={styles.empSearchInput}
+                              placeholder="Click to select team members..."
+                              disabledMessage="Team member assignment is locked until client confirms the LOE."
                             />
-
-                            <div style={styles.multiSelectBox}>
-                              {!isClientApproved ? (
-                                <div style={{ fontSize: '12.5px', color: '#b45309', padding: '6px' }}>
-                                  Team member assignment is locked until client confirms the LOE.
-                                </div>
-                              ) : filteredEmps.length === 0 ? (
-                                <div style={{ fontSize: '12.5px', color: '#64748b', padding: '6px' }}>
-                                  No employees match your search filter.
-                                </div>
-                              ) : (
-                                filteredEmps.map(emp => {
-                                  const checked = scopeItem.assignee_ids.includes(emp.emp_id);
-                                  return (
-                                    <label key={emp.emp_id} style={styles.empCheckLabel}>
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={() => handleScopeAssigneeToggle(idx, emp.emp_id)}
-                                      />
-                                      <span style={{ fontWeight: checked ? 'bold' : 'normal', color: checked ? '#0284c7' : '#334155' }}>
-                                        {emp.name}
-                                      </span>
-                                      <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                        ({emp.email})
-                                      </span>
-                                    </label>
-                                  );
-                                })
-                              )}
-                            </div>
                           </div>
                         )}
                       </div>
@@ -2235,39 +2208,17 @@ export default function TaskAllocation() {
                   />
                 </div>
 
-                {/* 6. Assign Employees with Search */}
+                {/* 6. Assign Employees with Dropdown */}
                 <div style={{ marginBottom: '14px' }}>
                   <label style={styles.label}>
                     Assign Employees ({newTaskForm.assignee_ids.length} selected):
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Search employees by name or email..."
-                    value={customEmpSearch}
-                    onChange={(e) => setCustomEmpSearch(e.target.value)}
-                    style={styles.empSearchInput}
+                  <EmployeeMultiSelectDropdown
+                    employees={employees}
+                    selectedIds={newTaskForm.assignee_ids}
+                    onChange={(newIds) => setNewTaskForm({ ...newTaskForm, assignee_ids: newIds })}
+                    placeholder="Click to select employees..."
                   />
-                  <div style={styles.multiSelectBox}>
-                    {employees
-                      .filter(emp => emp.name.toLowerCase().includes(customEmpSearch.toLowerCase()) || (emp.email && emp.email.toLowerCase().includes(customEmpSearch.toLowerCase())))
-                      .map(emp => {
-                        const checked = newTaskForm.assignee_ids.includes(emp.emp_id);
-                        return (
-                          <label key={emp.emp_id} style={styles.empCheckLabel}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => {
-                                const curr = newTaskForm.assignee_ids;
-                                const updated = curr.includes(emp.emp_id) ? curr.filter(id => id !== emp.emp_id) : [...curr, emp.emp_id];
-                                setNewTaskForm({ ...newTaskForm, assignee_ids: updated });
-                              }}
-                            />
-                            <span>{emp.name} ({emp.email})</span>
-                          </label>
-                        );
-                      })}
-                  </div>
                 </div>
 
                 <div style={styles.modalActions}>
