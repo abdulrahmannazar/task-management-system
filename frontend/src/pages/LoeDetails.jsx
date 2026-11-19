@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
 import BlobLoader from '../components/BlobLoader';
-import OfficialLoeDocument from '../components/OfficialLoeDocument';
+import OfficialLoeDocument, { printOfficialLoeDocument } from '../components/OfficialLoeDocument';
 
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
@@ -384,7 +384,7 @@ export default function LoeDetails() {
       <div style={styles.container}>
         
         {/* Navigation / Header Bar */}
-        <div style={styles.headerBar}>
+        <div style={styles.headerBar} className="no-print">
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => navigate(-1)} style={styles.backBtn}>
               ← Back
@@ -442,6 +442,17 @@ export default function LoeDetails() {
             >
               {downloading ? 'Generating PDF...' : 'Download LOE PDF'}
             </button>
+
+            {activeTab === 'PREVIEW' && (
+              <button
+                type="button"
+                onClick={() => printOfficialLoeDocument('official-loe-document-sheet')}
+                style={styles.printBtn}
+                title="Print official document preview"
+              >
+                🖨 Print Document
+              </button>
+            )}
 
             {(isAdmin || user?.role === 'MANAGER') && loe?.status !== 'Discontinued' && (
               <button
@@ -1192,6 +1203,18 @@ const styles = {
     borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: 'bold'
+  },
+  printBtn: {
+    padding: '8px 16px',
+    background: '#0284c7',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px'
   },
   downloadBtn: {
     padding: '8px 16px',
