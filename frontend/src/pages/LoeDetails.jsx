@@ -572,7 +572,7 @@ export default function LoeDetails() {
                       <span style={styles.detailValue}>{loe.company?.client_type || 'Corporate'}</span>
                     </div>
                     <div style={styles.detailRow}>
-                      <span style={styles.detailLabel}>Registration No.</span>
+                      <span style={styles.detailLabel}>{loe.company?.client_type === 'Individual' ? 'NIC Number' : 'Registration No.'}</span>
                       <span style={styles.detailValue}>{loe.company?.reg_no || loe.company?.reg_number || 'N/A'}</span>
                     </div>
                     <div style={styles.detailRow}>
