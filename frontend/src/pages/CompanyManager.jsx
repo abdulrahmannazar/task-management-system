@@ -275,10 +275,11 @@ export default function CompanyManager() {
 
     if (duplicate) {
       if (duplicate.name.trim().toLowerCase() === cleanName.toLowerCase()) {
-        return `A company with the name "${duplicate.name.trim()}" already exists.`;
+        return `A ${duplicate.client_type === 'Individual' ? 'client' : 'company'} with the name "${duplicate.name.trim()}" already exists.`;
       }
       if (cleanReg && duplicate.reg_number && duplicate.reg_number.trim().toLowerCase() === cleanReg.toLowerCase()) {
-        return `Registration Number "${cleanReg}" is already registered to "${duplicate.name}".`;
+        const isInd = formData.client_type === 'Individual' || duplicate.client_type === 'Individual';
+        return `${isInd ? 'NIC Number' : 'Registration Number'} "${cleanReg}" is already registered to "${duplicate.name}".`;
       }
       if (cleanTin && duplicate.tin_number && duplicate.tin_number.trim().toLowerCase() === cleanTin.toLowerCase()) {
         return `TIN Number "${cleanTin}" is already registered to "${duplicate.name}".`;
@@ -495,7 +496,7 @@ export default function CompanyManager() {
                   </div>
                   <p style={styles.pageSubtitle}>
                     Company ID: #{viewingCompany.company_id}
-                    {viewingCompany.reg_number ? ` · Reg No: ${viewingCompany.reg_number}` : ''}
+                    {viewingCompany.reg_number ? ` · ${viewingCompany.client_type === 'Individual' ? 'NIC' : 'Reg No'}: ${viewingCompany.reg_number}` : ''}
                     {viewingCompany.tin_number ? ` · TIN: ${viewingCompany.tin_number}` : ''}
                   </p>
                 </div>
@@ -526,9 +527,13 @@ export default function CompanyManager() {
             {/* Two-Column Company Info & Primary Employee Contact */}
             <div style={styles.detailsTwoCol}>
               <div style={styles.detailCard}>
-                <h3 style={styles.detailCardHeading}>Corporate &amp; Registration Details</h3>
+                <h3 style={styles.detailCardHeading}>
+                  {viewingCompany.client_type === 'Individual' ? 'Individual & Identification Details' : 'Corporate & Registration Details'}
+                </h3>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Company Name</span>
+                  <span style={styles.detailLabel}>
+                    {viewingCompany.client_type === 'Individual' ? 'Client Name' : 'Company Name'}
+                  </span>
                   <span style={styles.detailVal}>{viewingCompany.name}</span>
                 </div>
                 <div style={styles.detailRow}>
@@ -536,7 +541,9 @@ export default function CompanyManager() {
                   <span style={styles.detailVal}>{viewingCompany.client_type || 'Corporate'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Registration Number</span>
+                  <span style={styles.detailLabel}>
+                    {viewingCompany.client_type === 'Individual' ? 'NIC Number' : 'Registration Number'}
+                  </span>
                   <span style={styles.detailVal}>{viewingCompany.reg_number || 'Not recorded'}</span>
                 </div>
                 <div style={styles.detailRow}>
@@ -544,11 +551,15 @@ export default function CompanyManager() {
                   <span style={styles.detailVal}>{viewingCompany.tin_number || 'Not recorded'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Company Email</span>
+                  <span style={styles.detailLabel}>
+                    {viewingCompany.client_type === 'Individual' ? 'Email Address' : 'Company Email'}
+                  </span>
                   <span style={styles.detailVal}>{viewingCompany.email || 'Not recorded'}</span>
                 </div>
                 <div style={styles.detailRow}>
-                  <span style={styles.detailLabel}>Company Phone</span>
+                  <span style={styles.detailLabel}>
+                    {viewingCompany.client_type === 'Individual' ? 'Phone Number' : 'Company Phone'}
+                  </span>
                   <span style={styles.detailVal}>{viewingCompany.phone_number || 'Not recorded'}</span>
                 </div>
               </div>
@@ -913,7 +924,7 @@ export default function CompanyManager() {
                     <thead>
                       <tr>
                         <th style={styles.th}>Company Name &amp; Type</th>
-                        <th style={styles.th}>Reg No. &amp; TIN</th>
+                        <th style={styles.th}>Reg No. / NIC &amp; TIN</th>
                         <th style={styles.th}>Company Contact</th>
                         <th style={styles.th}>Emp / Primary Contact</th>
                         <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
@@ -940,7 +951,7 @@ export default function CompanyManager() {
 
                             <td style={styles.td}>
                               <div style={{ fontSize: '12.5px', color: '#334155' }}>
-                                <strong>Reg:</strong> {comp.reg_number || <span style={{ color: '#94a3b8' }}>N/A</span>}
+                                <strong>{comp.client_type === 'Individual' ? 'NIC:' : 'Reg:'}</strong> {comp.reg_number || <span style={{ color: '#94a3b8' }}>N/A</span>}
                               </div>
                               <div style={{ fontSize: '12.5px', color: '#334155', marginTop: '2px' }}>
                                 <strong>TIN:</strong> {comp.tin_number || <span style={{ color: '#94a3b8' }}>N/A</span>}
@@ -1028,12 +1039,18 @@ export default function CompanyManager() {
             <div style={styles.modalHeader}>
               <div>
                 <h2 style={styles.modalTitle}>
-                  {editingId ? 'Edit Company Details' : 'Register New Company'}
+                  {editingId
+                    ? (formData.client_type === 'Individual' ? 'Edit Individual Client' : 'Edit Company Details')
+                    : (formData.client_type === 'Individual' ? 'Register Individual Client' : 'Register New Company')}
                 </h2>
                 <p style={styles.modalSubtitle}>
                   {editingId
-                    ? 'Update company registration and primary employee contact details.'
-                    : 'Add a new client company entity and primary contact details.'}
+                    ? (formData.client_type === 'Individual'
+                        ? 'Update individual client details and contact information.'
+                        : 'Update company registration and primary employee contact details.')
+                    : (formData.client_type === 'Individual'
+                        ? 'Add a new individual client entity and contact details.'
+                        : 'Add a new client company entity and primary contact details.')}
                 </p>
               </div>
               <button onClick={closeModal} style={styles.closeBtn} title="Close dialog">
@@ -1045,13 +1062,15 @@ export default function CompanyManager() {
 
             <form onSubmit={handleSubmit} style={styles.form}>
               <div style={styles.fieldGroup}>
-                <label style={styles.label}>Company Name *</label>
+                <label style={styles.label}>
+                  {formData.client_type === 'Individual' ? 'Individual / Client Name *' : 'Company Name *'}
+                </label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="e.g. Nexus Corp Ltd"
+                  placeholder={formData.client_type === 'Individual' ? 'e.g. John Doe / S. Perera' : 'e.g. Nexus Corp Ltd'}
                   required
                   style={styles.input}
                 />
@@ -1076,15 +1095,26 @@ export default function CompanyManager() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={styles.fieldGroup}>
-                  <label style={styles.label}>Registration Number</label>
+                  <label style={styles.label}>
+                    {formData.client_type === 'Individual' ? 'NIC Number (National Identity Card)' : 'Registration Number'}
+                  </label>
                   <input
                     type="text"
                     name="reg_number"
                     value={formData.reg_number}
                     onChange={handleChange}
-                    placeholder="e.g. PV-123456"
+                    placeholder={
+                      formData.client_type === 'Individual'
+                        ? 'e.g. 199012345678 / 901234567V'
+                        : 'e.g. PV-123456'
+                    }
                     style={styles.input}
                   />
+                  {formData.client_type === 'Individual' && (
+                    <span style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', display: 'block' }}>
+                      Sri Lankan NIC (12-digit new format or 9-digit + V/X)
+                    </span>
+                  )}
                 </div>
 
                 <div style={styles.fieldGroup}>
@@ -1102,19 +1132,23 @@ export default function CompanyManager() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={styles.fieldGroup}>
-                  <label style={styles.label}>Company Email Address</label>
+                  <label style={styles.label}>
+                    {formData.client_type === 'Individual' ? 'Email Address' : 'Company Email Address'}
+                  </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="e.g. contact@nexuscorp.com"
+                    placeholder={formData.client_type === 'Individual' ? 'e.g. john.perera@example.com' : 'e.g. contact@nexuscorp.com'}
                     style={styles.input}
                   />
                 </div>
 
                 <div style={styles.fieldGroup}>
-                  <label style={styles.label}>Company Phone Number</label>
+                  <label style={styles.label}>
+                    {formData.client_type === 'Individual' ? 'Phone Number' : 'Company Phone Number'}
+                  </label>
                   <PhoneInputWithCountryCode
                     name="phone_number"
                     value={formData.phone_number}
@@ -1177,7 +1211,22 @@ export default function CompanyManager() {
 
               <div style={styles.buttonGroup}>
                 <button type="submit" disabled={saving} style={styles.button}>
-                  {saving ? <BlobLoader inline size={14} light message={editingId ? 'Updating Company...' : 'Creating Company...'} /> : editingId ? 'Update Company' : 'Create Company'}
+                  {saving ? (
+                    <BlobLoader
+                      inline
+                      size={14}
+                      light
+                      message={
+                        editingId
+                          ? (formData.client_type === 'Individual' ? 'Updating Client...' : 'Updating Company...')
+                          : (formData.client_type === 'Individual' ? 'Creating Client...' : 'Creating Company...')
+                      }
+                    />
+                  ) : editingId ? (
+                    formData.client_type === 'Individual' ? 'Update Client' : 'Update Company'
+                  ) : (
+                    formData.client_type === 'Individual' ? 'Create Client' : 'Create Company'
+                  )}
                 </button>
                 <button
                   type="button"

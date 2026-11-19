@@ -2260,7 +2260,7 @@ export default function TaskAllocation() {
                   <div style={styles.detailsGrid}>
                     <div><strong>Company Name:</strong> {selectedTaskDetail.job?.loe?.company?.name || 'N/A'}</div>
                     <div><strong>Client Type:</strong> {selectedTaskDetail.job?.loe?.company?.client_type || 'N/A'}</div>
-                    <div><strong>Registration No:</strong> {selectedTaskDetail.job?.loe?.company?.reg_number || 'N/A'}</div>
+                    <div><strong>{selectedTaskDetail.job?.loe?.company?.client_type === 'Individual' ? 'NIC Number:' : 'Registration No:'}</strong> {selectedTaskDetail.job?.loe?.company?.reg_number || 'N/A'}</div>
                     <div><strong>TIN Number:</strong> {selectedTaskDetail.job?.loe?.company?.tin_number || 'N/A'}</div>
                     <div><strong>LOE Reference:</strong> {selectedTaskDetail.job?.loe?.loe_code || `LOE #${selectedTaskDetail.job?.loe_id}`}</div>
                     <div>
