@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE, fetchCachedJson } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
 import ScopeRichEditor from '../components/ScopeRichEditor';
-import OfficialLoeDocument from '../components/OfficialLoeDocument';
+import OfficialLoeDocument, { printOfficialLoeDocument } from '../components/OfficialLoeDocument';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -1812,26 +1812,14 @@ export default function LoeManager() {
         .draft-rich-html pre { background: #f1f5f9; padding: 6px 8px; border-radius: 4px; font-size: 11px; white-space: pre-wrap; font-family: monospace; }
         .draft-rich-html a { color: #0284c7; text-decoration: underline; }
         @media print {
-          body * { visibility: hidden !important; }
-          .draft-document-print-area, .draft-document-print-area * { visibility: visible !important; }
-          .draft-document-print-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 20px !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
           .no-print { display: none !important; }
         }
       `}</style>
 
       {/* Comprehensive Full Draft Document Preview Modal with Watermark */}
       {showDraftPreview && canEdit && (
-        <div style={styles.draftModalOverlay} onClick={() => setShowDraftPreview(false)}>
-          <div style={styles.draftModalContainer} onClick={(e) => e.stopPropagation()}>
+        <div style={styles.draftModalOverlay} className="draft-modal-overlay" onClick={() => setShowDraftPreview(false)}>
+          <div style={styles.draftModalContainer} className="draft-modal-container" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header Bar */}
             <div style={styles.draftModalHeader} className="no-print">
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1856,7 +1844,7 @@ export default function LoeManager() {
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printOfficialLoeDocument('official-loe-document-sheet')}
                   style={styles.draftPrintBtn}
                   title="Print or save as PDF"
                 >
@@ -1889,7 +1877,7 @@ export default function LoeManager() {
             </div>
 
             {/* Scrollable Document Container */}
-            <div style={styles.draftDocumentScrollWrap}>
+            <div style={styles.draftDocumentScrollWrap} className="draft-document-scroll-wrap">
               <OfficialLoeDocument
                 loe={{
                   ...formData,
