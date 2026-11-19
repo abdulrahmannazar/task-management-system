@@ -352,7 +352,7 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company, custo
   <!-- Header Row with Title and Status -->
   <div class="invoice-header">
     <div>
-      <div class="invoice-title">${isProforma ? 'PROFORMA INVOICE (ADVANCE PAYMENT)' : 'Official Tax Invoice'}</div>
+      <div class="invoice-title">${isProforma ? 'PROFORMA INVOICE (ADVANCE PAYMENT)' : 'INVOICE'}</div>
       <div style="margin-top: 3px;">Invoice No: <strong>${invoiceNumber}</strong></div>
       ${isProforma ? '<span class="type-badge">Proforma / Advance Request</span>' : ''}
     </div>
@@ -367,7 +367,7 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company, custo
     <div class="box-info">
       <div class="box-title">Billed To:</div>
       <div><strong>${company?.name || 'N/A'}</strong></div>
-      <div>Reg No: ${company?.reg_number || company?.reg_no || 'N/A'}</div>
+      <div>${company?.client_type === 'Individual' ? 'NIC' : 'Reg No'}: ${company?.reg_number || company?.reg_no || 'N/A'}</div>
       <div>TIN: ${company?.tin_number || company?.tin_no || 'N/A'}</div>
       <div>Email: ${company?.email || 'N/A'}</div>
       <div>Phone: ${company?.phone_number || company?.phone || 'N/A'}</div>
@@ -376,7 +376,6 @@ module.exports = function generateInvoiceTemplate({ invoice, loe, company, custo
       <div class="box-title">Invoice Details:</div>
       <div><strong>Issue Date:</strong> ${formatDate(invoice.issued_date)}</div>
       <div><strong>Due Date:</strong> ${formatDate(invoice.due_date)}</div>
-      <div><strong>Invoice Type:</strong> ${isProforma ? 'Proforma Invoice (Advance)' : 'Standard Tax Invoice'}</div>
       <div><strong>Billing Type:</strong> ${loe?.type || 'Adhoc'} (${loe?.billing_frequency || 'One-Time'})</div>
       <div><strong>Payment Terms:</strong> 15 Days from Invoice Date</div>
     </div>
