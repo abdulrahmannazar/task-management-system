@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE, fetchCachedJson, fetchPdfBlob, prewarmPdfBlob } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
 import ScopeRichEditor from '../components/ScopeRichEditor';
@@ -67,6 +67,8 @@ export default function LoeManager() {
   const [deletingId, setDeletingId] = useState(null);
   const [draggedScope, setDraggedScope] = useState(null);
   const [dragOverScope, setDragOverScope] = useState(null);
+  const [activeScopeEditor, setActiveScopeEditor] = useState(null); // { srvIdx, scIdx } | null
+  const activeScopeRowRef = useRef(null);
   const [showDraftPreview, setShowDraftPreview] = useState(false);
   const [editingPreviousStatus, setEditingPreviousStatus] = useState(null);
   const [formError, setFormError] = useState('');
@@ -232,9 +234,21 @@ export default function LoeManager() {
     }
   };
 
+  useEffect(() => {
+    if (!activeScopeEditor) return;
+    const handleOutsideClick = (e) => {
+      if (activeScopeRowRef.current && !activeScopeRowRef.current.contains(e.target)) {
+        setActiveScopeEditor(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [activeScopeEditor]);
+
   const openCreateModal = () => {
     setEditingId(null);
     setEditingPreviousStatus(null);
+    setActiveScopeEditor(null);
     setFormData({
       company_id: '',
       type: 'Adhoc',
@@ -252,6 +266,7 @@ export default function LoeManager() {
   const closeModal = () => {
     setIsModalOpen(false);
     setShowDraftPreview(false);
+    setActiveScopeEditor(null);
     setEditingId(null);
     setEditingPreviousStatus(null);
     setFormData({
@@ -466,6 +481,7 @@ export default function LoeManager() {
   };
 
   const addCustomScope = (serviceIndex) => {
+    const nextIdx = (formData.loe_services[serviceIndex]?.scopes || []).length;
     setFormData(prev => {
       const updated = [...prev.loe_services];
       const serviceBlock = updated[serviceIndex];
@@ -475,6 +491,7 @@ export default function LoeManager() {
       };
       return { ...prev, loe_services: updated };
     });
+    setActiveScopeEditor({ srvIdx: serviceIndex, scIdx: nextIdx });
   };
 
   const handleScopeTextChange = (serviceIndex, scopeIndex, text) => {
@@ -489,6 +506,7 @@ export default function LoeManager() {
   };
 
   const removeScopeItem = (serviceIndex, scopeIndex) => {
+    setActiveScopeEditor(null);
     setFormData(prev => {
       const updated = [...prev.loe_services];
       const serviceBlock = updated[serviceIndex];
@@ -501,6 +519,7 @@ export default function LoeManager() {
 
   const reorderScopes = (srvIdx, fromIdx, toIdx) => {
     if (fromIdx === toIdx) return;
+    setActiveScopeEditor(null);
     setFormData(prev => {
       const updatedServices = [...prev.loe_services];
       const srv = { ...updatedServices[srvIdx] };
@@ -570,6 +589,7 @@ export default function LoeManager() {
   const handleEdit = (loe) => {
     setEditingId(loe.loe_id);
     setEditingPreviousStatus(loe.status);
+    setActiveScopeEditor(null);
 
     const grouped = [];
     const map = new Map();
@@ -1514,7 +1534,7 @@ export default function LoeManager() {
                         <select 
                           value={srvBlock.department_id || ''} 
                           onChange={(e) => handleDepartmentChange(srvIdx, e.target.value)}
-                          style={styles.dropdownInput} 
+                          style={{ ...styles.dropdownInput, flex: '0 1 190px', minWidth: '135px' }} 
                           required
                         >
                           <option value="" disabled>Select Department</option>
@@ -1526,14 +1546,14 @@ export default function LoeManager() {
                         </select>
 
                         {srvBlock.is_custom ? (
-                          <div style={{ display: 'flex', flex: 1, gap: '8px', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', flex: '1 1 0', minWidth: 0, gap: '6px', alignItems: 'center' }}>
                             <input
                               type="text"
                               placeholder="Type Custom Service Name (e.g. Specialized Advisory)"
                               value={srvBlock.custom_service_name || ''}
                               onChange={(e) => handleCustomNameChange(srvIdx, e.target.value)}
                               required
-                              style={{ ...styles.dropdownInput, borderColor: '#0284c7', background: '#f0f9ff' }}
+                              style={{ ...styles.dropdownInput, flex: 1, minWidth: 0, borderColor: '#0284c7', background: '#f0f9ff' }}
                             />
                             <button
                               type="button"
@@ -1545,11 +1565,11 @@ export default function LoeManager() {
                             </button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', flex: 1, gap: '6px', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', flex: '1 1 0', minWidth: 0, gap: '6px', alignItems: 'center' }}>
                             <select 
                               value={srvBlock.service_id || ''} 
                               onChange={(e) => handleServiceChange(srvIdx, e.target.value)}
-                              style={{ ...styles.dropdownInput, flex: 1 }} 
+                              style={{ ...styles.dropdownInput, flex: 1, minWidth: 0 }} 
                               disabled={!srvBlock.department_id}
                               required
                             >
@@ -1651,15 +1671,21 @@ export default function LoeManager() {
                               srvBlock.scopes.map((scopeText, scIdx) => {
                                 const isDragging = draggedScope && draggedScope.srvIdx === srvIdx && draggedScope.scIdx === scIdx;
                                 const isDragOver = dragOverScope && dragOverScope.srvIdx === srvIdx && dragOverScope.scIdx === scIdx;
+                                const isEditingScope =
+                                  activeScopeEditor?.srvIdx === srvIdx && activeScopeEditor?.scIdx === scIdx;
+                                const hasVisibleScopeText =
+                                  String(scopeText || '').replace(/<[^>]*>/g, '').trim().length > 0;
 
                                 return (
                                   <div
                                     key={scIdx}
+                                    ref={isEditingScope ? activeScopeRowRef : null}
                                     onDragOver={(e) => handleScopeDragOver(srvIdx, scIdx, e)}
                                     onDrop={(e) => handleScopeDrop(srvIdx, scIdx, e)}
                                     style={{
                                       ...styles.scopeItemRow,
-                                      border: isDragOver ? '2px dashed #0284c7' : '1px solid #e2e8f0',
+                                      alignItems: isEditingScope ? 'flex-start' : 'center',
+                                      border: isDragOver ? '2px dashed #0284c7' : isEditingScope ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
                                       backgroundColor: isDragging ? '#f1f5f9' : isDragOver ? '#f0f9ff' : '#f8fafc',
                                       opacity: isDragging ? 0.45 : 1,
                                       transition: 'border 0.15s ease, background-color 0.15s ease'
@@ -1710,25 +1736,62 @@ export default function LoeManager() {
                                       )}
                                     </div>
 
-                                    {/* Scope Rich Editor */}
+                                    {/* Scope Content: Expanded Editor or Compact Preview */}
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                      <ScopeRichEditor
-                                        value={scopeText}
-                                        onChange={(newVal) => handleScopeTextChange(srvIdx, scIdx, newVal)}
-                                        placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
-                                        minHeight="80px"
-                                      />
+                                      {isEditingScope ? (
+                                        <ScopeRichEditor
+                                          value={scopeText}
+                                          onChange={(newVal) => handleScopeTextChange(srvIdx, scIdx, newVal)}
+                                          placeholder={srvBlock.is_custom ? "Type client-specific scope deliverable..." : "Enter or customize scope details for this engagement..."}
+                                          minHeight="80px"
+                                        />
+                                      ) : (
+                                        <div style={styles.scopeCollapsedBox}>
+                                          {hasVisibleScopeText ? (
+                                            <div
+                                              className="draft-rich-html"
+                                              style={styles.scopeCollapsedText}
+                                              dangerouslySetInnerHTML={{ __html: scopeText }}
+                                            />
+                                          ) : (
+                                            <span style={styles.scopeCollapsedPlaceholder}>
+                                              Empty scope — click Edit to add details
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
 
-                                    {/* Remove Scope Button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => removeScopeItem(srvIdx, scIdx)}
-                                      style={styles.removeScopeBtn}
-                                      title="Delete scope"
-                                    >
-                                      ✕
-                                    </button>
+                                    {/* Right Action Controls: Edit / Done + Delete */}
+                                    <div style={styles.scopeRightActions}>
+                                      {isEditingScope ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => setActiveScopeEditor(null)}
+                                          style={styles.scopeDoneBtn}
+                                          title="Finish editing"
+                                        >
+                                          Done
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => setActiveScopeEditor({ srvIdx, scIdx })}
+                                          style={styles.scopeEditBtn}
+                                          title="Click to edit scope"
+                                        >
+                                          Edit
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => removeScopeItem(srvIdx, scIdx)}
+                                        style={styles.removeScopeBtn}
+                                        title="Delete scope"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
                                   </div>
                                 );
                               })
@@ -2332,51 +2395,102 @@ const styles = {
     display: 'flex',
     gap: '8px',
     alignItems: 'center',
-    flexWrap: 'wrap'
+    flexWrap: 'nowrap',
+    width: '100%'
   },
   dropdownInput: {
     flex: '1',
-    minWidth: '160px',
-    padding: '9px 10px',
-    borderRadius: '4px',
+    minWidth: 0,
+    height: '38px',
+    padding: '0 10px',
+    borderRadius: '6px',
     border: '1px solid #cbd5e1',
     fontSize: '13px',
-    background: '#ffffff'
+    color: '#0f172a',
+    background: '#ffffff',
+    boxSizing: 'border-box'
   },
   priceInputWrapper: {
     display: 'flex',
     alignItems: 'center',
-    background: '#fff',
+    background: '#ffffff',
     border: '1px solid #cbd5e1',
-    borderRadius: '4px',
+    borderRadius: '6px',
     padding: '0 8px',
-    minWidth: '120px'
+    flex: '0 0 135px',
+    width: '135px',
+    height: '38px',
+    boxSizing: 'border-box'
   },
   currencyPrefix: {
-    fontSize: '13px',
+    fontSize: '12.5px',
     color: '#475569',
-    fontWeight: 'bold',
-    marginRight: '4px'
+    fontWeight: '700',
+    marginRight: '4px',
+    flexShrink: 0,
+    whiteSpace: 'nowrap'
   },
   servicePriceInput: {
     border: 'none',
     outline: 'none',
-    padding: '9px 4px',
+    padding: '0 2px',
     width: '100%',
+    minWidth: 0,
+    height: '100%',
     fontSize: '13px',
-    fontWeight: 'bold',
-    color: '#0f172a'
+    fontWeight: '700',
+    color: '#0f172a',
+    background: 'transparent'
   },
-  customPillBtn: { padding: '8px 12px', background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' },
-  switchModeBtn: { padding: '8px 12px', background: '#f8fafc', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', fontSize: '11.5px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  customPillBtn: {
+    height: '38px',
+    padding: '0 12px',
+    background: '#f0f9ff',
+    color: '#0284c7',
+    border: '1px solid #bae6fd',
+    borderRadius: '6px',
+    fontWeight: '700',
+    fontSize: '12px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box'
+  },
+  switchModeBtn: {
+    height: '38px',
+    padding: '0 12px',
+    background: '#f8fafc',
+    color: '#64748b',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontWeight: '700',
+    fontSize: '11.5px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box'
+  },
   removeServiceBtn: {
-    padding: '9px 12px',
+    height: '38px',
+    width: '38px',
+    padding: 0,
     background: '#fff1f2',
     color: '#e11d48',
     border: '1px solid #fecdd3',
-    borderRadius: '4px',
+    borderRadius: '6px',
     cursor: 'pointer',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box'
   },
   scopeSelectionSection: {
     marginTop: '12px',
@@ -2932,5 +3046,54 @@ const styles = {
     fontSize: '12px',
     fontWeight: '600',
     cursor: 'pointer'
+  },
+  scopeCollapsedBox: {
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '6px',
+    padding: '8px 12px',
+    minHeight: '36px',
+    display: 'flex',
+    alignItems: 'center'
+  },
+  scopeCollapsedText: {
+    fontSize: '13px',
+    color: '#0f172a',
+    lineHeight: '1.45',
+    wordBreak: 'break-word',
+    width: '100%'
+  },
+  scopeCollapsedPlaceholder: {
+    fontSize: '12.5px',
+    color: '#94a3b8',
+    fontStyle: 'italic'
+  },
+  scopeRightActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexShrink: 0
+  },
+  scopeEditBtn: {
+    padding: '6px 10px',
+    background: '#f0f9ff',
+    color: '#0284c7',
+    border: '1px solid #bae6fd',
+    borderRadius: '6px',
+    fontSize: '11.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
+  },
+  scopeDoneBtn: {
+    padding: '6px 10px',
+    background: '#0284c7',
+    color: '#ffffff',
+    border: '1px solid #0284c7',
+    borderRadius: '6px',
+    fontSize: '11.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
   }
 };
