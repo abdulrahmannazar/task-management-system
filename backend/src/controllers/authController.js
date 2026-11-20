@@ -2,6 +2,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
+const {
+  IDLE_TIMEOUT_MS,
+  createSession,
+  revokeSession,
+  getFallbackSessionId
+} = require('../services/sessionService');
+const { extractToken, clearAuthCookies } = require('../middlewares/authMiddleware');
 
 // POST /api/auth/register
 exports.register = asyncHandler(async (req, res) => {
@@ -41,11 +48,14 @@ exports.register = asyncHandler(async (req, res) => {
     include: { department: true }
   });
 
+  const sid = await createSession(newEmployee.emp_id);
+
   const token = jwt.sign(
     { 
       emp_id: newEmployee.emp_id, 
       role: newEmployee.role, 
-      department_id: newEmployee.department_id 
+      department_id: newEmployee.department_id,
+      sid
     },
     process.env.JWT_SECRET || 'your_jwt_secret',
     { expiresIn: '7d' }
@@ -93,12 +103,16 @@ exports.login = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  // Generate JWT with actual database role
+  // Create server-side tracked session for strict 30-minute sliding idle timeout
+  const sid = await createSession(employee.emp_id);
+
+  // Generate JWT with actual database role and session ID
   const token = jwt.sign(
     { 
       emp_id: employee.emp_id, 
       role: employee.role, 
-      department_id: employee.department_id 
+      department_id: employee.department_id,
+      sid
     },
     process.env.JWT_SECRET || 'your_jwt_secret',
     { expiresIn: '7d' }
@@ -136,4 +150,29 @@ exports.getDepartments = asyncHandler(async (req, res) => {
   cachedDepartments = departments;
   lastDeptFetch = now;
   res.json(departments);
+});
+
+// POST /api/auth/heartbeat (Protected: slides lastActiveAt forward when user is actively interacting)
+exports.heartbeat = asyncHandler(async (req, res) => {
+  const lastActiveAt = req.session?.lastActiveAt || Date.now();
+  res.json({
+    status: 'ok',
+    lastActiveAt,
+    expiresAt: lastActiveAt + IDLE_TIMEOUT_MS
+  });
+});
+
+// POST /api/auth/logout (Revokes active token/session and clears auth cookies cleanly)
+exports.logout = asyncHandler(async (req, res) => {
+  const token = extractToken(req);
+  if (token) {
+    try {
+      const decoded = jwt.decode(token);
+      const sid = decoded?.sid || getFallbackSessionId(token);
+      await revokeSession(sid);
+    } catch (_) {}
+  }
+
+  clearAuthCookies(res);
+  res.json({ message: 'Logged out successfully' });
 });

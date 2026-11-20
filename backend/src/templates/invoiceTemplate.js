@@ -27,6 +27,8 @@ function getLogoBannerDataUri() {
   return null;
 }
 
+const CACHED_LOGO_BANNER_URI = getLogoBannerDataUri();
+
 const CURRENCY_SYMBOLS = {
   LKR: 'Rs.',
   USD: '$',
@@ -59,7 +61,7 @@ function extractBulletPoints(scopesArray) {
 module.exports = function generateInvoiceTemplate({ invoice, loe, company, customLogo, logoAlignment = 'center' }) {
   const currencyCode = loe?.currency || 'LKR';
   const currencySymbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode;
-  const logoBannerDataUri = customLogo || getLogoBannerDataUri();
+  const logoBannerDataUri = customLogo || CACHED_LOGO_BANNER_URI || getLogoBannerDataUri();
 
   const isProforma = invoice.invoice_type === 'Proforma';
   const totalAmt = Number(invoice.total_amount || 0);

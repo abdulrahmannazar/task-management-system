@@ -171,7 +171,17 @@ function buildCompanyHistory(company) {
 // High-speed In-Memory Cache for Companies
 const companyCache = new Map();
 const COMPANY_CACHE_TTL = 90 * 1000;
-const clearCompanyCache = () => companyCache.clear();
+const clearCompanyCache = () => {
+  companyCache.clear();
+  try {
+    const { clearLoeCache } = require('./loeController');
+    if (clearLoeCache) clearLoeCache();
+  } catch (_) {}
+  try {
+    const { clearInvoiceCache } = require('./invoiceController');
+    if (clearInvoiceCache) clearInvoiceCache();
+  } catch (_) {}
+};
 exports.clearCompanyCache = clearCompanyCache;
 
 // GET /api/companies

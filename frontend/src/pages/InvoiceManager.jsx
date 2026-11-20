@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE, fetchCachedJson } from '../utils/api';
+import { API_BASE, fetchCachedJson, fetchPdfBlob, prewarmPdfBlob } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -175,32 +175,43 @@ export default function InvoiceManager() {
     }
   };
 
+  const getInvoicePdfVersion = (invObj) => {
+    if (!invObj) return '';
+    return `${invObj.invoice_id}_${invObj.status}_${invObj.total_amount}_${invObj.paid_amount}_${invObj.invoice_type}_${invObj.due_date || ''}_${invObj.notes || ''}_${invObj.job?.loe?.company?.name || ''}_${invObj.job?.loe?.company?.reg_number || ''}_${invObj.job?.loe?.company?.client_type || ''}`;
+  };
+
+  const prewarmInvoicePdf = (invoiceId) => {
+    const invObj =
+      viewingInvoice && viewingInvoice.invoice_id === invoiceId
+        ? viewingInvoice
+        : invoices.find((i) => i.invoice_id === invoiceId);
+    prewarmPdfBlob(`/api/invoices/${invoiceId}/pdf`, {
+      token,
+      versionKey: getInvoicePdfVersion(invObj)
+    });
+  };
+
+  useEffect(() => {
+    if (viewingInvoice?.invoice_id) {
+      prewarmInvoicePdf(viewingInvoice.invoice_id);
+    }
+  }, [viewingInvoice]);
+
   const handleDownloadPdf = async (invoiceId) => {
     try {
       setDownloadingId(invoiceId);
       setError('');
 
-      const cacheBuster = `?t=${Date.now()}`;
-      let response;
-      if (window.location.hostname === 'localhost') {
-        try {
-          response = await fetch(`http://localhost:3000/api/invoices/${invoiceId}/pdf${cacheBuster}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-        } catch {
-          response = null;
-        }
-      }
+      const invObj =
+        viewingInvoice && viewingInvoice.invoice_id === invoiceId
+          ? viewingInvoice
+          : invoices.find((i) => i.invoice_id === invoiceId);
 
-      if (!response || !response.ok) {
-        response = await fetch(`${API_BASE}/api/invoices/${invoiceId}/pdf${cacheBuster}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
+      const blob = await fetchPdfBlob(`/api/invoices/${invoiceId}/pdf`, {
+        token,
+        versionKey: getInvoicePdfVersion(invObj)
+      });
 
-      if (!response.ok) throw new Error('Failed to generate Invoice PDF');
-
-      const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -657,6 +668,7 @@ export default function InvoiceManager() {
 
                 <button
                   type="button"
+                  onMouseEnter={() => prewarmInvoicePdf(viewingInvoice.invoice_id)}
                   onClick={() => handleDownloadPdf(viewingInvoice.invoice_id)}
                   disabled={downloadingId === viewingInvoice.invoice_id}
                   style={styles.secondaryActionBtn}
@@ -1389,6 +1401,7 @@ export default function InvoiceManager() {
 
                                   <button
                                     type="button"
+                                    onMouseEnter={() => prewarmInvoicePdf(inv.invoice_id)}
                                     onClick={() => handleDownloadPdf(inv.invoice_id)}
                                     disabled={downloadingId === inv.invoice_id}
                                     style={styles.tblPdfBtn}
@@ -1513,6 +1526,7 @@ export default function InvoiceManager() {
 
                               <button
                                 type="button"
+                                onMouseEnter={() => prewarmInvoicePdf(inv.invoice_id)}
                                 onClick={() => handleDownloadPdf(inv.invoice_id)}
                                 disabled={downloadingId === inv.invoice_id}
                                 style={{ ...styles.actionBtn, background: '#475569' }}

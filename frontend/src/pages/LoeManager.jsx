@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE, fetchCachedJson } from '../utils/api';
+import { API_BASE, fetchCachedJson, fetchPdfBlob, prewarmPdfBlob } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
 import ScopeRichEditor from '../components/ScopeRichEditor';
 import OfficialLoeDocument, { printOfficialLoeDocument } from '../components/OfficialLoeDocument';
@@ -673,37 +673,34 @@ export default function LoeManager() {
     }
   };
 
+  const getLoePdfVersion = (loeObj) => {
+    if (!loeObj) return '';
+    const itemsKey = (loeObj.loe_items || [])
+      .map((i) => `${i.service_id}:${i.amount}:${i.status}:${i.custom_scope || ''}`)
+      .join('|');
+    return `${loeObj.loe_id}_${loeObj.status}_${loeObj.is_client_accepted}_${loeObj.client_signatory_name || ''}_${loeObj.type}_${loeObj.billing_frequency}_${loeObj.currency}_${loeObj.company?.name || ''}_${itemsKey}`;
+  };
+
+  const prewarmLoePdf = (loeId) => {
+    const loeObj = loes.find((l) => l.loe_id === loeId);
+    prewarmPdfBlob(`/api/loes/${loeId}/pdf`, {
+      token,
+      versionKey: getLoePdfVersion(loeObj)
+    });
+  };
+
   const handleDownloadPdf = async (e, loeId) => {
     e.stopPropagation(); 
     try {
       setDownloadingId(loeId);
       setActionError('');
 
-      let response;
-      const cacheBuster = `?t=${Date.now()}`;
+      const loeObj = loes.find((l) => l.loe_id === loeId);
+      const blob = await fetchPdfBlob(`/api/loes/${loeId}/pdf`, {
+        token,
+        versionKey: getLoePdfVersion(loeObj)
+      });
 
-      if (window.location.hostname === 'localhost') {
-        try {
-          response = await fetch(`http://localhost:3000/api/loes/${loeId}/pdf${cacheBuster}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-        } catch {
-          response = null;
-        }
-      }
-
-      if (!response || !response.ok) {
-        response = await fetch(`${API_BASE}/api/loes/${loeId}/pdf${cacheBuster}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate PDF document');
-      }
-
-      const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -1263,6 +1260,7 @@ export default function LoeManager() {
                       )}
 
                       <button 
+                        onMouseEnter={() => prewarmLoePdf(loe.loe_id)}
                         onClick={(e) => handleDownloadPdf(e, loe.loe_id)} 
                         disabled={downloadingId === loe.loe_id}
                         style={styles.downloadButton}

@@ -1,10 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const { authenticate } = require('../middlewares/authMiddleware');
 
 // Public endpoints for the frontend Registration & Login
 router.post('/register', authController.register);
 router.post('/login', authController.login);
+
+// Session keep-alive heartbeat (protected) and session revocation logout
+router.post('/heartbeat', authenticate, authController.heartbeat);
+router.post('/logout', authController.logout);
 
 // Public endpoint to feed the frontend dropdown (with high-performance in-memory caching)
 router.get('/departments', authController.getDepartments);

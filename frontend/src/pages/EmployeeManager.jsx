@@ -840,12 +840,14 @@ export default function EmployeeManager() {
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'flex-start',
-                            marginBottom: '6px'
+                            gap: '10px',
+                            marginBottom: '6px',
+                            width: '100%'
                           }}
                         >
-                          <div>
-                            <h3 style={styles.cardName}>{emp.name}</h3>
-                            <span style={styles.cardEmail}>{emp.email}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h3 style={styles.cardName} title={emp.name}>{emp.name}</h3>
+                            <span style={styles.cardEmail} title={emp.email}>{emp.email}</span>
                           </div>
                           <span style={{ ...styles.badge, ...roleBadge }}>{emp.role}</span>
                         </div>
@@ -867,24 +869,26 @@ export default function EmployeeManager() {
                           style={styles.cardTaskPill}
                           title={`Click to view ${empAssignedTasks.length} tasks assigned to ${emp.name}`}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                             <span
                               style={{
                                 width: '8px',
                                 height: '8px',
                                 borderRadius: '50%',
+                                flexShrink: 0,
                                 background: empAssignedTasks.length > 0 ? '#0284c7' : '#94a3b8'
                               }}
                             />
-                            <span style={{ fontSize: '12.5px', color: '#334155', fontWeight: '600' }}>
+                            <span style={{ fontSize: '12.5px', color: '#334155', fontWeight: '600', whiteSpace: 'nowrap' }}>
                               Assigned Tasks
                             </span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <span
                               style={{
                                 fontSize: '12px',
                                 fontWeight: '700',
+                                whiteSpace: 'nowrap',
                                 color: empAssignedTasks.length > 0 ? '#0284c7' : '#64748b',
                                 background: empAssignedTasks.length > 0 ? '#f0f9ff' : '#f1f5f9',
                                 padding: '2px 8px',
@@ -903,6 +907,7 @@ export default function EmployeeManager() {
                                 style={{
                                   fontSize: '11px',
                                   fontWeight: '700',
+                                  whiteSpace: 'nowrap',
                                   color: '#b45309',
                                   background: '#fffbeb',
                                   padding: '2px 6px',
@@ -1340,7 +1345,7 @@ const styles = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
     gap: '18px'
   },
   card: {
@@ -1352,19 +1357,27 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     display: 'flex',
-    flexDirection: 'column'
+    flexDirection: 'column',
+    minWidth: 0,
+    overflow: 'hidden'
   },
   cardName: {
     margin: 0,
     fontSize: '16px',
     fontWeight: '700',
-    color: '#0f172a'
+    color: '#0f172a',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
   },
   cardEmail: {
     fontSize: '12.5px',
     color: '#64748b',
     display: 'block',
-    marginTop: '2px'
+    marginTop: '2px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
   },
   cardInfoLine: {
     margin: '3px 0',
@@ -1375,6 +1388,8 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '8px',
     margin: '12px 0 10px',
     padding: '9px 12px',
     background: '#f8fafc',
@@ -1398,13 +1413,16 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 'bold',
     fontSize: '12px',
-    textAlign: 'center'
+    textAlign: 'center',
+    whiteSpace: 'nowrap'
   },
   badge: {
     padding: '3px 8px',
     borderRadius: '4px',
     fontSize: '11px',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    flexShrink: 0,
+    whiteSpace: 'nowrap'
   },
   editBtn: {
     padding: '7px 10px',

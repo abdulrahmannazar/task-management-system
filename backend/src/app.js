@@ -18,6 +18,7 @@ const jobController = require('./controllers/jobController');
 const taskController = require('./controllers/taskController');
 const invoiceController = require('./controllers/invoiceController');
 const errorHandler = require('./middlewares/errorHandler');
+const { enforceProtectedApiSession } = require('./middlewares/authMiddleware');
 
 // Initialize Cron Background Service
 require('./services/cronService');
@@ -31,6 +32,9 @@ app.use(express.json());
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: Date.now() });
 });
+
+// Strict 30-Minute Server-Side Idle Session Timeout Enforcement on all protected API routes
+app.use(enforceProtectedApiSession);
 
 // Authentication and Public Routes
 app.use('/api/auth', authRoutes);
