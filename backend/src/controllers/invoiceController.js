@@ -1,9 +1,15 @@
 const invoiceCache = new Map();
+const invoiceByIdCache = new Map();
 const INVOICE_CACHE_TTL = 8000;
-const clearInvoiceCache = () => invoiceCache.clear();
+const INVOICE_BY_ID_TTL = 60000;
+const clearInvoiceCache = () => {
+  invoiceCache.clear();
+  invoiceByIdCache.clear();
+};
+exports.clearInvoiceCache = clearInvoiceCache;
 const prisma = require('../config/db');
 const asyncHandler = require('../middlewares/asyncHandler');
-const { generateInvoicePdf } = require('../services/pdfService');
+const { generateInvoicePdf, prewarmInvoicePdf } = require('../services/pdfService');
 const { sendInvoiceReminderEmail, sendInvoiceDispatchToClientEmail } = require('../services/emailService');
 
 // GET /api/invoices
@@ -58,7 +64,11 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const invoices = await prisma.invoice.findMany(query);
-  invoiceCache.set(cacheKey, { data: invoices, time: Date.now() });
+  const now = Date.now();
+  invoiceCache.set(cacheKey, { data: invoices, time: now });
+  invoices.forEach((inv) => {
+    invoiceByIdCache.set(inv.invoice_id, { data: inv, time: now });
+  });
   res.json(invoices);
 });
 
@@ -66,6 +76,16 @@ exports.getAll = asyncHandler(async (req, res) => {
 exports.getById = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
+
+  const cachedItem = invoiceByIdCache.get(id);
+  if (cachedItem && (Date.now() - cachedItem.time < INVOICE_CACHE_TTL)) {
+    prewarmInvoicePdf({
+      invoice: cachedItem.data,
+      loe: cachedItem.data.job?.loe,
+      company: cachedItem.data.job?.loe?.company
+    });
+    return res.json(cachedItem.data);
+  }
 
   const invoice = await prisma.invoice.findUnique({
     where: { invoice_id: id },
@@ -93,6 +113,12 @@ exports.getById = asyncHandler(async (req, res) => {
   });
 
   if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+  invoiceByIdCache.set(id, { data: invoice, time: Date.now() });
+  prewarmInvoicePdf({
+    invoice,
+    loe: invoice.job?.loe,
+    company: invoice.job?.loe?.company
+  });
   res.json(invoice);
 });
 
@@ -455,21 +481,24 @@ exports.generatePdf = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid Invoice ID' });
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { invoice_id: id },
-    include: {
-      payments: {
-        orderBy: { payment_id: 'desc' }
-      },
-      job: {
-        include: {
-          loe: {
-            include: {
-              company: true,
-              loe_items: {
-                include: {
-                  service: {
-                    include: { department: true }
+  let invoice = null;
+  const cachedItem = invoiceByIdCache.get(id);
+  if (cachedItem && (Date.now() - cachedItem.time < INVOICE_BY_ID_TTL) && cachedItem.data?.job?.loe?.company) {
+    invoice = cachedItem.data;
+  } else {
+    invoice = await prisma.invoice.findUnique({
+      where: { invoice_id: id },
+      include: {
+        job: {
+          include: {
+            loe: {
+              include: {
+                company: true,
+                loe_items: {
+                  include: {
+                    service: {
+                      include: { department: true }
+                    }
                   }
                 }
               }
@@ -477,10 +506,11 @@ exports.generatePdf = asyncHandler(async (req, res) => {
           }
         }
       }
-    }
-  });
+    });
 
-  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    invoiceByIdCache.set(id, { data: invoice, time: Date.now() });
+  }
 
   const customLogo = req.query.logo || null;
   const logoAlignment = req.query.align || 'center';

@@ -1,9 +1,19 @@
 const loeCache = new Map();
+const loeByIdCache = new Map();
 const LOE_CACHE_TTL = 8000;
-const clearLoeCache = () => loeCache.clear();
+const LOE_BY_ID_TTL = 60000;
+const clearLoeCache = () => {
+  loeCache.clear();
+  loeByIdCache.clear();
+  try {
+    const { clearInvoiceCache } = require('./invoiceController');
+    if (clearInvoiceCache) clearInvoiceCache();
+  } catch (_) {}
+};
+exports.clearLoeCache = clearLoeCache;
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
-const { generateLoePdf } = require('../services/pdfService');
+const { generateLoePdf, prewarmLoePdf } = require('../services/pdfService');
 const { generateTaskCode, enrichLoeWithCode } = require('../utils/taskCodeHelper');
 const { sendLoeCreatedEmail, sendInvoiceCreatedEmail, sendLoeRejectedEmail, sendLoeDispatchToClientEmail } = require('../services/emailService');
 
@@ -209,7 +219,11 @@ exports.getAll = asyncHandler(async (req, res) => {
 
   const loes = await prisma.loe.findMany(query);
   const mapped = loes.map(enrichLoeWithCode);
-  loeCache.set(cacheKey, { data: mapped, time: Date.now() });
+  const now = Date.now();
+  loeCache.set(cacheKey, { data: mapped, time: now });
+  mapped.forEach((item) => {
+    loeByIdCache.set(item.loe_id, { data: item, time: now });
+  });
   res.json(mapped);
 });
 
@@ -217,6 +231,12 @@ exports.getAll = asyncHandler(async (req, res) => {
 exports.getById = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
+
+  const cachedItem = loeByIdCache.get(loeId);
+  if (cachedItem && (Date.now() - cachedItem.time < LOE_CACHE_TTL)) {
+    prewarmLoePdf({ loe: cachedItem.data, company: cachedItem.data.company });
+    return res.json(cachedItem.data);
+  }
 
   const loe = await prisma.loe.findUnique({
     where: { loe_id: loeId },
@@ -229,7 +249,10 @@ exports.getById = asyncHandler(async (req, res) => {
   });
   
   if (!loe) return res.status(404).json({ error: 'LOE not found' });
-  res.json(enrichLoeWithCode(loe));
+  const enriched = enrichLoeWithCode(loe);
+  loeByIdCache.set(loeId, { data: enriched, time: Date.now() });
+  prewarmLoePdf({ loe: enriched, company: enriched.company });
+  res.json(enriched);
 });
 
 
@@ -538,18 +561,27 @@ exports.approveAll = asyncHandler(async (req, res) => {
 // GET /api/loes/:id/pdf
 exports.generatePdf = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
-  const loe = await prisma.loe.findUnique({
-    where: { loe_id: loeId },
-    include: { 
-      loe_items: { include: { service: { include: { department: true } } } } 
-    }
-  });
+  if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
 
-  if (!loe) return res.status(404).json({ error: 'LOE record not found' });
-  const company = await prisma.company.findUnique({ where: { company_id: loe.company_id } });
+  let enriched = null;
+  const cachedItem = loeByIdCache.get(loeId);
+  if (cachedItem && (Date.now() - cachedItem.time < LOE_BY_ID_TTL) && cachedItem.data?.company) {
+    enriched = cachedItem.data;
+  } else {
+    const loe = await prisma.loe.findUnique({
+      where: { loe_id: loeId },
+      include: { 
+        company: true,
+        loe_items: { include: { service: { include: { department: true } } } } 
+      }
+    });
 
-  const enriched = enrichLoeWithCode({ ...loe, company });
-  const pdfBuffer = await generateLoePdf({ loe: enriched, company });
+    if (!loe) return res.status(404).json({ error: 'LOE record not found' });
+    enriched = enrichLoeWithCode(loe);
+    loeByIdCache.set(loeId, { data: enriched, time: Date.now() });
+  }
+
+  const pdfBuffer = await generateLoePdf({ loe: enriched, company: enriched.company });
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename=${enriched.loe_code.replace(/\s+/g, '_')}.pdf`);

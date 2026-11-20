@@ -27,6 +27,8 @@ function getLogoBannerDataUri() {
   return null;
 }
 
+const CACHED_LOGO_BANNER_URI = getLogoBannerDataUri();
+
 /**
  * Formats a date with an ordinal day suffix (e.g., "21st September 2026")
  */
@@ -101,7 +103,7 @@ function parseStructuredScopes(scopesArray) {
 
 module.exports = function generateLoeTemplate({ loe, company }) {
   const currencyCode = loe?.currency || 'LKR';
-  const logoBannerDataUri = getLogoBannerDataUri();
+  const logoBannerDataUri = CACHED_LOGO_BANNER_URI || getLogoBannerDataUri();
 
   const formatFeeAmount = (val) => {
     const num = Number(val || 0);
