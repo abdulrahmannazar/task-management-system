@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../utils/api';
+import { API_BASE, fetchPdfBlob, prewarmPdfBlob } from '../utils/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { usePermissions } from '../utils/permissionHelper';
@@ -292,36 +292,33 @@ export default function LoeDetails() {
     }
   };
 
+  const getLoePdfVersion = (loeObj) => {
+    if (!loeObj) return '';
+    const itemsKey = (loeObj.loe_items || [])
+      .map((i) => `${i.service_id}:${i.amount}:${i.status}:${i.custom_scope || ''}`)
+      .join('|');
+    return `${loeObj.loe_id}_${loeObj.status}_${loeObj.is_client_accepted}_${loeObj.client_signatory_name || ''}_${loeObj.type}_${loeObj.billing_frequency}_${loeObj.currency}_${loeObj.company?.name || ''}_${itemsKey}`;
+  };
+
+  useEffect(() => {
+    if (loe?.loe_id) {
+      prewarmPdfBlob(`/api/loes/${id}/pdf`, {
+        token,
+        versionKey: getLoePdfVersion(loe)
+      });
+    }
+  }, [loe]);
+
   const handleDownloadPdf = async () => {
     try {
       setDownloading(true);
       setError('');
 
-      let response;
-      const cacheBuster = `?t=${Date.now()}`;
+      const blob = await fetchPdfBlob(`/api/loes/${id}/pdf`, {
+        token,
+        versionKey: getLoePdfVersion(loe)
+      });
 
-      if (window.location.hostname === 'localhost') {
-        try {
-          response = await fetch(`http://localhost:3000/api/loes/${id}/pdf${cacheBuster}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-        } catch {
-          response = null;
-        }
-      }
-
-      if (!response || !response.ok) {
-        response = await fetch(`${API_BASE}/api/loes/${id}/pdf${cacheBuster}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to generate PDF document');
-      }
-
-      const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;

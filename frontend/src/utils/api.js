@@ -25,13 +25,23 @@ export const getApiUrl = (endpoint = '') => {
 };
 
 // =========================================================================
-// Instant Client-Side Reference Cache (0 ms navigation between pages)
+// Instant Client-Side Reference Cache & PDF Blob Pre-Warm Cache
 // =========================================================================
 const clientCache = new Map();
 const CLIENT_CACHE_TTL = 30 * 1000; // 30 seconds fresh window
 
+const pdfBlobCache = new Map();
+const inFlightPdfRequests = new Map();
+const PDF_BLOB_CACHE_TTL = 60 * 1000; // 60 seconds fresh window
+const MAX_PDF_BLOB_ENTRIES = 25;
+
 export const clearClientCache = () => {
   clientCache.clear();
+  pdfBlobCache.clear();
+};
+
+export const clearPdfBlobCache = () => {
+  pdfBlobCache.clear();
 };
 
 /**
@@ -99,6 +109,56 @@ export async function fetchCachedJson(endpoint, options = {}) {
   const data = await res.json();
   clientCache.set(cacheKey, { data, timestamp: now });
   return data;
+}
+
+/**
+ * High-speed PDF Blob fetcher with in-flight deduplication and content-versioned memory cache.
+ * Eliminates duplicate downloads and delivers instant (0 ms) saves when pre-warmed.
+ */
+export async function fetchPdfBlob(endpoint, { token, versionKey = '' } = {}) {
+  const activeToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('token') : '');
+  const cacheKey = `${endpoint}::${versionKey}`;
+  const now = Date.now();
+
+  const cached = pdfBlobCache.get(cacheKey);
+  if (cached && (now - cached.timestamp < PDF_BLOB_CACHE_TTL)) {
+    return cached.blob;
+  }
+
+  if (inFlightPdfRequests.has(cacheKey)) {
+    return inFlightPdfRequests.get(cacheKey);
+  }
+
+  const fetchPromise = (async () => {
+    const headers = activeToken ? { Authorization: `Bearer ${activeToken}` } : {};
+    const res = await apiFetch(endpoint, { headers });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to generate PDF document');
+    }
+
+    const blob = await res.blob();
+    if (pdfBlobCache.size >= MAX_PDF_BLOB_ENTRIES) {
+      const oldest = pdfBlobCache.keys().next().value;
+      if (oldest) pdfBlobCache.delete(oldest);
+    }
+    pdfBlobCache.set(cacheKey, { blob, timestamp: Date.now() });
+    return blob;
+  })();
+
+  inFlightPdfRequests.set(cacheKey, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    inFlightPdfRequests.delete(cacheKey);
+  }
+}
+
+/**
+ * Silently pre-warms a PDF Blob in the background (e.g., when viewing details or hovering over a PDF button)
+ */
+export function prewarmPdfBlob(endpoint, options = {}) {
+  fetchPdfBlob(endpoint, options).catch(() => {});
 }
 
 // Background Pre-Warm Ping (wakes up remote server while user is viewing the page)

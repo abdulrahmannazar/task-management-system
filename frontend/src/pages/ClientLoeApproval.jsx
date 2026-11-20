@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { API_BASE } from '../utils/api';
+import { API_BASE, fetchPdfBlob, prewarmPdfBlob } from '../utils/api';
 import Navbar from '../components/Navbar';
 import BlobLoader from '../components/BlobLoader';
 
@@ -73,16 +73,30 @@ export default function ClientLoeApproval() {
     }
   };
 
+  const getLoeVersionKey = (loeObj) => {
+    if (!loeObj) return '';
+    return `${loeObj.loe_id}_${loeObj.status}_${loeObj.is_client_accepted}_${loeObj.client_signatory_name || ''}_${loeObj.client_signatory_title || ''}_${loeObj.client_accepted_at || ''}`;
+  };
+
+  useEffect(() => {
+    if (loe?.loe_id) {
+      prewarmPdfBlob(`/api/loes/${id}/pdf`, {
+        token,
+        versionKey: getLoeVersionKey(loe)
+      });
+    }
+  }, [loe]);
+
   const handleDownloadPdf = async () => {
     try {
       setDownloading(true);
       setError('');
-      const cacheBuster = `?t=${Date.now()}`;
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await fetch(`${API_BASE}/api/loes/${id}/pdf${cacheBuster}`, { headers });
-      if (!response.ok) throw new Error('Failed to generate LOE document');
 
-      const blob = await response.blob();
+      const blob = await fetchPdfBlob(`/api/loes/${id}/pdf`, {
+        token,
+        versionKey: getLoeVersionKey(loe)
+      });
+
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
