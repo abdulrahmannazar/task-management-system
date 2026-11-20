@@ -755,7 +755,14 @@ module.exports = function generateLoeTemplate({ loe, company }) {
     <p>Please do not hesitate to contact us for any further clarifications.</p>
     <p style="margin-top: 14px;">Yours Sincerely,</p>
 
-    <div class="dotted-line">……………………………</div>
+    ${
+      loe?.signature_image
+        ? `<div style="margin-top: 10px; margin-bottom: 2px;">
+             <img src="${loe.signature_image}" alt="Authorized Signature" style="max-height: 64px; max-width: 220px; width: auto; height: auto; object-fit: contain; display: block;" />
+             <div class="dotted-line" style="margin-top: 2px;">……………………………</div>
+           </div>`
+        : `<div class="dotted-line">……………………………</div>`
+    }
     <div style="font-weight: bold;">Frontier Advisory (Private) Limited</div>
 
     <p style="margin-top: 28px;">We hereby agree to this Letter of Engagement</p>
