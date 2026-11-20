@@ -159,7 +159,13 @@ export default function ClientLoeApproval() {
   const isAccepted = Boolean(loe?.is_client_accepted);
 
   return (
-    <div style={styles.pageContainer}>
+    <div
+      style={{
+        ...styles.pageContainer,
+        marginLeft: user ? 'var(--sidebar-width, 260px)' : '0',
+        transition: 'margin-left 300ms ease-in-out'
+      }}
+    >
       {user && <Navbar />}
 
       <div style={styles.container}>
@@ -186,7 +192,7 @@ export default function ClientLoeApproval() {
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={handleDownloadPdf}
@@ -247,36 +253,38 @@ export default function ClientLoeApproval() {
               {/* Professional Fees Table */}
               <div style={styles.card}>
                 <h2 style={styles.cardHeader}>2. Agreed Professional Fees</h2>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Service Scope</th>
-                      <th style={styles.th}>Billing Routine</th>
-                      <th style={{ ...styles.th, textAlign: 'right' }}>Agreed Fee ({currencyCode})</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(loe.loe_items || []).map((item, idx) => (
-                      <tr key={idx} style={styles.tr}>
-                        <td style={styles.td}>
-                          <strong>{item.service?.name || 'Deliverable'}</strong>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>Service Scope</th>
+                        <th style={styles.th}>Billing Routine</th>
+                        <th style={{ ...styles.th, textAlign: 'right' }}>Agreed Fee ({currencyCode})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(loe.loe_items || []).map((item, idx) => (
+                        <tr key={idx} style={styles.tr}>
+                          <td style={styles.td}>
+                            <strong>{item.service?.name || 'Deliverable'}</strong>
+                          </td>
+                          <td style={styles.td}>{item.service?.billing_type || loe.billing_frequency || 'One-Time'}</td>
+                          <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold' }}>
+                            {currencySymbol} {Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                        <td colSpan="2" style={{ ...styles.td, color: '#0f172a' }}>
+                          Total Agreed Professional Fee
                         </td>
-                        <td style={styles.td}>{item.service?.billing_type || loe.billing_frequency || 'One-Time'}</td>
-                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold' }}>
-                          {currencySymbol} {Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td style={{ ...styles.td, textAlign: 'right', color: '#0284c7', fontSize: '15px' }}>
+                          {currencySymbol} {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
-                    ))}
-                    <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-                      <td colSpan="2" style={{ ...styles.td, color: '#0f172a' }}>
-                        Total Agreed Professional Fee
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right', color: '#0284c7', fontSize: '15px' }}>
-                        {currencySymbol} {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
                 <p style={styles.feeNote}>
                   <strong>Note:</strong> The professional fees listed above exclude travel and other out-of-pocket expenses, which will be billed separately at actual cost upon client authorization.
                 </p>
@@ -419,7 +427,8 @@ const styles = {
   navRow: {
     display: 'flex',
     gap: '12px',
-    marginBottom: '20px'
+    marginBottom: '20px',
+    flexWrap: 'wrap'
   },
   backBtn: {
     padding: '8px 16px',
@@ -515,7 +524,7 @@ const styles = {
   },
   contentGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
     gap: '24px'
   },
   card: {
