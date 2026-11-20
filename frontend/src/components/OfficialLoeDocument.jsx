@@ -1253,7 +1253,25 @@ export default function OfficialLoeDocument({
           <p>Please do not hesitate to contact us for any further clarifications.</p>
           <p style={{ marginTop: '14px' }}>Yours Sincerely,</p>
 
-          <div className="dotted-line">……………………………</div>
+          {loe?.signature_image ? (
+            <div style={{ marginTop: '10px', marginBottom: '2px' }}>
+              <img
+                src={loe.signature_image}
+                alt="Authorized Signature"
+                style={{
+                  maxHeight: '64px',
+                  maxWidth: '220px',
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  display: 'block'
+                }}
+              />
+              <div className="dotted-line" style={{ marginTop: '2px' }}>……………………………</div>
+            </div>
+          ) : (
+            <div className="dotted-line">……………………………</div>
+          )}
           <div style={{ fontWeight: 'bold' }}>Frontier Advisory (Private) Limited</div>
 
           <p style={{ marginTop: '28px' }}>We hereby agree to this Letter of Engagement</p>
