@@ -1,5 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import './utils/api';
+import useIdleTimeout from './hooks/useIdleTimeout';
+import IdleWarningModal from './components/IdleWarningModal';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -108,9 +111,38 @@ export const PublicRoute = ({ children }) => {
   return children;
 };
 
+/**
+ * Mounts the 30-minute sliding idle timeout tracker & 1-minute warning modal
+ * strictly while a user is authenticated.
+ */
+function IdleSessionManager() {
+  useLocation(); // Re-evaluate authentication state on route transitions
+  const authed = isAuthenticated();
+  const {
+    showWarning,
+    remainingSeconds,
+    stayingSignedIn,
+    staySignedIn,
+    logoutNow
+  } = useIdleTimeout({ enabled: authed });
+
+  if (!authed) return null;
+
+  return (
+    <IdleWarningModal
+      isOpen={showWarning}
+      remainingSeconds={remainingSeconds}
+      stayingSignedIn={stayingSignedIn}
+      onStaySignedIn={staySignedIn}
+      onLogoutNow={logoutNow}
+    />
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <IdleSessionManager />
       <Routes>
         <Route
           path="/"

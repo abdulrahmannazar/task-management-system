@@ -131,12 +131,14 @@ export default function Navbar() {
     }
   };
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isBackgroundPoll = false) => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/api/notifications`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const headers = { Authorization: `Bearer ${token}` };
+      if (isBackgroundPoll) {
+        headers['X-Background-Poll'] = 'true';
+      }
+      const res = await fetch(`${API_BASE}/api/notifications`, { headers });
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
@@ -163,9 +165,9 @@ export default function Navbar() {
 
   useEffect(() => {
     if (token) {
-      fetchNotifications();
-      const interval = setInterval(() => { if (typeof document !== 'undefined' && !document.hidden) { fetchNotifications(); } }, 8000);
-      const onFocus = () => fetchNotifications();
+      fetchNotifications(true);
+      const interval = setInterval(() => { if (typeof document !== 'undefined' && !document.hidden) { fetchNotifications(true); } }, 8000);
+      const onFocus = () => fetchNotifications(true);
       window.addEventListener('focus', onFocus);
       return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
     }

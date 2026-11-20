@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../utils/api';
+import { API_BASE, performLogout } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import BlobLoader from '../components/BlobLoader';
@@ -170,8 +170,7 @@ export default function Settings() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
+    performLogout({ reason: 'manual', callApi: true, broadcast: true });
   };
 
   const getDepartmentName = (deptId) => {

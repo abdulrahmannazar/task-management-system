@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../utils/api';
+import { API_BASE, LAST_ACTIVITY_STORAGE_KEY } from '../utils/api';
 import { useNavigate, Link } from 'react-router-dom';
 import FrontierLogo from '../components/FrontierLogo';
 
@@ -54,6 +54,7 @@ export default function Register() {
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.employee || data.user));
+      localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);

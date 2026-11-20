@@ -158,7 +158,33 @@ export default function DispatchTracker() {
     }
   };
 
+  const isLoeApproved = (loe) =>
+    String(loe?.status || '').trim().toLowerCase() === 'approved';
+
+  const isInvoiceApproved = (inv) => {
+    const invStatus = String(inv?.status || '').trim().toLowerCase();
+    if (
+      invStatus === 'approval pending' ||
+      invStatus === 'pending approval' ||
+      invStatus === 'rejected' ||
+      invStatus === 'draft'
+    ) {
+      return false;
+    }
+    const loeStatus = inv?.job?.loe?.status;
+    if (loeStatus !== undefined && loeStatus !== null) {
+      return String(loeStatus).trim().toLowerCase() === 'approved';
+    }
+    return true;
+  };
+
   const handleSendInvoice = async (inv) => {
+    if (!isInvoiceApproved(inv)) {
+      const currentStatus = inv?.job?.loe?.status || inv?.status || 'Approval Pending';
+      setError(`Cannot send Invoice: INV-${String(inv.invoice_id).padStart(5, '0')} must be Approved before dispatching to client (Current status: ${currentStatus}).`);
+      return;
+    }
+
     try {
       setSendingId(`inv_${inv.invoice_id}`);
       setError('');
@@ -203,6 +229,21 @@ export default function DispatchTracker() {
     const key = `${type}_${id}`;
     const currentlySent = isItemSent(type, item);
     const nextSentState = !currentlySent;
+
+    // Prevent marking LOE or Invoice as sent when not yet approved
+    if (nextSentState) {
+      if (type === 'loe' && !isLoeApproved(item)) {
+        setError(`Cannot mark LOE as sent: LOE #${item.loe_id} is not approved yet (Current status: ${item.status || 'Approval Pending'}).`);
+        return;
+      }
+      if (type === 'inv' && !isInvoiceApproved(item)) {
+        const currentStatus = item?.job?.loe?.status || item?.status || 'Approval Pending';
+        setError(`Cannot mark Invoice as sent: INV-${String(item.invoice_id).padStart(5, '0')} is not approved yet (Current status: ${currentStatus}).`);
+        return;
+      }
+    }
+
+    setError('');
     const timestamp = nextSentState ? new Date().toISOString() : null;
 
     const updatedMap = {
@@ -448,9 +489,17 @@ export default function DispatchTracker() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleToggleSent('loe', loe)}
-                                  style={sent ? styles.markUnsentBtn : styles.markSentBtn}
-                                  title="Toggle sent confirmation"
+                                  onClick={() => (sent || isApproved) && handleToggleSent('loe', loe)}
+                                  disabled={!sent && !isApproved}
+                                  style={{
+                                    ...(sent ? styles.markUnsentBtn : styles.markSentBtn),
+                                    ...(!sent && !isApproved ? styles.disabledBtn : {})
+                                  }}
+                                  title={
+                                    !sent && !isApproved
+                                      ? `LOE must be Approved before marking as sent (Current status: ${loe.status || 'Approval Pending'})`
+                                      : 'Toggle sent confirmation'
+                                  }
                                 >
                                   {sent ? 'Mark Not Sent' : 'Mark as Sent'}
                                 </button>
@@ -509,6 +558,11 @@ export default function DispatchTracker() {
                         const company = inv.job?.loe?.company;
                         const currencyCode = inv.job?.loe?.currency || 'LKR';
                         const symbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode;
+                        const isInvApproved = isInvoiceApproved(inv);
+                        const hasEmail = Boolean((company?.primary_contact_email || company?.email || '').trim());
+                        const isSending = sendingId === `inv_${inv.invoice_id}`;
+                        const canSendInv = isInvApproved && hasEmail && !isSending;
+                        const invApprovalStatus = inv.job?.loe?.status || inv.status || 'Approval Pending';
 
                         return (
                           <tr key={inv.invoice_id} style={styles.tr}>
@@ -550,28 +604,38 @@ export default function DispatchTracker() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                 <button
                                   type="button"
-                                  onClick={() => handleSendInvoice(inv)}
-                                  disabled={sendingId === `inv_${inv.invoice_id}` || !(company?.primary_contact_email || company?.email)}
+                                  onClick={() => canSendInv && handleSendInvoice(inv)}
+                                  disabled={!canSendInv}
                                   style={{
                                     ...styles.primarySendBtn,
                                     ...(sent ? styles.resendBtn : {}),
-                                    ...(!(company?.primary_contact_email || company?.email) ? styles.disabledBtn : {})
+                                    ...(!canSendInv ? styles.disabledBtn : {})
                                   }}
                                   title={
-                                    !(company?.primary_contact_email || company?.email)
+                                    !isInvApproved
+                                      ? `Invoice must be Approved before sending to client (Current status: ${invApprovalStatus})`
+                                      : !hasEmail
                                       ? "No client email on file"
                                       : sent
                                       ? `Resend Invoice to ${company?.primary_contact_email || company?.email} from ${user?.email || 'your email'}`
                                       : `Send Invoice to ${company?.primary_contact_email || company?.email} from ${user?.email || 'your email'}`
                                   }
                                 >
-                                  {sendingId === `inv_${inv.invoice_id}` ? <BlobLoader inline size={13} light message="Sending..." /> : sent ? 'Resend to Client' : 'Send to Client'}
+                                  {isSending ? <BlobLoader inline size={13} light message="Sending..." /> : sent ? 'Resend to Client' : 'Send to Client'}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleToggleSent('inv', inv)}
-                                  style={sent ? styles.markUnsentBtn : styles.markSentBtn}
-                                  title="Toggle sent confirmation"
+                                  onClick={() => (sent || isInvApproved) && handleToggleSent('inv', inv)}
+                                  disabled={!sent && !isInvApproved}
+                                  style={{
+                                    ...(sent ? styles.markUnsentBtn : styles.markSentBtn),
+                                    ...(!sent && !isInvApproved ? styles.disabledBtn : {})
+                                  }}
+                                  title={
+                                    !sent && !isInvApproved
+                                      ? `Invoice must be Approved before marking as sent (Current status: ${invApprovalStatus})`
+                                      : 'Toggle sent confirmation'
+                                  }
                                 >
                                   {sent ? 'Mark Not Sent' : 'Mark as Sent'}
                                 </button>
