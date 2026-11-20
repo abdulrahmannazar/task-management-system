@@ -564,6 +564,21 @@ exports.sendToClient = asyncHandler(async (req, res) => {
 
   if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
+  const invStatusLower = String(invoice.status || '').trim().toLowerCase();
+  const loeStatus = invoice.job?.loe?.status;
+  const isUnapprovedInvoice =
+    invStatusLower === 'approval pending' ||
+    invStatusLower === 'pending approval' ||
+    invStatusLower === 'rejected' ||
+    invStatusLower === 'draft' ||
+    (loeStatus !== undefined && loeStatus !== null && String(loeStatus).trim().toLowerCase() !== 'approved');
+
+  if (isUnapprovedInvoice) {
+    return res.status(400).json({
+      error: `Cannot dispatch Invoice: Approval is still pending (Current status: ${loeStatus || invoice.status || 'Approval Pending'}).`
+    });
+  }
+
   const company = invoice.job?.loe?.company;
   const targetEmail = company?.primary_contact_email || company?.email;
   if (!targetEmail || !targetEmail.trim()) {
