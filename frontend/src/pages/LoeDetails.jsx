@@ -297,7 +297,7 @@ export default function LoeDetails() {
     const itemsKey = (loeObj.loe_items || [])
       .map((i) => `${i.service_id}:${i.amount}:${i.status}:${i.custom_scope || ''}`)
       .join('|');
-    return `${loeObj.loe_id}_${loeObj.status}_${loeObj.is_client_accepted}_${loeObj.client_signatory_name || ''}_${loeObj.type}_${loeObj.billing_frequency}_${loeObj.currency}_${loeObj.company?.name || ''}_${itemsKey}`;
+    return `${loeObj.loe_id}_${loeObj.status}_${loeObj.is_client_accepted}_${loeObj.client_signatory_name || ''}_${loeObj.type}_${loeObj.billing_frequency}_${loeObj.currency}_${loeObj.company?.name || ''}_${loeObj.signature_image ? loeObj.signature_image.length : 0}_${itemsKey}`;
   };
 
   useEffect(() => {

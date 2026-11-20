@@ -57,7 +57,9 @@ export default function LoeManager() {
     billing_frequency: 'One-Time',
     currency: 'LKR',
     start_date: '',
-    loe_services: [] 
+    loe_services: [],
+    signature_image: null,
+    signature_name: ''
   });
   
   const [editingId, setEditingId] = useState(null);
@@ -239,7 +241,9 @@ export default function LoeManager() {
       billing_frequency: 'One-Time',
       currency: 'LKR',
       start_date: '',
-      loe_services: []
+      loe_services: [],
+      signature_image: null,
+      signature_name: ''
     });
     setFormError('');
     setIsModalOpen(true);
@@ -256,9 +260,51 @@ export default function LoeManager() {
       billing_frequency: 'One-Time',
       currency: 'LKR',
       start_date: '',
-      loe_services: []
+      loe_services: [],
+      signature_image: null,
+      signature_name: ''
     });
     setFormError('');
+  };
+
+  const handleSignatureFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setFormError('Please attach a valid image file (PNG, JPG, WEBP, or SVG) for the signature.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setFormError('Signature image size must be under 2 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormError('');
+      setFormData((prev) => ({
+        ...prev,
+        signature_image: reader.result,
+        signature_name: file.name
+      }));
+    };
+    reader.onerror = () => {
+      setFormError('Failed to read the selected signature image file.');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveSignature = () => {
+    setFormData((prev) => ({
+      ...prev,
+      signature_image: null,
+      signature_name: ''
+    }));
   };
 
   const addServiceCard = () => {
@@ -557,7 +603,9 @@ export default function LoeManager() {
       billing_frequency: loe.billing_frequency || (loe.type === 'Retainer' ? 'Monthly' : 'One-Time'),
       currency: loe.currency || 'LKR',
       start_date: loe.start_date ? loe.start_date.split('T')[0] : '',
-      loe_services: grouped
+      loe_services: grouped,
+      signature_image: loe.signature_image || null,
+      signature_name: loe.signature_name || ''
     });
 
     setFormError('');
@@ -657,7 +705,9 @@ export default function LoeManager() {
           billing_frequency: formData.billing_frequency,
           currency: formData.currency,
           start_date: formData.start_date,
-          loe_items: flattenedItems
+          loe_items: flattenedItems,
+          signature_image: formData.signature_image,
+          signature_name: formData.signature_name
         })
       });
 
@@ -678,7 +728,7 @@ export default function LoeManager() {
     const itemsKey = (loeObj.loe_items || [])
       .map((i) => `${i.service_id}:${i.amount}:${i.status}:${i.custom_scope || ''}`)
       .join('|');
-    return `${loeObj.loe_id}_${loeObj.status}_${loeObj.is_client_accepted}_${loeObj.client_signatory_name || ''}_${loeObj.type}_${loeObj.billing_frequency}_${loeObj.currency}_${loeObj.company?.name || ''}_${itemsKey}`;
+    return `${loeObj.loe_id}_${loeObj.status}_${loeObj.is_client_accepted}_${loeObj.client_signatory_name || ''}_${loeObj.type}_${loeObj.billing_frequency}_${loeObj.currency}_${loeObj.company?.name || ''}_${loeObj.signature_image ? loeObj.signature_image.length : 0}_${itemsKey}`;
   };
 
   const prewarmLoePdf = (loeId) => {
@@ -1764,6 +1814,63 @@ export default function LoeManager() {
                 <button type="button" onClick={addServiceCard} style={styles.addCardBtn}>
                   + Add Service
                 </button>
+
+                {/* Authorized Signature Attachment (placed under Yours Sincerely in LOE) */}
+                <div style={styles.signatureUploadCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div>
+                      <label style={{ ...styles.label, marginBottom: '2px', display: 'block' }}>
+                        Signature Attachment (Optional)
+                      </label>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>
+                        Placed above &ldquo;Frontier Advisory (Private) Limited&rdquo; under &ldquo;Yours Sincerely,&rdquo; in the LOE document &amp; PDF.
+                      </span>
+                    </div>
+
+                    <label style={styles.signatureUploadBtn}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                      </svg>
+                      {formData.signature_image ? 'Change Attachment' : 'Attach Signature'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                        onChange={handleSignatureFileChange}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  </div>
+
+                  {formData.signature_image && (
+                    <div style={styles.signaturePreviewBox}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+                        <div style={styles.signatureThumbWrap}>
+                          <img
+                            src={formData.signature_image}
+                            alt="Attached Signature Preview"
+                            style={{ maxHeight: '48px', maxWidth: '160px', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
+                          />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: '600', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {formData.signature_name || 'Attached Signature Image'}
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#059669', fontWeight: '500' }}>
+                            Ready to embed in LOE signature block
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveSignature}
+                        style={styles.signatureRemoveBtn}
+                        title="Remove attached signature"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div style={styles.buttonGroup}>
@@ -2773,5 +2880,57 @@ const styles = {
     fontSize: '13px',
     border: '1px solid #fecdd3',
     marginBottom: '14px'
+  },
+  signatureUploadCard: {
+    marginTop: '14px',
+    padding: '14px 16px',
+    background: '#f8fafc',
+    border: '1px dashed #cbd5e1',
+    borderRadius: '8px'
+  },
+  signatureUploadBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    background: '#ffffff',
+    color: '#0284c7',
+    border: '1px solid #bae6fd',
+    borderRadius: '6px',
+    fontSize: '12.5px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
+  },
+  signaturePreviewBox: {
+    marginTop: '12px',
+    padding: '10px 12px',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '6px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap'
+  },
+  signatureThumbWrap: {
+    padding: '6px 10px',
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  signatureRemoveBtn: {
+    padding: '6px 12px',
+    background: '#fff1f2',
+    color: '#e11d48',
+    border: '1px solid #fecdd3',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: '600',
+    cursor: 'pointer'
   }
 };

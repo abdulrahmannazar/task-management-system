@@ -14,6 +14,12 @@ exports.clearLoeCache = clearLoeCache;
 const prisma = require('../config/db'); 
 const asyncHandler = require('../middlewares/asyncHandler');
 const { generateLoePdf, prewarmLoePdf } = require('../services/pdfService');
+const {
+  saveLoeSignature,
+  attachSignatureToLoe,
+  attachSignaturesToLoes,
+  deleteLoeSignature
+} = require('../services/loeSignatureService');
 const { generateTaskCode, enrichLoeWithCode } = require('../utils/taskCodeHelper');
 const { sendLoeCreatedEmail, sendInvoiceCreatedEmail, sendLoeRejectedEmail, sendLoeDispatchToClientEmail } = require('../services/emailService');
 
@@ -218,7 +224,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   }
 
   const loes = await prisma.loe.findMany(query);
-  const mapped = loes.map(enrichLoeWithCode);
+  const mapped = await attachSignaturesToLoes(loes.map(enrichLoeWithCode));
   const now = Date.now();
   loeCache.set(cacheKey, { data: mapped, time: now });
   mapped.forEach((item) => {
@@ -249,7 +255,7 @@ exports.getById = asyncHandler(async (req, res) => {
   });
   
   if (!loe) return res.status(404).json({ error: 'LOE not found' });
-  const enriched = enrichLoeWithCode(loe);
+  const enriched = await attachSignatureToLoe(enrichLoeWithCode(loe));
   loeByIdCache.set(loeId, { data: enriched, time: Date.now() });
   prewarmLoePdf({ loe: enriched, company: enriched.company });
   res.json(enriched);
@@ -303,7 +309,7 @@ async function resolveLoeItems(loeItems, defaultBillingType = 'One-Time') {
 // POST /api/loes
 exports.create = asyncHandler(async (req, res) => {
   clearLoeCache();
-  const { company_id, created_by, type, billing_frequency, currency, start_date, end_date, loe_items } = req.body;
+  const { company_id, created_by, type, billing_frequency, currency, start_date, end_date, loe_items, signature_image, signature_name } = req.body;
   const resolvedItems = await resolveLoeItems(loe_items, billing_frequency || type);
   const totalAmount = resolvedItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const selectedCurrency = currency || 'LKR';
@@ -334,7 +340,11 @@ exports.create = asyncHandler(async (req, res) => {
     }
   });
 
-  const enriched = enrichLoeWithCode(newLoe);
+  if (signature_image) {
+    await saveLoeSignature(newLoe.loe_id, signature_image, signature_name);
+  }
+
+  const enriched = await attachSignatureToLoe(enrichLoeWithCode(newLoe));
 
   const leaders = await getManagersAndAdmins();
   for (const leader of leaders) {
@@ -354,7 +364,7 @@ exports.create = asyncHandler(async (req, res) => {
 // PUT /api/loes/:id
 exports.update = asyncHandler(async (req, res) => {
   clearLoeCache();
-  const { company_id, type, billing_frequency, currency, start_date, end_date, loe_items } = req.body;
+  const { company_id, type, billing_frequency, currency, start_date, end_date, loe_items, signature_image, signature_name } = req.body;
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
 
@@ -395,8 +405,12 @@ exports.update = asyncHandler(async (req, res) => {
     }
   });
 
+  if (signature_image !== undefined) {
+    await saveLoeSignature(loeId, signature_image, signature_name);
+  }
+
   if (allApproved) await processApprovedLoe(loeId, updatedLoe.approved_by);
-  res.json(enrichLoeWithCode(updatedLoe));
+  res.json(await attachSignatureToLoe(enrichLoeWithCode(updatedLoe)));
 });
 
 const deleteLoe = asyncHandler(async (req, res) => {
@@ -404,6 +418,7 @@ const deleteLoe = asyncHandler(async (req, res) => {
   const loeId = parseInt(req.params.id);
   if (isNaN(loeId)) return res.status(400).json({ error: 'Invalid LOE ID format' });
   await prisma.loe.delete({ where: { loe_id: loeId } });
+  await deleteLoeSignature(loeId);
   res.json({ message: 'LOE deleted successfully' });
 });
 
@@ -577,8 +592,12 @@ exports.generatePdf = asyncHandler(async (req, res) => {
     });
 
     if (!loe) return res.status(404).json({ error: 'LOE record not found' });
-    enriched = enrichLoeWithCode(loe);
+    enriched = await attachSignatureToLoe(enrichLoeWithCode(loe));
     loeByIdCache.set(loeId, { data: enriched, time: Date.now() });
+  }
+
+  if (enriched && enriched.signature_image === undefined) {
+    enriched = await attachSignatureToLoe(enriched);
   }
 
   const pdfBuffer = await generateLoePdf({ loe: enriched, company: enriched.company });
