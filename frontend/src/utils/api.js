@@ -94,12 +94,6 @@ export async function performLogout({ reason = 'manual', callApi = true, broadca
       localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
     } catch (_) {}
 
-    if (reason === 'idle') {
-      try {
-        sessionStorage.setItem(LOGOUT_NOTICE_SESSION_KEY, IDLE_LOGOUT_NOTICE);
-      } catch (_) {}
-    }
-
     if (broadcast) {
       try {
         localStorage.setItem(
@@ -109,9 +103,8 @@ export async function performLogout({ reason = 'manual', callApi = true, broadca
       } catch (_) {}
     }
 
-    const targetUrl = reason === 'idle' ? '/login?reason=idle' : '/login';
     if (window.location.pathname !== '/login') {
-      window.location.replace(targetUrl);
+      window.location.replace('/login');
     } else {
       isLoggingOut = false;
     }
