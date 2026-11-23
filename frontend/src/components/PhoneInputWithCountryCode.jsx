@@ -337,7 +337,7 @@ export default function PhoneInputWithCountryCode({
             top: 'calc(100% + 5px)',
             left: 0,
             zIndex: 1050,
-            width: '300px',
+            width: 'min(300px, calc(100vw - 40px))',
             maxWidth: '92vw',
             backgroundColor: '#ffffff',
             border: '1px solid #cbd5e1',

@@ -326,7 +326,7 @@ export default function EmployeeManager() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.contentWrapper}>
+      <div style={styles.contentWrapper} className="responsive-container">
         {/* ============================================================
             MODE A: VIEW EMPLOYEE DETAILS & ASSIGNED TASKS (IN-DETAIL VIEW)
             Matching CompanyManager.jsx & LoeManager.jsx template exactly
@@ -1520,7 +1520,7 @@ const styles = {
   },
   detailsTwoCol: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
     gap: '20px',
     marginBottom: '20px'
   },
@@ -1567,7 +1567,7 @@ const styles = {
   },
   metricsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
     gap: '16px',
     marginBottom: '24px'
   },
@@ -1919,7 +1919,7 @@ const styles = {
   },
   detailGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
     gap: '10px',
     fontSize: '13px'
   },

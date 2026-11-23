@@ -497,7 +497,7 @@ export default function PettyCashManager() {
     <div style={styles.pageContainer}>
       <Navbar />
 
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
         {/* Top Header Row matching CompanyManager pattern */}
         <div style={styles.headerRow}>
           <div>
@@ -1447,7 +1447,7 @@ const styles = {
   },
   metricsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
     gap: '16px',
     marginBottom: '24px'
   },
@@ -1860,7 +1860,7 @@ const styles = {
   },
   detailsGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))',
     gap: '12px',
     background: '#ffffff',
     padding: '14px',

@@ -295,8 +295,8 @@ export default function DispatchTracker() {
     <div style={styles.pageContainer}>
       <Navbar />
 
-      <div style={styles.container}>
-        <div style={styles.topHeaderRow}>
+      <div style={styles.container} className="responsive-container">
+        <div style={styles.topHeaderRow} className="responsive-header-bar">
           <div>
             <h1 style={styles.pageTitle}>Client Dispatch Tracker</h1>
             <p style={styles.subTitle}>
@@ -676,7 +676,7 @@ const styles = {
   filterGroup: { display: 'flex', gap: '8px' },
   filterPill: { padding: '6px 14px', borderRadius: '20px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
   activeFilterPill: { background: '#0284c7', color: '#ffffff', borderColor: '#0284c7' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px', marginBottom: '28px' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '18px', marginBottom: '28px' },
   statCard: { background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)' },
   statLabel: { fontSize: '12.5px', fontWeight: 'bold', color: '#64748b' },
   statValue: { fontSize: '30px', fontWeight: '800', color: '#0f172a' },

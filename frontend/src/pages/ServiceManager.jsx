@@ -225,7 +225,7 @@ export default function ServiceManager() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.contentWrapper}>
+      <div style={styles.contentWrapper} className="responsive-container">
         
         {/* Top Header Row with Title, Filter, and Action Button */}
         <div style={styles.headerRow}>
@@ -732,7 +732,7 @@ const styles = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
     gap: '18px'
   },
   card: {

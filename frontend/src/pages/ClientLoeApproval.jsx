@@ -168,7 +168,7 @@ export default function ClientLoeApproval() {
     >
       {user && <Navbar />}
 
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
         {/* Navigation row if logged in */}
         {user && (
           <div style={styles.navRow}>

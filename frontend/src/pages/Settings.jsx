@@ -198,7 +198,7 @@ export default function Settings() {
     <div style={styles.pageContainer}>
       <Navbar />
 
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
         {/* Page Header */}
         <div style={styles.headerRow}>
           <div>
@@ -232,7 +232,7 @@ export default function Settings() {
         {error && <div style={styles.errorBanner}>{error}</div>}
         {successMsg && <div style={styles.successBanner}>{successMsg}</div>}
 
-        <div style={styles.grid}>
+        <div style={styles.grid} className="responsive-settings-grid">
           {/* Left Card: Edit Profile & Password */}
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Change Profile Details</h3>
@@ -456,7 +456,7 @@ const styles = {
   cardTitle: { margin: '0 0 4px', fontSize: '17px', color: '#0f172a' },
   cardSubtitle: { margin: '0 0 18px', fontSize: '13px', color: '#64748b' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  twoColRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  twoColRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: '14px' },
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
   label: { fontSize: '12px', fontWeight: 'bold', color: '#475569' },
   input: {

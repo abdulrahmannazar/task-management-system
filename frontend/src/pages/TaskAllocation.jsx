@@ -1244,7 +1244,7 @@ export default function TaskAllocation() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
         
         {/* Header Row */}
         <div style={styles.headerRow}>
@@ -2594,7 +2594,7 @@ const styles = {
   },
   kpiGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))',
     gap: '14px',
     marginBottom: '22px'
   },
@@ -2751,7 +2751,7 @@ const styles = {
   displayModeGroup: { display: 'flex', background: '#ffffff', padding: '3px', borderRadius: '6px', border: '1px solid #bae6fd', gap: '3px' },
   modeBtn: { padding: '5px 12px', background: 'transparent', color: '#475569', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
   modeBtnActive: { padding: '5px 12px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
-  statusColumnsContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '18px' },
+  statusColumnsContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 310px), 1fr))', gap: '18px' },
   statusColumn: { background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' },
   statusColumnHeader: { padding: '14px 16px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', borderTop: '4px solid #cbd5e1', borderTopLeftRadius: '8px', borderTopRightRadius: '8px' },
   columnCountBadge: { background: '#f1f5f9', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', color: '#475569', fontWeight: 'bold' },
@@ -2787,7 +2787,7 @@ const styles = {
   editAllocationBtn: { padding: '8px 16px', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' },
   detailsSection: { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: '#ffffff' },
   detailsSectionHeader: { fontSize: '13px', fontWeight: 'bold', color: '#0f172a', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' },
-  detailsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px', fontSize: '13px', color: '#334155' },
+  detailsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '10px', fontSize: '13px', color: '#334155' },
   detailsScopeBox: { background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#334155', lineHeight: '1.5' },
   assigneeBadgeCard: { display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '8px 12px', borderRadius: '6px' },
   avatarCircle: { width: '30px', height: '30px', borderRadius: '50%', background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px' },
@@ -2933,7 +2933,7 @@ const styles = {
   },
   staffMetricsRow: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))',
     gap: '10px',
     marginTop: '14px'
   },

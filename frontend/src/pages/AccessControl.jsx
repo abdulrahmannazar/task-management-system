@@ -261,7 +261,7 @@ export default function AccessControl() {
     <div style={styles.pageContainer}>
       <Navbar />
 
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
         {/* Navigation Breadcrumb / Header */}
         <div style={styles.navRow}>
           <button

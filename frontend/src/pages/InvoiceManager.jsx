@@ -596,7 +596,7 @@ export default function InvoiceManager() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
 
         {/* Global Feedback Banners */}
         {error && (
@@ -935,16 +935,16 @@ export default function InvoiceManager() {
               </div>
             ) : (
               /* TAB CONTENT: B) Official Document Preview with Standard Company Logo Banner */
-              <div style={styles.documentPreviewCard}>
+              <div style={styles.documentPreviewCard} className="responsive-card-pad">
                 <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                   <img
                     src="/frontier_logo_banner.png"
                     alt="Frontier Advisory Banner"
-                    style={{ maxWidth: '380px', height: 'auto', display: 'inline-block' }}
+                    style={{ maxWidth: 'min(380px, 100%)', height: 'auto', display: 'inline-block' }}
                   />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1.5px solid #000', paddingBottom: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', borderBottom: '1.5px solid #000', paddingBottom: '8px', marginBottom: '16px' }}>
                   <div>
                     <h2 style={{ margin: 0, fontSize: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       {viewingInvoice.invoice_type === 'Proforma' ? 'PROFORMA INVOICE (ADVANCE PAYMENT)' : 'INVOICE'}
@@ -963,8 +963,8 @@ export default function InvoiceManager() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                  <div style={{ flex: 1, border: '1px solid #000', padding: '10px 12px', background: '#fafafa', fontSize: '13px', lineHeight: '1.4' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
+                  <div style={{ flex: '1 1 240px', border: '1px solid #000', padding: '10px 12px', background: '#fafafa', fontSize: '13px', lineHeight: '1.4' }}>
                     <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '6px' }}>Billed To:</div>
                     <div><strong>{viewingInvoice.job?.loe?.company?.name || 'N/A'}</strong></div>
                     <div>{viewingInvoice.job?.loe?.company?.client_type === 'Individual' ? 'NIC' : 'Reg No'}: {viewingInvoice.job?.loe?.company?.reg_number || 'N/A'}</div>
@@ -973,7 +973,7 @@ export default function InvoiceManager() {
                     <div>Phone: {viewingInvoice.job?.loe?.company?.phone_number || 'N/A'}</div>
                   </div>
 
-                  <div style={{ flex: 1, border: '1px solid #000', padding: '10px 12px', background: '#fafafa', fontSize: '13px', lineHeight: '1.4' }}>
+                  <div style={{ flex: '1 1 240px', border: '1px solid #000', padding: '10px 12px', background: '#fafafa', fontSize: '13px', lineHeight: '1.4' }}>
                     <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '6px' }}>Invoice Details:</div>
                     <div><strong>Issue Date:</strong> {viewingInvoice.issued_date ? new Date(viewingInvoice.issued_date).toLocaleDateString() : 'N/A'}</div>
                     <div><strong>Due Date:</strong> {viewingInvoice.due_date ? new Date(viewingInvoice.due_date).toLocaleDateString() : 'N/A'}</div>
@@ -987,6 +987,7 @@ export default function InvoiceManager() {
                   </div>
                 )}
 
+                <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #000', marginBottom: '14px' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #000' }}>
@@ -1027,6 +1028,7 @@ export default function InvoiceManager() {
                     )}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Total and Balance Due */}
                 <div style={{ border: '1.5px solid #000', background: '#fafafa', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -2234,7 +2236,7 @@ const styles = {
   },
 
   emptyCard: { background: '#fff', padding: '40px', textAlign: 'center', borderRadius: '8px', color: '#64748b', border: '1px solid #e2e8f0' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '20px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 310px), 1fr))', gap: '20px' },
   invoiceCard: { background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'box-shadow 0.2s ease' },
   badge: {
     padding: '5px 12px',
@@ -2271,13 +2273,13 @@ const styles = {
   smallActionBtn: { background: '#0284c7', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '5px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' },
 
   heroCard: { background: '#ffffff', borderRadius: '10px', padding: '24px', border: '1px solid #e2e8f0', marginBottom: '20px', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)' },
-  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '20px' },
+  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px', marginTop: '20px' },
   kpiCard: { background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' },
   kpiLabel: { display: 'block', fontSize: '11.5px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' },
   kpiVal: { fontSize: '18px', fontWeight: '800', color: '#0f172a' },
 
-  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' },
-  card: { background: '#ffffff', borderRadius: '8px', padding: '20px', border: '1px solid #e2e8f0' },
+  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' },
+  card: { background: '#ffffff', borderRadius: '8px', padding: '20px', border: '1px solid #e2e8f0', overflowX: 'auto' },
   cardHeading: { margin: '0 0 14px', fontSize: '15px', color: '#0f172a' },
   rowItem: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' },
   rowLabel: { color: '#64748b', fontWeight: '500' },
@@ -2286,7 +2288,7 @@ const styles = {
   documentPreviewCard: { background: '#ffffff', border: '1px solid #cbd5e1', padding: '36px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', maxWidth: '850px', margin: '0 auto', fontFamily: "'Times New Roman', Times, serif" },
 
   subTabBtn: { background: 'none', border: 'none', padding: '8px 16px', fontSize: '14px', cursor: 'pointer' },
-  agingGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '16px' },
+  agingGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: '14px', marginBottom: '16px' },
   agingCard: { background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)' },
   agingLabel: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#475569', marginBottom: '4px' },
   agingAmount: { fontSize: '18px', fontWeight: '800', color: '#059669', marginBottom: '4px' },
@@ -2297,7 +2299,7 @@ const styles = {
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' },
   closeModalBtn: { background: 'none', border: 'none', fontSize: '18px', color: '#64748b', cursor: 'pointer' },
   formGroup: { marginBottom: '14px' },
-  formRow2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
+  formRow2: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: '12px' },
   formLabel: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#334155', marginBottom: '4px' },
   formInput: { width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' },
   formSelect: { width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#ffffff', boxSizing: 'border-box' },
