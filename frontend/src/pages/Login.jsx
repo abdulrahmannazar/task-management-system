@@ -4,38 +4,23 @@ import FrontierLogo from '../components/FrontierLogo';
 import {
   apiFetch,
   getApiUrl,
-  LAST_ACTIVITY_STORAGE_KEY,
-  LOGOUT_NOTICE_SESSION_KEY,
-  IDLE_LOGOUT_NOTICE
+  LAST_ACTIVITY_STORAGE_KEY
 } from '../utils/api';
 import BlobLoader from '../components/BlobLoader';
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
-  const [logoutNotice, setLogoutNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   React.useEffect(() => {
-    // Display inactivity logout notice if redirected due to 30-minute idle timeout
-    try {
-      const storedNotice = sessionStorage.getItem(LOGOUT_NOTICE_SESSION_KEY);
-      const params = new URLSearchParams(location.search);
-      if (storedNotice) {
-        setLogoutNotice(storedNotice);
-        sessionStorage.removeItem(LOGOUT_NOTICE_SESSION_KEY);
-      } else if (params.get('reason') === 'idle') {
-        setLogoutNotice(IDLE_LOGOUT_NOTICE);
-      }
-    } catch (_) {}
-
     // Immediate pre-warm ping so the server is wide awake by the time the user clicks submit
     try {
       fetch(getApiUrl('/api/health'), { keepalive: true }).catch(() => {});
     } catch (_) {}
-  }, [location.search]);
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -94,7 +79,6 @@ export default function Login() {
 
         <h3 style={styles.formTitle}>Sign In to Account</h3>
         
-        {logoutNotice && <div style={styles.notice}>{logoutNotice}</div>}
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={styles.form}>
@@ -203,17 +187,6 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     transition: 'background 0.2s'
-  },
-  notice: {
-    padding: '11px 14px',
-    background: '#fffbeb',
-    color: '#b45309',
-    border: '1px solid #fde68a',
-    borderRadius: '6px',
-    fontSize: '13px',
-    fontWeight: '500',
-    marginBottom: '16px',
-    lineHeight: '1.45'
   },
   error: {
     padding: '10px',
