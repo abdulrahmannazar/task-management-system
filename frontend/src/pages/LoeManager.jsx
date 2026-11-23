@@ -954,7 +954,7 @@ export default function LoeManager() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.contentWrapper}>
+      <div style={styles.contentWrapper} className="responsive-container">
         
         {/* Top Header Row with Page Title, Stats, and Create Button */}
         <div style={styles.headerRow}>
@@ -1530,7 +1530,7 @@ export default function LoeManager() {
                         </div>
                       )}
 
-                      <div style={styles.topSelectRow}>
+                      <div style={styles.topSelectRow} className="responsive-service-row">
                         <select 
                           value={srvBlock.department_id || ''} 
                           onChange={(e) => handleDepartmentChange(srvIdx, e.target.value)}
@@ -2224,7 +2224,7 @@ const styles = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 290px), 1fr))',
     gap: '20px'
   },
   card: {
@@ -2943,7 +2943,7 @@ const styles = {
   },
   draftSignaturesGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
     gap: '40px',
     marginTop: '36px',
     paddingTop: '20px',

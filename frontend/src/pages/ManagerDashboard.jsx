@@ -251,8 +251,8 @@ export default function ManagerDashboard() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.container}>
-        <div style={styles.headerRow}>
+      <div style={styles.container} className="responsive-container">
+        <div style={styles.headerRow} className="responsive-header-bar">
           <div>
             <h1 style={styles.pageTitle}>LOE Approvals Queue</h1>
             <p style={styles.subTitle}>
@@ -567,7 +567,7 @@ const styles = {
     transition: 'margin-left 300ms ease-in-out'
   },
   container: { maxWidth: '1200px', margin: '0 auto', padding: '35px 40px' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingRight: '90px' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px', paddingRight: '90px' },
   pageTitle: { margin: 0, fontSize: '26px', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.3px' },
   subTitle: { margin: '4px 0 0', fontSize: '14px', color: '#475569' },
   countBadge: { background: '#0284c7', color: '#fff', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold' },

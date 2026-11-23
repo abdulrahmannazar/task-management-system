@@ -561,6 +561,26 @@ export default function OfficialLoeDocument({
           box-sizing: border-box;
         }
 
+        @media screen and (max-width: 767px) {
+          .loe-doc-sheet {
+            padding: 20px 16px !important;
+          }
+          .loe-doc-sheet .date-ref-row {
+            flex-wrap: wrap;
+            gap: 6px;
+          }
+          .loe-doc-sheet .doc-footer {
+            flex-direction: column;
+            gap: 4px;
+            text-align: center;
+          }
+          .loe-doc-sheet .fees-table {
+            display: block;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+        }
+
         .loe-doc-watermark {
           position: absolute;
           top: 45%;

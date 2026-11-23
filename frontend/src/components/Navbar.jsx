@@ -17,13 +17,48 @@ export default function Navbar() {
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'denied'
   );
 
-  // Persistent sidebar collapse state
+  // Persistent sidebar collapse state (desktop)
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('frontier_sidebar_collapsed') === 'true';
     }
     return false;
   });
+
+  // Responsive viewport detection (Tablet & Mobile <= 1024px use slide-over drawer)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
+  );
+  const [isSmallPhone, setIsSmallPhone] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= 480 : false
+  );
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 1024;
+      setIsMobile(mobile);
+      setIsSmallPhone(window.innerWidth <= 480);
+      if (!mobile) setMobileMenuOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Auto-close mobile drawer on route navigation or Escape key
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileMenuOpen]);
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -50,6 +85,11 @@ export default function Navbar() {
 
   // Sync sidebar width CSS variable to root element
   useEffect(() => {
+    if (isMobile) {
+      document.documentElement.style.setProperty('--sidebar-width', '0px');
+      document.body.classList.remove('sidebar-collapsed');
+      return;
+    }
     const width = isCollapsed ? '72px' : '260px';
     document.documentElement.style.setProperty('--sidebar-width', width);
     if (isCollapsed) {
@@ -58,11 +98,17 @@ export default function Navbar() {
       document.body.classList.remove('sidebar-collapsed');
     }
     localStorage.setItem('frontier_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-  }, [isCollapsed]);
+  }, [isCollapsed, isMobile]);
 
   const toggleSidebar = () => {
-    setIsCollapsed((prev) => !prev);
+    if (isMobile) {
+      setMobileMenuOpen((prev) => !prev);
+    } else {
+      setIsCollapsed((prev) => !prev);
+    }
   };
+
+  const effectiveCollapsed = isMobile ? false : isCollapsed;
 
   const playChime = () => {
     try {
@@ -416,23 +462,46 @@ export default function Navbar() {
         }
       `}</style>
 
-      {/* FIXED SIDEBAR NAVIGATION (NO VERTICAL SCROLLBAR) */}
+      {/* Mobile Slide-Over Backdrop */}
+      {isMobile && mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          style={styles.mobileBackdrop}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* FIXED SIDEBAR NAVIGATION (Responsive Drawer on Mobile/Tablet <= 1024px) */}
       <aside
         style={{
           ...styles.sidebar,
-          width: isCollapsed ? '72px' : '260px'
+          width: isMobile ? '260px' : effectiveCollapsed ? '72px' : '260px',
+          maxWidth: isMobile ? '85vw' : undefined,
+          transform: isMobile ? (mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
+          boxShadow: isMobile && mobileMenuOpen ? '4px 0 24px rgba(15, 23, 42, 0.18)' : styles.sidebar.boxShadow
         }}
         aria-label="Sidebar Navigation"
       >
         {/* Header: Official Frontier Advisory Logo */}
         <div style={styles.header}>
-          {isCollapsed ? (
+          {effectiveCollapsed ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <FrontierLogo size={36} iconOnly={true} />
             </div>
           ) : (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0' }}>
+            <div style={{ display: 'flex', justifyContent: isMobile ? 'space-between' : 'center', alignItems: 'center', padding: isMobile ? '0 6px' : '0' }}>
               <FrontierLogo size={160} />
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={styles.toggleCollapseBtn}
+                  aria-label="Close navigation menu"
+                  title="Close menu"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -451,17 +520,18 @@ export default function Navbar() {
                 <li key={item.path} style={styles.navLi}>
                   <Link
                     to={item.path}
+                    onClick={() => isMobile && setMobileMenuOpen(false)}
                     className="nav-item-link"
-                    title={isCollapsed ? item.label : undefined}
+                    title={effectiveCollapsed ? item.label : undefined}
                     style={{
                       ...styles.navLink,
                       ...(active ? styles.navLinkActive : {}),
-                      justifyContent: isCollapsed ? 'center' : 'flex-start',
-                      padding: isCollapsed ? '8.5px 0' : '8.5px 18px'
+                      justifyContent: effectiveCollapsed ? 'center' : 'flex-start',
+                      padding: effectiveCollapsed ? '8.5px 0' : '8.5px 18px'
                     }}
                   >
                     <span style={styles.iconSpan}>{item.icon(active)}</span>
-                    {!isCollapsed && (
+                    {!effectiveCollapsed && (
                       <span style={{ ...styles.labelSpan, ...(active ? styles.labelSpanActive : {}) }}>
                         {item.label}
                       </span>
@@ -478,13 +548,16 @@ export default function Navbar() {
           {/* Support */}
           <button
             type="button"
-            onClick={() => setShowSupportModal(true)}
+            onClick={() => {
+              if (isMobile) setMobileMenuOpen(false);
+              setShowSupportModal(true);
+            }}
             className="nav-item-link"
-            title={isCollapsed ? 'Support' : undefined}
+            title={effectiveCollapsed ? 'Support' : undefined}
             style={{
               ...styles.pinnedBtn,
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
-              padding: isCollapsed ? '9px 0' : '9px 18px'
+              justifyContent: effectiveCollapsed ? 'center' : 'flex-start',
+              padding: effectiveCollapsed ? '9px 0' : '9px 18px'
             }}
           >
             <span style={styles.iconSpan}>
@@ -494,29 +567,29 @@ export default function Navbar() {
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
             </span>
-            {!isCollapsed && <span style={styles.labelSpan}>Support</span>}
+            {!effectiveCollapsed && <span style={styles.labelSpan}>Support</span>}
           </button>
 
           {/* Footer Bar: "Frontier Advisory" & Collapse Toggle [<] */}
           <div
             style={{
               ...styles.footerBar,
-              justifyContent: isCollapsed ? 'center' : 'space-between',
-              padding: isCollapsed ? '10px 0' : '10px 18px'
+              justifyContent: effectiveCollapsed ? 'center' : 'space-between',
+              padding: effectiveCollapsed ? '10px 0' : '10px 18px'
             }}
           >
-            {!isCollapsed && (
+            {!effectiveCollapsed && (
               <span style={styles.footerBrandText}>Frontier Advisory</span>
             )}
             <button
               type="button"
               onClick={toggleSidebar}
               className="sidebar-toggle-btn"
-              title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+              title={isMobile ? 'Close Sidebar' : effectiveCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
               style={styles.toggleCollapseBtn}
-              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={isMobile ? 'Close sidebar' : effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              {isCollapsed ? (
+              {effectiveCollapsed ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
@@ -531,12 +604,47 @@ export default function Navbar() {
       </aside>
 
       {/* STICKY TOP HEADER BAR: Pins to top of content area, never scrolls away, reserves 56px height to prevent any content overlap */}
-      <header style={styles.topHeaderBar} aria-label="Top Navigation Bar">
-        {/* Left Side: Breadcrumb / Current Section */}
-        <div style={styles.topHeaderLeft}>
-          <span style={styles.topHeaderBrand}>Frontier Advisory</span>
-          <span style={styles.topHeaderDivider}>/</span>
-          <span style={styles.topHeaderTitle}>{getPageTitle(location.pathname)}</span>
+      <header
+        style={{
+          ...styles.topHeaderBar,
+          padding: isMobile ? '0 14px' : '0 40px'
+        }}
+        aria-label="Top Navigation Bar"
+      >
+        {/* Left Side: Mobile Menu Button + Breadcrumb / Current Section */}
+        <div style={{ ...styles.topHeaderLeft, minWidth: 0 }}>
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              className="top-utility-btn"
+              style={styles.mobileHamburgerBtn}
+              aria-label="Open navigation menu"
+              title="Menu"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+          )}
+          {!isSmallPhone && (
+            <>
+              <span style={{ ...styles.topHeaderBrand, whiteSpace: 'nowrap' }}>Frontier Advisory</span>
+              <span style={styles.topHeaderDivider}>/</span>
+            </>
+          )}
+          <span
+            style={{
+              ...styles.topHeaderTitle,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {getPageTitle(location.pathname)}
+          </span>
         </div>
 
         {/* Right Side: Notification Bell & Settings Gear */}
@@ -734,6 +842,27 @@ export default function Navbar() {
 }
 
 const styles = {
+  mobileBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backdropFilter: 'blur(2px)',
+    zIndex: 9998
+  },
+  mobileHamburgerBtn: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
+    backgroundColor: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    color: '#0f172a',
+    flexShrink: 0,
+    marginRight: '4px'
+  },
   sidebar: {
     position: 'fixed',
     top: 0,
@@ -756,7 +885,7 @@ const styles = {
   },
   navScrollArea: {
     flex: 1,
-    overflowY: 'hidden', // Completely eliminates vertical scrollbar
+    overflowY: 'auto',
     overflowX: 'hidden',
     padding: '8px 0',
     display: 'flex',
@@ -943,7 +1072,7 @@ const styles = {
     position: 'absolute',
     top: '46px',
     right: '0',
-    width: '340px',
+    width: 'min(340px, calc(100vw - 24px))',
     backgroundColor: '#ffffff',
     borderRadius: '10px',
     border: '1px solid #e2e8f0',
@@ -1070,14 +1199,14 @@ const styles = {
   /* Floating Toast Popups */
   toastContainer: {
     position: 'fixed',
-    bottom: '24px',
-    right: '24px',
+    bottom: '16px',
+    right: '16px',
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
     zIndex: 9999999,
     pointerEvents: 'none',
-    maxWidth: '380px',
+    maxWidth: 'min(380px, calc(100vw - 32px))',
     width: '100%'
   },
   toastCard: {

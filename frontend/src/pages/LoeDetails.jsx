@@ -378,10 +378,10 @@ export default function LoeDetails() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
         
         {/* Navigation / Header Bar */}
-        <div style={styles.headerBar} className="no-print">
+        <div style={styles.headerBar} className="no-print responsive-header-bar">
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => navigate(-1)} style={styles.backBtn}>
               ← Back
@@ -1067,7 +1067,7 @@ const styles = {
   },
   acceptanceDetailsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
     gap: '14px',
     background: '#f8fafc',
     padding: '16px',
@@ -1284,7 +1284,7 @@ const styles = {
   },
   gridTwoCol: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
     gap: '20px'
   },
   sectionHeader: {

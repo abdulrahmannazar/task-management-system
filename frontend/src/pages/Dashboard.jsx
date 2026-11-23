@@ -159,9 +159,9 @@ export default function Dashboard() {
     <div style={styles.pageContainer}>
       <Navbar />
 
-      <div style={styles.container}>
+      <div style={styles.container} className="responsive-container">
         {/* Top Row: Title on Left, [Tasks] [LOE] Switcher Buttons on Right */}
-        <div style={styles.topHeaderRow}>
+        <div style={styles.topHeaderRow} className="responsive-header-bar">
           <div>
             <h1 style={styles.pageTitle}>Dashboard Overview</h1>
             <p style={styles.subTitle}>
@@ -524,7 +524,7 @@ const styles = {
   },
   statsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
     gap: '18px',
     marginBottom: '28px'
   },

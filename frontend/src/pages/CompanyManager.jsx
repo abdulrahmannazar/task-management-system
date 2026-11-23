@@ -431,7 +431,7 @@ export default function CompanyManager() {
   return (
     <div style={styles.pageContainer}>
       <Navbar />
-      <div style={styles.contentWrapper}>
+      <div style={styles.contentWrapper} className="responsive-container">
         {/* Global Feedback Banners */}
         {error && !isModalOpen && !deleteModalCompany && (
           <div style={styles.inlineErrorBox}>{error}</div>
@@ -1093,7 +1093,7 @@ export default function CompanyManager() {
                 </select>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '12px' }}>
                 <div style={styles.fieldGroup}>
                   <label style={styles.label}>
                     {formData.client_type === 'Individual' ? 'NIC Number (National Identity Card)' : 'Registration Number'}
@@ -1130,7 +1130,7 @@ export default function CompanyManager() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '12px' }}>
                 <div style={styles.fieldGroup}>
                   <label style={styles.label}>
                     {formData.client_type === 'Individual' ? 'Email Address' : 'Company Email Address'}
@@ -1183,7 +1183,7 @@ export default function CompanyManager() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '12px' }}>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Email Address</label>
                     <input
@@ -1568,7 +1568,7 @@ const styles = {
   },
   detailsTwoCol: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
     gap: '20px',
     marginBottom: '20px'
   },
@@ -1606,7 +1606,7 @@ const styles = {
   },
   metricsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))',
     gap: '16px',
     marginBottom: '24px'
   },

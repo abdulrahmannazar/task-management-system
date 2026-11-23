@@ -67,3 +67,56 @@ button:focus-visible {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* =========================================================================
+   Global Responsive Layout Safeguards (Desktop >= 1025px 100% Untouched)
+   ========================================================================= */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 1024px) {
+  :root,
+  body.sidebar-collapsed {
+    --sidebar-width: 0px !important;
+  }
+
+  .responsive-container {
+    padding: 22px 20px !important;
+  }
+
+  .responsive-header-bar {
+    padding-right: 0 !important;
+  }
+
+  .responsive-settings-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .responsive-container {
+    padding: 16px 12px !important;
+  }
+
+  .responsive-service-row {
+    flex-wrap: wrap !important;
+  }
+
+  .responsive-service-row > select,
+  .responsive-service-row > div {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  .responsive-modal-content {
+    padding: 18px 14px !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  .responsive-card-pad {
+    padding: 16px 14px !important;
+  }
+}
